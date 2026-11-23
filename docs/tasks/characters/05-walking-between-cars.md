@@ -1,7 +1,8 @@
 # 05 - Walking between cars
 
 Status: built on `feature/characters` (worktree `../TSRE5vc-characters`),
-2026-11-23, not merged (the user's go: "Ok, proceed"). The brief and the
+2026-11-23 (the user's go: "Ok, proceed"), merged into main the same day
+(the user: "Ok, lets merge"; GitHub's main merged in first). The brief and the
 user's answers the same day. It takes task [03](03-trains.md)'s Left item
 "Gangways between cars"; the walking character is task
 [02](02-walking.md)'s.
