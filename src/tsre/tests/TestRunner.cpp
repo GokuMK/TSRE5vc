@@ -20,6 +20,7 @@
 #include <tsre/tests/SimulationTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/TrackCantTestSuite.h>
+#include <tsre/tests/TrackShapeAnalysisTestSuite.h>
 #include <tsre/tests/ServerTestSuite.h>
 #include <tsre/tests/RouteSwitchTestSuite.h>
 #include <tsre/tests/ExploreWindowTestSuite.h>
@@ -3500,6 +3501,109 @@ static int runOrtsProfileSuite(bool verbose) {
     check(familyDiagnosticsOk, "duplicate-object-type-first-wins");
     check(routeOverrideOk, "route-profile-overrides-global-template");
 
+    // Tracks task 17: a family's COMPLEX member, its ComplexTrack values,
+    // the part generation modes (read only there) and StretchZone.
+    {
+        auto vertex = [](const char *x) {
+            return QString("   Vertex ( Position ( %1 0.2 0 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) )\n").arg(x);
+        };
+        const QString polyline = "  Polyline ( Name ( \"bed\" ) DeltaTexCoord ( 0 0.2 )\n"
+                + vertex("-2") + vertex("2") + "  )\n";
+        const QString family =
+                "SIMISA@@@@@@@@@@JINX0p0t______\n"
+                "TrProfile ( Name ( \"Main\" ) ObjectType ( TRACK MAIN )\n"
+                " ComplexTrack ( TieSpacing ( 0.7 ) )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"rails\" ) TexName ( \"r.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline +
+                "  Template3D ( GenerationMode ( Rail ) Shape ( \"rail.obj\" ) )\n"
+                " ) ) )\n"
+                "TrProfile ( Name ( \"Complex\" ) ObjectType ( TRACK COMPLEX )\n"
+                " ComplexTrack ( TieSpacing ( 0.65 ) TiePhase ( 0.325 ) TieGap ( 0.12 ) MaxBearerLength ( 5 )"
+                "  MaxSharedAngle ( 55 ) ConductorClearance ( 25cm ) )\n"
+                " LOD ( CutoffRadius ( 150 ) LODItem ( Name ( \"parts\" ) TexName ( \"p.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline +
+                "  Template3D ( GenerationMode ( Rail ) Shape ( \"rail.obj\" ) Offset ( 0 0.153 0 ) )\n"
+                "  Template3D ( GenerationMode ( Tie ) Shape ( \"tie.obj\" ) StretchZone ( -0.3 0.3 ) )\n"
+                "  Template3D ( GenerationMode ( bearer ) Shape ( \"bearer.obj\" ) )\n"
+                "  Template3D ( GenerationMode ( Fastener ) Shape ( \"clip.obj\" ) )\n"
+                "  Template3D ( GenerationMode ( ConductorRail ) Shape ( \"third.obj\" ) Offset ( 1.2 0.2 0 ) )\n"
+                "  Template3D ( GenerationMode ( RackRail ) Shape ( \"rack.obj\" ) StretchZone ( 0 1 ) )\n"
+                "  Template3D ( GenerationMode ( Bearer ) Shape ( \"bearer.obj\" ) StretchZone ( 1 0 ) )\n"
+                " ) ) )\n";
+        QStringList diagnostics;
+        const QVector<QSharedPointer<OrtsTrackProfile>> members =
+                OrtsTrackProfileParser::parseStfProfiles(family, "Fam", &diagnostics);
+        const OrtsTrackProfile *mainMember = members.size() == 2 ? members[0].data() : nullptr;
+        const OrtsTrackProfile *complexMember = members.size() == 2 ? members[1].data() : nullptr;
+        check(complexMember != nullptr && complexMember->valid
+                && complexMember->objectRole == OrtsTrackProfile::ObjectRole::Complex
+                && complexMember->id == "Fam_complex", "complex-member-role-and-id");
+        if(complexMember != nullptr){
+            const OrtsProfileComplexTrack &values = complexMember->complexTrack;
+            check(std::abs(values.tieSpacing - 0.65f) < 1e-5f && std::abs(values.tiePhase - 0.325f) < 1e-5f
+                    && std::abs(values.tieGap - 0.12f) < 1e-5f && std::abs(values.maxBearerLength - 5) < 1e-5f
+                    && std::abs(values.maxSharedAngle - 55) < 1e-4f
+                    && std::abs(values.conductorClearance - 0.25f) < 1e-5f,
+                    "complex-track-values");
+            const QVector<OrtsProfileTemplate3D> &parts = complexMember->lods[0].items[0].templates3D;
+            using Mode = OrtsProfileTemplate3D::GenerationMode;
+            check(parts.size() == 7 && parts[0].generationMode == Mode::Rail
+                    && parts[1].generationMode == Mode::Tie && parts[2].generationMode == Mode::Bearer
+                    && parts[3].generationMode == Mode::Fastener
+                    && parts[4].generationMode == Mode::ConductorRail
+                    && parts[5].generationMode == Mode::RackRail
+                    && parts[0].complexPart() && std::abs(parts[4].offset[0] - 1.2f) < 1e-5f,
+                    "complex-part-generation-modes");
+            check(parts.size() == 7 && parts[1].stretchZone[0] == -0.3f && parts[1].stretchZone[1] == 0.3f
+                    && parts[5].stretchZone[0] == 0 && parts[5].stretchZone[1] == 0
+                    && parts[6].stretchZone[0] == 0 && parts[6].stretchZone[1] == 0,
+                    "stretch-zone-on-ties-only");
+        }
+        check(mainMember != nullptr && mainMember->valid
+                && mainMember->lods[0].items[0].templates3D.isEmpty()
+                && std::abs(mainMember->complexTrack.tieSpacing - 0.6f) < 1e-5f,
+                "complex-parts-and-values-ignored-outside-complex");
+        const QString words = diagnostics.join(" | ");
+        check(diagnostics.size() == 4
+                && words.contains("ComplexTrack is read only in a COMPLEX member")
+                && words.contains("GenerationMode Rail is read only in a COMPLEX member")
+                && words.contains("StretchZone is read only on Tie and Bearer")
+                && words.contains("StretchZone needs ( x0 x1 )"),
+                "complex-member-diagnostics");
+        if(diagnostics.size() != 4)
+            qWarning() << "[tests:orts-profile] complex member diagnostics:" << diagnostics;
+
+        QStringList rangeWords;
+        const QSharedPointer<OrtsTrackProfile> outOfRange = OrtsTrackProfileParser::parseStf(
+                "SIMISA@@@@@@@@@@JINX0p0t______\n"
+                "TrProfile ( ObjectType ( ROAD COMPLEX ) ComplexTrack ( TieSpacing ( 0 ) MaxSharedAngle ( 95 ) Foo ( 1 ) )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"bed\" ) TexName ( \"b.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline + " ) ) )\n", "Road", &rangeWords);
+        check(outOfRange != nullptr && outOfRange->valid
+                && outOfRange->objectType == OrtsTrackProfile::ObjectType::Road
+                && outOfRange->objectRole == OrtsTrackProfile::ObjectRole::Complex
+                && std::abs(outOfRange->complexTrack.tieSpacing - 0.6f) < 1e-5f
+                && std::abs(outOfRange->complexTrack.maxSharedAngle - 60) < 1e-5f
+                && rangeWords.size() == 3, "complex-track-out-of-range-defaults");
+
+        // The per-path renderer never sweeps the parts; the bed alone.
+        if(complexMember != nullptr){
+            OrtsTrackProfile bedOnly = *complexMember;
+            bedOnly.lods[0].items[0].templates3D.clear();
+            QVector<TSection> straight;
+            straight.append(TSection(0, 0, 10.0f, 0));
+            QVector<OrtsGeneratedProfileMesh> withParts, without;
+            OrtsTrackProfileRenderer::buildMeshes(*complexMember, straight, withParts);
+            OrtsTrackProfileRenderer::buildMeshes(bedOnly, straight, without);
+            int partVertices = 0, bedVertices = 0;
+            for(const OrtsGeneratedProfileMesh &mesh : withParts)
+                partVertices += mesh.vertices.size();
+            for(const OrtsGeneratedProfileMesh &mesh : without)
+                bedVertices += mesh.vertices.size();
+            check(bedVertices > 0 && partVertices == bedVertices, "complex-parts-not-swept-per-path");
+        }
+    }
+
     qInfo() << "[tests:orts-profile] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
     return failed == 0 ? 0 : 1;
@@ -4507,6 +4611,8 @@ QStringList TsreTests::listSuites() {
         "tdb-ordering",
         "tdb-editing",
         "track-cant",
+        "track-shape-analysis",
+        "track-profile-filters",
         "track-cant-benchmark",
         "server",
         "route-switch",
@@ -4839,6 +4945,10 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "track-cant")
         return runTrackCantSuite(opts.verbose);
+    if (suite == "track-shape-analysis")
+        return runTrackShapeAnalysisSuite(opts.verbose);
+    if (suite == "track-profile-filters")
+        return runTrackProfileFiltersSuite(opts.verbose);
     if (suite == "server")
         return runServerSuite(opts.verbose);
     if (suite == "route-switch")

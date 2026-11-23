@@ -955,6 +955,10 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
         // ownership of the complete requested path endpoints in that case.
         bool includesPathStart = true,
         bool includesPathEnd = true) {
+    // Tracks task 17: a COMPLEX member's parts are the complex track
+    // planner's, never swept along one path.
+    if(source.complexPart())
+        return copyIndexBase;
     if(source.geometryMode
             == OrtsProfileTemplate3D::GeometryMode::Shared
             && sharedMeshes != nullptr){

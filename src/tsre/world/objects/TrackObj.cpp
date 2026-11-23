@@ -26,6 +26,7 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
+#include <tsre/procedural/TrackProfileFilters.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
@@ -173,6 +174,36 @@ void TrackObj::clearProceduralShape(){
     proceduralShapeUsesBakedPath = false;
 }
 
+namespace {
+
+// Tracks task 17: the route's filter for an object without its own
+// template; none when a filter names a family the route has no profile of
+// (warned about once a filter), so the object is drawn as without it.
+const TrackProfileFilters::Filter *routeFilter(const QString &fileName,
+        const QString &requested, const TrackShape *shape,
+        OrtsTrackProfile::ObjectType type){
+    if(!requested.isEmpty() || shape == NULL
+            || Game::proceduralTracks == ProceduralTracksMode::Disabled)
+        return NULL;
+    const TrackProfileFilters::Filter *filter = TrackProfileFilters::match(fileName, [&]() {
+        return TrackProfileFilters::kindsOf(*shape, Game::trackDB->tsection->sekcja);
+    });
+    if(filter == NULL || filter->disabled
+            || OrtsTrackProfileCatalog::find(filter->profile, type) != nullptr)
+        return filter;
+    static QSet<QString> warned;
+    const QString key = filter->description() + (type == OrtsTrackProfile::ObjectType::Road ? " road" : " track");
+    if(!warned.contains(key)){
+        warned.insert(key);
+        qWarning().noquote() << TrackProfileFilters::fileName() + " " + filter->description()
+                + ": the route has no " + (type == OrtsTrackProfile::ObjectType::Road ? "road" : "track")
+                + " profile family " + filter->profile + "; its objects are drawn as without the filter";
+    }
+    return NULL;
+}
+
+}
+
 bool TrackObj::useProceduralShape(){
     if(proceduralShapeInit)
         return !proceduralFallback;
@@ -213,8 +244,25 @@ bool TrackObj::useProceduralShape(){
         if(found != Game::trackDB->tsection->shape.end())
             ownShape = found->second;
     }
+    // Tracks task 17: an object without its own template takes its profile
+    // family from the route's filters (trackprofiles.dat), ahead of Open
+    // Rails' guess; a filter's DISABLED keeps the static shape. The filters
+    // give the profile wherever track is procedural (decision 29): complex
+    // shapes are procedural only in Forced.
+    const QString requested = templateName.trimmed();
+    const TrackProfileFilters::Filter *filter = routeFilter(fileName, requested, ownShape, profileType);
+    proceduralSource = ProfileSource::Static;
+    proceduralSourceDetail.clear();
+    if(requested.compare("DISABLED", Qt::CaseInsensitive) == 0)
+        proceduralSource = ProfileSource::ObjectDisabled;
+    if(filter != NULL && filter->disabled){
+        proceduralSource = ProfileSource::FilterDisabled;
+        proceduralSourceDetail = filter->description();
+        if(railCant)
+            TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, true);
+        return false;
+    }
     if(railCant && ownShape != NULL){
-        const QString requested = templateName.trimmed();
         const bool plain = !ownShape->tunnelshape
                 && !(ownShape->numpaths > 1 && (ownShape->clearancedist > 0 || ownShape->mainroute >= 0));
         if(requested.compare("DISABLED", Qt::CaseInsensitive) == 0){
@@ -230,16 +278,34 @@ bool TrackObj::useProceduralShape(){
                 const float gauge = Game::trackDB->cant.route.gauge;
                 const bool defaultFallback = Game::proceduralTracks == ProceduralTracksMode::Forced
                         || ProceduralTrackPolicy::noProfileFallback == NoProfileFallback::DefaultProfile;
-                // The static shape is never loaded for the guess. Where the
-                // route's profiles match by texture names, only its file's
-                // image list is read, once per shape file (decision 14).
-                const QString shapePath = ContentPath::join(resPath, fileName);
-                QSharedPointer<const OrtsTrackProfile> profile = OrtsTrackProfileCatalog::guess(fileName, [&]() {
-                    return OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)
-                            ? SFileComplex::readImageNames(shapePath) : QStringList();
-                }, gauge);
-                if(profile == nullptr && defaultFallback)
-                    profile = OrtsTrackProfileCatalog::defaultTrack(gauge);
+                QSharedPointer<const OrtsTrackProfile> profile;
+                // A filter's family: each path its member (MAIN, or the side
+                // roles for parallel paths).
+                QVector<QSharedPointer<const OrtsTrackProfile>> pathProfiles;
+                ProfileSource source = ProfileSource::Guess;
+                if(filter != NULL){
+                    source = ProfileSource::Filter;
+                    profile = OrtsTrackProfileCatalog::find(filter->profile, profileType);
+                    QVector<float> rotations;
+                    for(int pathIndex = 0; pathIndex < ownShape->numpaths; pathIndex++)
+                        rotations.append(ownShape->path[pathIndex].rotDeg);
+                    pathProfiles = OrtsTrackProfileCatalog::profilesForPaths(
+                            filter->profile, profileType, rotations);
+                } else {
+                    // The static shape is never loaded for the guess. Where
+                    // the route's profiles match by texture names, only its
+                    // file's image list is read, once per shape file
+                    // (decision 14).
+                    const QString shapePath = ContentPath::join(resPath, fileName);
+                    profile = OrtsTrackProfileCatalog::guess(fileName, [&]() {
+                        return OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)
+                                ? SFileComplex::readImageNames(shapePath) : QStringList();
+                    }, gauge);
+                    if(profile == nullptr && defaultFallback){
+                        profile = OrtsTrackProfileCatalog::defaultTrack(gauge);
+                        source = ProfileSource::Default;
+                    }
+                }
                 TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, profile == nullptr
                         || profile->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None);
                 if(profile == nullptr)
@@ -253,10 +319,13 @@ bool TrackObj::useProceduralShape(){
                 if(OrtsTrackProfileRenderer::generate(
                         *profile, *ownShape, rolls, procShape, routePath, &diagnostics,
                         OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                        &ownTransform, nullptr, UiD) && !procShape.isEmpty()){
+                        &ownTransform, pathProfiles.isEmpty() ? nullptr : &pathProfiles,
+                        UiD) && !procShape.isEmpty()){
                     procShapeOwned = true;
                     proceduralShapeUsesBakedPath = true;
                     proceduralFallback = false;
+                    proceduralSource = source;
+                    proceduralSourceDetail = filter != NULL ? filter->description() : profile->id;
                     return true;
                 }
                 clearProceduralShape();
@@ -266,11 +335,27 @@ bool TrackObj::useProceduralShape(){
         }
     }
 
+    // In Forced a filter's family takes the place of the default one (for
+    // track DefaultTrack; for roads RdProfile, as road DynTracks, task 17's
+    // decision 19).
+    const bool fromFilter = filter != NULL && requested.isEmpty()
+            && Game::proceduralTracks == ProceduralTracksMode::Forced;
     const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
-            Game::proceduralTracks, templateName, availableTemplates);
+            Game::proceduralTracks, fromFilter ? filter->profile : templateName,
+            availableTemplates,
+            roadShape ? QStringLiteral("RdProfile") : QStringLiteral("DefaultTrack"));
     ProceduralTrackPolicy::warnOnce(resolution);
     if(resolution.backend == ProceduralTrackBackend::Fallback)
         return false;
+    ProfileSource resolvedSource = ProfileSource::Default;
+    QString resolvedDetail = resolution.templateName;
+    if(fromFilter && resolution.templateName.compare(filter->profile, Qt::CaseInsensitive) == 0){
+        resolvedSource = ProfileSource::Filter;
+        resolvedDetail = filter->description();
+    } else if(!requested.isEmpty()
+            && resolution.templateName.compare(requested, Qt::CaseInsensitive) == 0){
+        resolvedSource = ProfileSource::ObjectTemplate;
+    }
     if(Game::trackDB == NULL || Game::trackDB->tsection == NULL
             || Game::trackDB->tsection->shape.find(sectionIdx)
                     == Game::trackDB->tsection->shape.end()
@@ -355,6 +440,8 @@ bool TrackObj::useProceduralShape(){
     }
 
     proceduralFallback = false;
+    proceduralSource = resolvedSource;
+    proceduralSourceDetail = resolvedDetail;
     return true;
 }
 

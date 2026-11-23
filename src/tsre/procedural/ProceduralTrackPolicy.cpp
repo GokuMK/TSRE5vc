@@ -35,9 +35,11 @@ ProceduralTracksMode ProceduralTrackPolicy::modeFromSetting(const QString &value
 ProceduralTrackResolution ProceduralTrackPolicy::resolve(
         ProceduralTracksMode mode,
         const QString &requestedName,
-        const QStringList &availableTemplateNames) {
+        const QStringList &availableTemplateNames,
+        const QString &defaultName) {
     ProceduralTrackResolution result;
     result.requestedName = requestedName.trimmed();
+    result.defaultName = defaultName;
 
     if (mode == ProceduralTracksMode::Disabled)
         return result;
@@ -51,7 +53,7 @@ ProceduralTrackResolution ProceduralTrackPolicy::resolve(
 
     QString lookupName = result.requestedName;
     if (lookupName.isEmpty() || lookupName.compare("DEFAULT", Qt::CaseInsensitive) == 0)
-        lookupName = "DefaultTrack";
+        lookupName = defaultName;
 
     QString resolvedName = canonicalName(lookupName, availableTemplateNames);
     if (!resolvedName.isEmpty()) {
@@ -60,12 +62,12 @@ ProceduralTrackResolution ProceduralTrackPolicy::resolve(
         return result;
     }
 
-    const bool requestedDefault = lookupName.compare("DefaultTrack", Qt::CaseInsensitive) == 0;
+    const bool requestedDefault = lookupName.compare(defaultName, Qt::CaseInsensitive) == 0;
     if (!requestedDefault)
         result.missingRequested = true;
 
     if (mode == ProceduralTracksMode::Forced && !requestedDefault) {
-        resolvedName = canonicalName("DefaultTrack", availableTemplateNames);
+        resolvedName = canonicalName(defaultName, availableTemplateNames);
         if (!resolvedName.isEmpty()) {
             result.backend = ProceduralTrackBackend::Procedural;
             result.templateName = resolvedName;
@@ -79,7 +81,7 @@ ProceduralTrackResolution ProceduralTrackPolicy::resolve(
 
 void ProceduralTrackPolicy::warnOnce(const ProceduralTrackResolution &resolution) {
     static QSet<QString> warnedRequests;
-    static bool warnedDefault = false;
+    static QSet<QString> warnedDefaults;
 
     if (resolution.missingRequested) {
         const QString key = resolution.requestedName.toLower();
@@ -89,9 +91,11 @@ void ProceduralTrackPolicy::warnOnce(const ProceduralTrackResolution &resolution
                        << "- using configured fallback";
         }
     }
-    if (resolution.missingDefault && !warnedDefault) {
-        warnedDefault = true;
-        qWarning() << "Default procedural track template DefaultTrack not found"
+    const QString defaultName = resolution.defaultName.isEmpty()
+            ? QStringLiteral("DefaultTrack") : resolution.defaultName;
+    if (resolution.missingDefault && !warnedDefaults.contains(defaultName.toLower())) {
+        warnedDefaults.insert(defaultName.toLower());
+        qWarning() << "Default procedural track template" << defaultName << "not found"
                    << "- using static/hardcoded fallback";
     }
 }

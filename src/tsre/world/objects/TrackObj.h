@@ -52,6 +52,28 @@ public:
     float getElevation();
     int getCollisionType();
     bool isRoad() const { return roadShape; }
+    // Tracks task 17: where the object's procedural profile came from, as
+    // the last drawing found it (the properties panel shows it).
+    enum class ProfileSource {
+        // Not drawn yet.
+        Unknown,
+        Static,
+        // DISABLED on the object.
+        ObjectDisabled,
+        // A trackprofiles.dat filter's Profile ( DISABLED ).
+        FilterDisabled,
+        // Its own ShapeTemplate.
+        ObjectTemplate,
+        // A trackprofiles.dat filter.
+        Filter,
+        // Open Rails' guess.
+        Guess,
+        // The default profile (DefaultTrack, RdProfile, the built-in one).
+        Default
+    };
+    ProfileSource profileSource() const { return proceduralSource; }
+    // The profile's ID; for a filter its line, patterns and profile.
+    QString profileSourceDetail() const { return proceduralSourceDetail; }
 private:
     float elevation;
     //unsigned int collideFunction;
@@ -65,6 +87,8 @@ private:
     bool proceduralShapeUsesBakedPath = false;
     bool roadShape = false;
     bool proceduralFallback = false;
+    ProfileSource proceduralSource = ProfileSource::Unknown;
+    QString proceduralSourceDetail;
 };
 
 #endif	/* TRACKOBJ_H */
