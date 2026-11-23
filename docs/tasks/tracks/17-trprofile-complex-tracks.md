@@ -362,8 +362,13 @@ least gap between two tie ends; `MaxBearerLength` the longest shared tie
 before tracks get their own ties; `MaxSharedAngle` the crossing angle above
 which the first track's ties run through instead (section 5; 60° by
 decision 9); `ConductorClearance` the least distance kept between a
-conductor or rack rail and another track's running rails (section 7). Tie
-length and width come from the `Tie` mesh.
+conductor or rack rail and another track's running rails (section 7).
+Phase 2 adds `Flangeway` (0.045), `BladeOpening` (0.16) and
+`CheckRailLength` (4.8). Tie length and width come from the `Tie` mesh.
+
+The `COMPLEX` member is the last in a family file, with its `ObjectType`
+first: Open Rails without the recommended change stops reading a file at
+a `COMPLEX` member (section 10).
 
 Plain track needs no new mode for conductor and rack rails: in `MAIN` and
 the side roles they are ordinary items (a `Sweep` or a `Template3D` at
@@ -618,17 +623,27 @@ No Open Rails code in this task (decision 30). The user's Open Rails
 working copy is on another machine (the one here is an agent's clone); a
 change needs a review first, and the mainstream pull request needs tests on
 Windows. The task leaves a document for the Open Rails feature PR team,
-`docs/features/openrails-trprofile-complex.md`, with what Open Rails would
-need; the patch is a follow-up task. What the document covers:
+[`docs/features/openrails-trprofile-complex.md`](../../features/openrails-trprofile-complex.md)
+(written 2026-11-24, after phase 2, decision 32), with what Open Rails
+would need; the patch is a follow-up task. What the document says:
 
 - Open Rails does not read the filter file; it keeps guessing by
   `IncludedShapes`. TSRE-only route data, nothing to do.
-- Our Open Rails patch rejects an unknown role: a `COMPLEX` member is
-  skipped with a warning, the file's other members still load. Recommended:
-  read `COMPLEX` as a known role and leave it unused (no warning), and the
-  new `Template3D` generation modes and `ComplexTrack` block with it.
+- Our Open Rails branch (`77d31fbb0`, read, not run) rejects the role
+  `COMPLEX` with a warning, then still reads the member: each new mode
+  warns twice, and the first `LODItem` left without a valid template
+  throws "missing Polylines or Template3D", which ends the whole file's
+  parse. Members before `COMPLEX` load; members after it are lost; 4 to 8
+  warnings per family file. Hence: `COMPLEX` is the last member of a
+  family file (section 2) until Open Rails has the change.
+- Recommended: `COMPLEX` a known role whose `LOD` blocks are skipped
+  unread and which never enters the profile list. Open Rails then needs no
+  knowledge of the new modes, now or later (`Blade`, `Nose`, `Buffer`).
+  `ComplexTrack` and `StretchZone` are already skipped silently by the STF
+  reader.
 - The road centre roles `CENTERLEFT`, `CENTERRIGHT`, `CENTER` (section
-  11) when TSRE has them.
+  11) when TSRE has them; blades from the junction state follow Open
+  Rails' `SwitchTrackShape`.
 - Open Rails keeps static shapes for junctions; complex procedural track is
   TSRE's.
 
@@ -709,6 +724,7 @@ Each step stops for the user's visual check before the next.
 | 4 phase 1: ties, bearers, fasteners, bed, rails | checked by the user (2026-11-23) | `86274020`, `82a68097`; assets-gen `d8294f8` |
 | 5 one example per feature | built (2026-11-23) | `0c4400bc`; assets-gen `21a9e84` |
 | 6 phase 2: blades, frogs, check rails | built, waiting for the user's check | `2af05063`; assets-gen `01405ca` |
+| 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
 
 Steps 1-3 (2026-11-23):
 
