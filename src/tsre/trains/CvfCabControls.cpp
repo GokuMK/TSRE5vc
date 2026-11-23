@@ -107,6 +107,11 @@ class CvfCabPose : public CabPose {
                && CvfCabControls::dragged(view->controls()[size_t(control)].kind);
     }
 
+    bool interactive(int control) const override {
+        return control >= 0 && size_t(control) < view->controls().size()
+               && CabPicker::interactive(view->controls()[size_t(control)].kind);
+    }
+
     // Its key frames: to the last its control can show (its tables' frames)
     // or the part has.
     bool stops(const ComplexShape &cab, int control, int part, int samples, std::vector<float> &out,

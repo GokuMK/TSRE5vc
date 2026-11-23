@@ -60,13 +60,38 @@ float localLightShadowLayer(sampler2DArray maps, int layer, ivec2 base, vec2 f, 
     return lit;
 }
 
+// A car's own point lamp's cube (task 46 C): m its frame (the car's axes,
+// the lamp at the origin; near and far in its spare bottom row), the face
+// the point's major axis there (0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z), seen as
+// RhiRenderer::cubeFaceMatrix draws it: a 90 degree view along that axis,
+// up +y (+z looking along y). Its clip position in OpenGL's clip space.
+vec4 localLightCubeClip(mat4 m, vec3 p, out int face) {
+    vec3 v = mat3(m) * p + m[3].xyz;
+    vec3 a = abs(v);
+    vec3 w;
+    if (a.x >= a.y && a.x >= a.z) {
+        face = v.x >= 0.0 ? 0 : 1;
+        w = v.x >= 0.0 ? vec3(v.z, v.y, -v.x) : vec3(-v.z, v.y, v.x);
+    } else if (a.y >= a.z) {
+        face = v.y >= 0.0 ? 2 : 3;
+        w = v.y >= 0.0 ? vec3(v.x, v.z, -v.y) : vec3(-v.x, v.z, v.y);
+    } else {
+        face = v.z >= 0.0 ? 4 : 5;
+        w = v.z >= 0.0 ? vec3(-v.x, v.y, -v.z) : v;
+    }
+    float near = m[0].w, far = m[1].w;
+    return vec4(w.x, w.y, (far + near) / (near - far) * w.z + 2.0 * far * near / (near - far), -w.z);
+}
+
 // How much of a lamp's light passes what stands in its way, by its shadow
 // map: compared over LocalLightShadowWidth texels, fading to none toward
-// the map's edge (there the lamp's light is weak).
-float localLightShadow(int light, float layer, int set, vec3 position) {
+// the map's edge (there the lamp's light is weak); a cube's faces meet, no
+// fade (task 46 C).
+float localLightShadow(int light, float layer, int set, vec3 position, bool cube) {
     mat4 m = mat4(texelFetch(localLightData, ivec2(4, light), 0), texelFetch(localLightData, ivec2(5, light), 0),
                   texelFetch(localLightData, ivec2(6, light), 0), texelFetch(localLightData, ivec2(7, light), 0));
-    vec4 clip = m * vec4(position, 1.0);
+    int face = 0;
+    vec4 clip = cube ? localLightCubeClip(m, position, face) : m * vec4(position, 1.0);
     if (clip.w <= 0.0)
         return 1.0;
     vec3 ndc = clip.xyz / clip.w;
@@ -79,7 +104,7 @@ float localLightShadow(int light, float layer, int set, vec3 position) {
     vec2 texel = s.xy * vec2(size) - 0.5 - 0.5 * float(LocalLightShadowWidth - 1);
     ivec2 base = ivec2(floor(texel));
     vec2 f = texel - vec2(base);
-    int l = int(layer + 0.5);
+    int l = int(layer + 0.5) + face;
     float depth = 1.0 - s.z;
     float lit;
     if (set == 0)
@@ -87,15 +112,17 @@ float localLightShadow(int light, float layer, int set, vec3 position) {
     else
         lit = localLightShadowLayer(localLightShadowsCoarse, l, base, f, size, depth);
     lit /= float(LocalLightShadowWidth * LocalLightShadowWidth);
-    return mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
+    return cube ? lit : mix(lit, 1.0, smoothstep(0.8, 1.0, edge));
 }
 
 // One light of a cell: the direction towards it and the light it brings,
 // scaled as the sun's (pi times the irradiance). False when it does not
-// reach the position.
-bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
+// reach the position. fill: an ambient fill (task 46 C), its light the same
+// whatever way a surface faces (no cone, no shadow, no specular).
+bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance, out bool fill) {
     l = vec3(0.0);
     radiance = vec3(0.0);
+    fill = false;
     int light = int(texelFetch(localLightIndices, ivec2(slot % 4096, slot / 4096), 0).r);
     vec4 placement = texelFetch(localLightData, ivec2(0, light), 0);
     vec3 toLight = placement.xyz - position;
@@ -111,10 +138,15 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
     float window = clamp(1.0 - ratio * ratio, 0.0, 1.0);
     float attenuation = window * window / (squared + colour.w);
     vec4 spot = texelFetch(localLightData, ivec2(2, light), 0);
-    if (spot.w > 0.5) {
+    fill = spot.w > 1.5;
+    if (!fill) {
         vec4 cone = texelFetch(localLightData, ivec2(3, light), 0);
-        float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
-        attenuation *= inside * inside;
+        // A spot's cone; a point with a shadow layer has a cube (task 46 C).
+        bool cube = spot.w < 0.5;
+        if (!cube) {
+            float inside = clamp((dot(-l, spot.xyz) - cone.x) * cone.y, 0.0, 1.0);
+            attenuation *= inside * inside;
+        }
         // Its static shadow (task 46), the point moved toward the lamp
         // against acne.
         // Past 80 m (lamps reaching farther than their maps) the shadow
@@ -125,7 +157,8 @@ bool localLight(int slot, vec3 position, out vec3 l, out vec3 radiance) {
             // edge (its compares reach farther from the point).
             float shadow = localLightShadow(light, cone.z - 1.0, int(cone.w + 0.5),
                                             position + l * (0.05 + 0.004 * lampDistance)
-                                                    * (0.5 + 0.5 * float(LocalLightShadowWidth)));
+                                                    * (0.5 + 0.5 * float(LocalLightShadowWidth)),
+                                            cube);
             attenuation *= mix(shadow, 1.0, smoothstep(0.8 * LocalLightShadowFar, LocalLightShadowFar, lampDistance));
         }
     }
@@ -140,9 +173,10 @@ vec3 localLightsDiffuse(vec3 position, vec3 normal, float normalsEnabled) {
     ivec2 cell = localLightCell(position);
     for (int i = 0; i < cell.y; ++i) {
         vec3 l, radiance;
-        if (!localLight(cell.x + i, position, l, radiance))
+        bool fill;
+        if (!localLight(cell.x + i, position, l, radiance, fill))
             continue;
-        sum += radiance / LocalLightPi * mix(1.0, max(dot(normal, l), 0.0), normalsEnabled);
+        sum += radiance / LocalLightPi * (fill ? 1.0 : mix(1.0, max(dot(normal, l), 0.0), normalsEnabled));
     }
     return sum;
 }

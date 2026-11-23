@@ -60,9 +60,12 @@ shape ( lamppost.s
 | `Position` | Its place in metres, in that matrix's space. | `0 0 0` |
 | `Rotation` | Its turn in degrees about x, then y, then z, as a display's square. | No turn. |
 | `QDirection` | Or its turn as a quaternion `x y z w`, as a W file's object or a glTF node has it. | |
-| `Radius` | The lamp's size in metres: it softens surfaces very close to the lamp, and is the disc's radius. | `0.05` |
+| `Radius` | The lamp's size in metres: it softens surfaces very close to the lamp, and is the disc's radius. With `Shadows ( Own )` nothing within it shadows the lamp (its fixture round it). | `0.05` |
 | `Name` | Its name: shown in the Shape Viewer, the name an ENG light switches it by (section 5), and on a road car what it is (section 6). | None |
 | `On` | `1`: it shines unless something switches it; `0`: off until something switches it on (an ENG light bound to it, a car spawner). | `1` |
+| `Shadows` | What shadows it (section 4): `Scene`, everything around it; `Own`, its own object alone; `None`, nothing. | `Scene` for a spot, `None` for a point |
+| `Ambient` | An ambient fill (section 4): a fraction of the light's intensity and a range in metres. | None |
+| `AmbientColor3F` | The fill's colour, as `Color3F`. | The light's colour |
 
 Give one of `Color3F` and `ColorRGBA`, and one of `Rotation` and
 `QDirection`; with both, the later in the block is used, with a message.
@@ -105,6 +108,62 @@ reach; `Range` can only shorten that. For a lamp that should light farther
 (a floodlit yard), set the object's light reach in the route editor's
 properties of the placed object.
 
+### Shadows and fills
+
+With **Lamp shadows** on (the QRhi renderer), a lamp's light stops at
+what stands in its way. `Shadows` says what that is:
+
+- `Scene` (a spot's default): everything around the lamp. A street lamp,
+  a platform's lamps, a locomotive's headlight.
+- `Own`: the lamp's own object alone. On a train car its shadow map moves
+  with the car: the car's walls, seats and desk shadow the lamp, and its
+  light leaves only through the windows and doors. For cab and saloon
+  lamps. A point light shadows all round (six maps, a cube), a spot
+  within its cone. On a world object it is as `Scene`.
+- `None` (a point's default): nothing; the light passes through walls.
+
+A lamp shining down leaves the ceiling and the upper walls dark, where in
+a real room the light bounced off the floor and walls lights them.
+`Ambient ( fraction range )` adds that light: the fraction of the lamp's
+intensity lights what lies within the range (m) whatever way it faces,
+falling off gently over it, in `AmbientColor3F` (the lamp's colour when
+left out). The fill follows its lamp (on, off, an ENG light switching
+it), is never shadowed, and on a train car lights only while the camera
+is inside the car (its cab view, a character walking in it), so it never
+shines out of the car seen from outside. Lamps' fills add up as their
+lights do: balance both when placing a room's lamps.
+
+A cab's two round ceiling lamps (the ET22's 3D cab, an `.e3d` with
+`ESD_TSREAxes ( glTF )`): points just inside their fixtures' diffusers,
+where a diffuser faces away from its lamp and does not burn white, the
+curved ceiling still below them; `Radius` as large as the fixture, so the
+fixture does not shadow its own lamp:
+
+```
+	ESD_TSRELight (
+		Name ( "CAB_CEILING_LEFT" )
+		Type ( Point )
+		Position ( -0.678 3.80 7.701 )
+		Color3F ( 1 0.85 0.65 )
+		Intensity ( 6 )
+		Range ( 20 )
+		Radius ( 0.2 )
+		Shadows ( Own )
+		Ambient ( 0.2 3 )
+	)
+	ESD_TSRELight (
+		Name ( "CAB_CEILING_RIGHT" )
+		Type ( Point )
+		Position ( 0.679 3.80 7.701 )
+		Color3F ( 1 0.85 0.65 )
+		Intensity ( 6 )
+		Range ( 20 )
+		Radius ( 0.2 )
+		Shadows ( Own )
+		Ambient ( 0.2 3 )
+	)
+```
+
 ### Far away
 
 A light lights the scene as far as its object is drawn: up to the object
@@ -136,8 +195,9 @@ shape ( coach.s
 ```
 
 A glTF model takes the same values as extras: `TSRE_viewDistance` (a
-number) on a `KHR_lights_punctual` light, and `TSRE_distanceLevelExtension` (a
-string) on its scene. Its last level ends only with `MSFT_lod` and a last
+number), `TSRE_shadows` (a string), `TSRE_ambient` (`[fraction, range]`) and
+`TSRE_ambientColor` (`[r, g, b]`) on a `KHR_lights_punctual` light, and
+`TSRE_distanceLevelExtension` (a string) on its scene. Its last level ends only with `MSFT_lod` and a last
 `MSFT_screencoverage` above 0; without levels it is never past them.
 
 ## 5. Headlights: lights switched by the ENG file
@@ -275,6 +335,8 @@ again after the shape is reloaded:
 - both of a pair given (the later used), a `ColorRGBA` that is not eight
   hex digits (white used), a `Cone` out of range (the nearest used);
 - a `ShapeHierarchy` the shape has not (the light hangs on its root);
+- a `Shadows` that is none of `Scene`, `Own` and `None` (its default
+  used), an `Ambient` without a range above 0 (no fill);
 - an `ESD_TSREDistanceLevelExtension` (glTF:
   `TSRE_distanceLevelExtension`) that is none of `None`, `MeshOnly`, `All`
   and `Default` (ignored);
@@ -300,7 +362,13 @@ light as an S shape's `.sd` light, beside the same lamp as a glTF model.
 
 ## 10. Known limits
 
-- No shadows from lamps (as glTF lights in TSRE).
+- Shadows need **Lamp shadows** on (the QRhi renderer). A spot's cone up
+  to 75 degrees from its axis is shadowed whole, up to 100 m from the
+  lamp. Point lights cast shadows only with `Shadows ( Own )` on a train
+  car (the nearest four); elsewhere give a lamp that should cast them
+  `Type ( Spot )`.
+- Ambient fills light inside train cars only: on a world object (a
+  waiting room) "inside" needs a volume, to come.
 - Lights switched by ENG lights and car spawners only: switching by the
   cab view's controls (cab lamps), fades and flashing come later.
 - No directional lights (the sun lights the scene).

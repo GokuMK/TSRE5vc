@@ -477,8 +477,32 @@ float cellCone(vec4 cone, float cellAngle, float t, float r, float cosine) {
 // in its way: its shadow map's texel there (one, no blend: a cell is wider
 // than the map's texels), all of it toward the map's edge and from 80 to
 // 100 m from the lamp, as the lit shaders fade theirs.
-float lampVisible(sampler2DArray maps, int layer, mat4 m, vec3 p, float lampDistance) {
-    vec4 clip = m * vec4(p, 1.0);
+// A car's own point lamp's cube (task 46 C): m its frame (the car's axes,
+// the lamp at the origin; near and far in its spare bottom row), the face
+// the point's major axis there (0 +x, 1 -x, 2 +y, 3 -y, 4 +z, 5 -z), seen as
+// RhiRenderer::cubeFaceMatrix draws it: a 90 degree view along that axis,
+// up +y (+z looking along y). Its clip position in OpenGL's clip space.
+vec4 lampCubeClip(mat4 m, vec3 p, out int face) {
+    vec3 v = mat3(m) * p + m[3].xyz;
+    vec3 a = abs(v);
+    vec3 w;
+    if (a.x >= a.y && a.x >= a.z) {
+        face = v.x >= 0.0 ? 0 : 1;
+        w = v.x >= 0.0 ? vec3(v.z, v.y, -v.x) : vec3(-v.z, v.y, v.x);
+    } else if (a.y >= a.z) {
+        face = v.y >= 0.0 ? 2 : 3;
+        w = v.y >= 0.0 ? vec3(v.x, v.z, -v.y) : vec3(-v.x, v.z, v.y);
+    } else {
+        face = v.z >= 0.0 ? 4 : 5;
+        w = v.z >= 0.0 ? vec3(-v.x, v.y, -v.z) : v;
+    }
+    float near = m[0].w, far = m[1].w;
+    return vec4(w.x, w.y, (far + near) / (near - far) * w.z + 2.0 * far * near / (near - far), -w.z);
+}
+
+float lampVisible(sampler2DArray maps, int layer, mat4 m, vec3 p, float lampDistance, bool cube) {
+    int face = 0;
+    vec4 clip = cube ? lampCubeClip(m, p, face) : m * vec4(p, 1.0);
     if (clip.w <= 0.0)
         return 1.0;
     vec3 ndc = clip.xyz / clip.w;
@@ -488,9 +512,9 @@ float lampVisible(sampler2DArray maps, int layer, mat4 m, vec3 p, float lampDist
     vec3 s = ndc * 0.5 + 0.5;
     ivec2 size = textureSize(maps, 0).xy;
     ivec2 texel = clamp(ivec2(s.xy * vec2(size)), ivec2(0), size - 1);
-    float stored = texelFetch(maps, ivec3(texel, layer), 0).r;
+    float stored = texelFetch(maps, ivec3(texel, layer + face), 0).r;
     float lit = 1.0 - s.z >= stored ? 1.0 : 0.0;
-    return mix(lit, 1.0, max(smoothstep(0.8, 1.0, edge), smoothstep(80.0, 100.0, lampDistance)));
+    return mix(lit, 1.0, max(cube ? 0.0 : smoothstep(0.8, 1.0, edge), smoothstep(80.0, 100.0, lampDistance)));
 }
 
 // A lamp's light at its points along a slice's part (equiangular, as seen
@@ -515,7 +539,7 @@ float lampShares(sampler2DArray maps, int layer, mat4 m, vec3 o, vec3 d, vec4 pl
         if (spot.w > 0.5)
             share *= cellCone(cone, cellAngle, t, sqrt(squared), dot(-l, spot.xyz));
         if (layer >= 0 && share > 0.0)
-            share *= lampVisible(maps, layer, m, point, sqrt(squared));
+            share *= lampVisible(maps, layer, m, point, sqrt(squared), spot.w < 0.5);
         float phase = mix(henyeyGreenstein(dot(d, l), 0.85), 1.0 / (4.0 * 3.14159265), 0.3) * 4.0 * 3.14159265;
         shares += share * phase;
     }
@@ -560,6 +584,9 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
         float chord = sqrt(reach - aside);
         float s0 = max(t0, along - chord), s1 = min(t1, along + chord);
         vec4 spot = texelFetch(data, ivec2(2, light), 0);
+        // An ambient fill lights its car's inside, not the air (task 46 C).
+        if (spot.w > 1.5)
+            continue;
         vec4 cone = vec4(0.0);
         if (spot.w > 0.5) {
             cone = texelFetch(data, ivec2(3, light), 0);
@@ -579,10 +606,13 @@ vec3 gridLight(sampler2D data, sampler2D cells, sampler2D indices, vec4 grid, ve
         // the span covers as seen from the lamp, split evenly.
         float b = sqrt(aside + colour.w);
         float a0 = atan((s0 - along) / b), a1 = atan((s1 - along) / b);
-        // Its shadow map (task 46), a spot's with one.
+        // Its shadow map (task 46), a spot's with one; a car's own point
+        // lamp's cube (task 46 C).
         int layer = -1, set = 0;
         mat4 m = mat4(1.0);
-        if (shadowed && spot.w > 0.5 && cone.z > 0.5) {
+        if (shadowed && spot.w < 0.5)
+            cone = texelFetch(data, ivec2(3, light), 0);
+        if (shadowed && cone.z > 0.5) {
             layer = int(cone.z - 0.5);
             set = int(cone.w + 0.5);
             m = mat4(texelFetch(data, ivec2(4, light), 0), texelFetch(data, ivec2(5, light), 0),

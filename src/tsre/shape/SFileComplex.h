@@ -127,6 +127,7 @@ class SFileComplex final : public ComplexShape {
     QStringList imageNames() const override;
     int partCount() const override;
     QString partName(int) const override;
+    bool partShown(unsigned int stateId, int part) const override;
     int partParent(int) const override;
     bool partRest(int, float *) const override;
     float partLastFrame(int) const override;

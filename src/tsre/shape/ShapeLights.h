@@ -75,6 +75,23 @@ struct Light {
     // On ( 0 ): off until something switches it on (an ENG light bound to
     // it); glTF: extras.TSRE_on.
     bool on = true;
+    // What shadows it (task renderer 46 C): Shadows ( Scene ), everything
+    // around (head lamps, street lamps); Shadows ( Own ), its own object
+    // alone (cab and saloon lamps: on a car a map in the car's frame);
+    // Shadows ( None ). glTF: extras.TSRE_shadows. Default: Scene for a
+    // spot, None for a point.
+    enum class Shadows { Default, Scene, Own, None };
+    Shadows shadows = Shadows::Default;
+    // Its ambient fill (task renderer 46 C): Ambient ( fraction range ),
+    // that fraction of its intensity lighting what is within range (m)
+    // whatever way it faces, unshadowed, only while the camera is inside
+    // its car; AmbientColor3F ( r g b ) its colour (linear), its own when
+    // not given. glTF: extras.TSRE_ambient [fraction, range] and
+    // TSRE_ambientColor [r, g, b]. 0: none.
+    float ambient = 0.0f;
+    float ambientRange = 0.0f;
+    bool ambientColored = false;
+    float ambientColor[3] = {1.0f, 1.0f, 1.0f};
     // What it is on a road car (carRole).
     CarRole carRole = CarRole::None;
 };
@@ -87,6 +104,12 @@ bool readBlock(FileBuffer *data, Light &light, QStringList *problems);
 // The lights of a parsed .sd's shape block (SFileComplex's); problems as
 // readBlock's.
 QVector<Light> read(const SFileDetail::Node &shape, QStringList *problems = nullptr);
+// A Shadows value by its name (Scene, Own, None; any case): false for
+// another.
+bool readShadows(const QString &name, Light::Shadows &out);
+// What shadows a light as the renderer takes it (RenderItem::Light's
+// Shadows): its Default by its type (a spot Scene, a point None).
+unsigned char shadowsOf(const Light &light);
 // A light mirrored in x (task shapes 20: its .sd's axes not its model's):
 // its position and the way it shines.
 void mirror(Light &light);
@@ -161,10 +184,12 @@ private:
         std::array<float, 16> matrix{};
         // Its lights in the part's space.
         RenderItem *lights = nullptr;
-        // Indices into the shape's lights, their light at full strength,
-        // and their discs.
+        // Indices into the shape's lights, and their discs; each light of
+        // the packet's (a light, then its ambient fill if it has one) at
+        // full strength and the shape's light it follows.
         std::vector<int> members;
         std::vector<float> intensity;
+        std::vector<int> follows;
         std::vector<RenderItem *> discs;
         std::vector<std::array<float, 16>> discMatrices;
     };
