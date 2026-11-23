@@ -1059,8 +1059,15 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
                        "a .mat in the texture path, its own textures there too, names as written");
             test.check(has(missingFiles, textures + "/beside.dds") && has(missingFiles, textures + "/shared.dds"),
                        "not beside the model, not in the shared TEXTURES: " + missingFiles.join(' '));
-            test.check(has(missingFiles, textures + "/Case.dds") && !has(found, textures + "/case.dds"),
-                       "names as written: no lower-casing (--contentcase repairs them)");
+            // Names as written show only where the file system tells case
+            // apart: Windows' finds Case.dds as case.dds (these two checks
+            // never passed there).
+            const bool caseApart = !QFileInfo::exists(textures + "/CASE.dds");
+            if (caseApart)
+                test.check(has(missingFiles, textures + "/Case.dds") && !has(found, textures + "/case.dds"),
+                           "names as written: no lower-casing (--contentcase repairs them)");
+            else
+                qInfo().noquote() << "[tests:e3d-shape] the file system ignores case: names as written not checked";
             test.check(has(missingFiles, textures + "/dynamic/pkp/x/y.dds"), "a vehicle's dynamic/ name is found nowhere");
             const unsigned skinned = tsre->newState();
             tsre->setRepaint(skinned, "Skin");
@@ -1071,7 +1078,8 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
             found.clear();
             missingFiles.clear();
             tsre->usedFiles("skin", found, missingFiles);
-            test.check(has(missingFiles, textures + "/skin.dds"), "a repaint as written");
+            if (caseApart)
+                test.check(has(missingFiles, textures + "/skin.dds"), "a repaint as written");
             found.clear();
             missingFiles.clear();
             tsre->usedFiles("none", found, missingFiles);

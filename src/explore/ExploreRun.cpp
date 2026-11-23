@@ -259,11 +259,13 @@ void Run::setLoadingStatus(int seconds) {
     if (d->loading == nullptr || seconds == d->shownSeconds)
         return;
     d->shownSeconds = seconds;
+    // Its text outside ?: (lupdate misses a //% inside one).
+    QString text;
+    if (seconds >= 0)
+        //% "Preparing the run: %1 s"
+        text = qtTrId("ui.explore.preparing").arg(seconds);
     if (Rml::Element *status = d->loading->GetElementById("loading-status"))
-        status->SetInnerRML(Rml::StringUtilities::EncodeRml(
-                (seconds < 0 ? QString()
-                             //% "Preparing the run: %1 s"
-                             : qtTrId("ui.explore.preparing").arg(seconds)).toStdString()));
+        status->SetInnerRML(Rml::StringUtilities::EncodeRml(text.toStdString()));
 }
 
 void Run::hideLoading() {
