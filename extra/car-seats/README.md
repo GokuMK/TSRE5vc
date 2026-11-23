@@ -176,17 +176,25 @@ before, its other lines kept.
 
 End passages (task characters 05, the user's design 2026-11-23: where an
 aisle reaches the car's end): for each end, the level aisle reaching
-furthest toward it; the first wall across its line within 0.7 m of its end
-(either side: aisles are often drawn through their end wall) and within
-1.3 m of the model's end (buffers included) gets an `EndPassage` at the
-aisle's floor, 0.8 m wide (a Passage's width if one was on that wall: the
-Passage becomes the `EndPassage`, as a Passage opens its wall whether the
-car is coupled or not). No wall drawn and the aisle within 1.3 m of the
-end: an open end, at the aisle's end. A cab is left out: the room between
-that wall and the next one inward (up to 3 m) is a cab where a part named
-for a cab is in it, or where a vehicle with a cab uses the model (an `.eng`
-beside it with a `CabView` or an `ORTS3DCab`) and no passenger door opens
-into the room and it has 3 seats at most (a vestibule has its doors).
+furthest toward it (the longest of those reaching as far), ending at most
+3 m from the model's end. Outward from its end (walls it was drawn through
+up to 0.7 m count), the first wall across its line within 1.3 m of the
+model's end (buffers included) gets an `EndPassage` at the aisle's floor,
+0.8 m wide (a Passage's width if one was on that wall: the Passage becomes
+the `EndPassage`, as a Passage opens its wall whether the car is coupled
+or not). A wall before it, farther from the end, with the floor going on
+past it at the aisle's height (a step either way) is a walk-through room's
+door (the user, 2026-11-23: the Gorlitz88's end compartment with a WC,
+walked through to the gangway): it gets a Passage, and the end wall is
+looked for past it. No wall drawn and the floor going on to within 1.3 m
+of the end: an open end, where the floor ends (no farther than the model's
+end; TSRE takes a door up to 0.5 m past the coupling end). A cab is left
+out: a room (behind the end wall, up to the next wall inward within 3 m,
+or one walked into) is a cab where a part named for a cab is in it, or
+where a vehicle with a cab uses the model (an `.eng` beside it with a
+`CabView` or an `ORTS3DCab`; never a MaSzyna interior, whose cabs are found
+by their parts) and no passenger door opens into the room and it has 3
+seats at most (a vestibule has its doors).
 `gangways` adds them to an `.sd` written before, its other lines kept; an
 `.sd` with an `EndPassage` already is left as it is.
 

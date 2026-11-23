@@ -119,11 +119,11 @@ bool CarCollision::within(float x, float z, float margin) const {
     return of != nullptr && Gangways::within(half[0], half[1], ends[0].plate, ends[1].plate, x, z, margin);
 }
 
-void CarCollision::openEnd(const ShapeSeats::EndPassage &door, float width) {
+void CarCollision::openEnd(const ShapeSeats::EndPassage &door, float width, float otherX) {
     if (of == nullptr)
         return;
     End &e = ends[door.end() > 0 ? 0 : 1];
-    const Gangways::Plate plate = Gangways::plateOf(door, coupling, width);
+    const Gangways::Plate plate = Gangways::plateOf(door, coupling, width, otherX);
     if (e.plate.open() && e.plate.x == plate.x && e.plate.y == plate.y && e.plate.wall == plate.wall
             && e.plate.far == plate.far && e.plate.width == plate.width && e.doorX == door.position[0]
             && e.doorWidth == door.width)

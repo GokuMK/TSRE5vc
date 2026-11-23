@@ -32,8 +32,10 @@ bool within(float halfWidth, float halfLength, const Plate &front, const Plate &
 }
 
 bool reaches(const ShapeSeats::EndPassage &door, float couplingEnd) {
+    // A door up to Overlap past it: an open end, its bellows over the next
+    // car's (SN84's driving cars).
     const float out = float(door.end()) * door.position[2];
-    return couplingEnd > 0.0f && out <= couplingEnd && couplingEnd - out <= MaxReach;
+    return couplingEnd > 0.0f && out <= couplingEnd + Overlap && couplingEnd - out <= MaxReach;
 }
 
 bool matches(const ShapeSeats::EndPassage &a, float couplingA, const ShapeSeats::EndPassage &b, float couplingB,
@@ -44,6 +46,19 @@ bool matches(const ShapeSeats::EndPassage &a, float couplingA, const ShapeSeats:
     if (width != nullptr)
         *width = std::min(a.width, b.width);
     return true;
+}
+
+Plate plateOf(const ShapeSeats::EndPassage &door, float couplingEnd, float width, float otherX) {
+    Plate plate = plateOf(door, couplingEnd, width);
+    const float lo = std::min(door.position[0], otherX) - width / 2.0f;
+    const float hi = std::max(door.position[0], otherX) + width / 2.0f;
+    plate.x = (lo + hi) / 2.0f;
+    plate.width = hi - lo;
+    return plate;
+}
+
+float facingX(const ShapeSeats::EndPassage &other, int end, int facing) {
+    return end == -facing ? other.position[0] : -other.position[0];
 }
 
 Plate plateOf(const ShapeSeats::EndPassage &door, float couplingEnd, float width) {
@@ -87,10 +102,10 @@ std::vector<float> triangles(const Plate &plate) {
 
 void opening(const ShapeSeats::EndPassage &door, const Plate &plate, float *box) {
     const float in = plate.wall - float(plate.end) * WallDepth;
-    box[0] = door.position[0] - door.width / 2.0f - Aside;
+    box[0] = std::min(door.position[0] - door.width / 2.0f, plate.x - plate.width / 2.0f) - Aside;
     box[1] = door.position[1] + 0.05f;
     box[2] = std::min(in, plate.far);
-    box[3] = door.position[0] + door.width / 2.0f + Aside;
+    box[3] = std::max(door.position[0] + door.width / 2.0f, plate.x + plate.width / 2.0f) + Aside;
     box[4] = door.position[1] + WallHeight;
     box[5] = std::max(in, plate.far);
 }

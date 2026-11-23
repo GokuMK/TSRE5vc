@@ -207,6 +207,8 @@ centred on its own passage's x.
   `WallDepth` 0.35, `Aside` 0.3, `StepIn` 0.5 m), `reaches`, `matches`,
   `Plate` (`holds`), `plateOf`, `triangles` (its floor from `WallDepth`
   inside the wall to its far end, its two walls from the wall on),
+  (`reaches`: a door up to `Overlap` past its coupling end, an open end
+  whose bellows lie over the next car's: SN84's driving cars),
   `opening` (the door's width and `Aside` either side, from `WallDepth`
   inside the wall to the plate's far end: its own car's bellows and a
   gangway's cover there are walked through, the plate's walls keep the
@@ -217,6 +219,10 @@ centred on its own passage's x.
 - **`CollisionWorld`:** openings by index (`addOpening` returns it,
   `removeOpening`), and meshes added not `openable` (the plate's walls
   stand inside its door's opening).
+- **Doors not in line:** each plate spans its own door's line and the
+  facing door's (`Gangways::facingX`: its x, negated through a turned car;
+  fixed while coupled), and its opening with it (MaSzyna's SA134: -0.43 and
+  0).
 - **`CarCollision`:** `couplingEnd()` (half the definition's full length,
   as `Consist::initPos` spaces cars, else half its footprint),
   `openEnd(door, width)`/`closeEnd(end)` (the plate a mesh and the opening,
@@ -232,12 +238,16 @@ centred on its own passage's x.
 - **The flips:** an unflipped car's +z end faces the car before it (the
   train's front), as the brief guessed; the code does not rely on it.
 - **`extra/car-seats`:** `end_passages` (for each end the level aisle
-  reaching furthest; the first wall across its line within 0.7 m of its
-  end, either side, and 1.3 m of the model's end, else an open end at the
-  aisle's end within 1.3 m; a cab left out: a part named for a cab in the
-  room behind it, or a vehicle with a cab (`cab_vehicle`: an `.eng` beside
-  the `.s` with a `CabView` or `ORTS3DCab`) with no passenger door into it
-  and 3 seats at most), `with_end_passages` (a Passage on that wall becomes
+  reaching furthest, the longest of those, ending at most 3 m from the
+  model's end; outward from it the first wall within 1.3 m of the model's
+  end; a wall before it with the floor going on past it at the aisle's
+  height a walk-through room's door, given a Passage: the user, after
+  seeing Gorlitz88's plan, "In reality there is a little walk trough
+  compartment with a WC"; no wall: an open end where the floor ends, no
+  farther than the model's end; a cab left out: a part named for a cab in
+  the room, or a vehicle with a cab (`cab_vehicle`: an `.eng` beside the
+  `.s` with a `CabView` or `ORTS3DCab`) with no passenger door into it and
+  3 seats at most), `with_end_passages` (a Passage on that wall becomes
   the EndPassage: a Passage opens its wall coupled or not), `find` with
   them, `sd_seats`/`mirrored`/`block` with `EndPassage` lines, red on the
   plans (E and its floor), and the `gangways` command for written sets
@@ -248,10 +258,12 @@ centred on its own passage's x.
     part.
 
 ## Results (2026-11-23)
-- **`car-gangways` 28:**
+- **`car-gangways` 30:**
   - Reading: `EndPassage` read, mirrored for `.s` and `.e3d` with and
     without the axes line, and from glTF extras; a short line left out
     with its message.
+  - The facing door's x through a turned car; a plate spanning two doors
+    not in line.
   - Matching: floors 0.25 m apart open and 0.3 m closed; a wall 1.5 m from
     its coupling end open and 2.75 m (a cab's partition) closed.
   - Facing ends: opposite for two cars the same way round, the same for a
@@ -262,8 +274,10 @@ centred on its own passage's x.
     joints walked over by `nextCar`.
   - Walking across with `CharacterBody` between two cars' worlds (their
     plates, openings, walls drawn closed): standing; up a 0.2 m step; at
-    10 m/s into a 150 m curve, both ways. Each handed over once, on a
-    floor all the way, no jump. A closed end stops it.
+    10 m/s into a 150 m curve, both ways; doors 0.43 m apart across (MaSzyna's
+    SA134: without each plate spanning both, the walk drops 0.36 m and
+    jumps sideways). Each handed over once, on a floor all the way, no jump.
+    A closed end stops it.
   - A moving car's footprint meets its open plate (found live, below);
     `insidePlace`, `holds`, `handedOver`.
 - **Live** (`--game-root` a scratch overlay of OR_PSK_NEW with set 8, never
@@ -273,6 +287,12 @@ centred on its own passage's x.
     the joint, into 18968 (`through to train 68's car 3`), up its stairs
     to the upper deck, then back (`through to train 68's car 1`).
   - Moving, at 17:12 after Nysa: the same both ways, `its train moving`.
+  - Gorlitz88, the user's walk-through compartment with a WC: train 5
+    (0846_IR46140 SZYNDZIELNIA: EU07, A9ouy, three PR_Bmnopux-08158),
+    running at 38 and 29 km/h: from vehicle 2's end saloon through its
+    compartment's door (Passage -11.55) and gangway door (EndPassage
+    -12.91) into vehicle 3 (`through to train 5's car 3`), and back, at
+    the 1.31 m floor all the way.
   - Found and fixed: on a moving train the first try stopped 0.16 m short
     of the end wall. A moving car's footprint ends the body's radius
     inside its size, and the plate's zone began at the wall; it now
@@ -285,11 +305,20 @@ centred on its own passage's x.
   arguments: a game root, `--test-cases`, a corpus folder.
 - **Sets** (in `~/humans-11`, outside the repo):
   - OR set 8 (`OR_PSK_NEW-sd-seats-map-20261123-8.zip`, README8-or.md,
-    plans in `plans-staged8-or`): set 7 with 480 `EndPassage` lines in 298
-    files, 308 end-wall Passages taken out, nothing else changed.
+    plans in `plans-staged8-or`): set 7 with 500 `EndPassage` lines in 310
+    files, 308 end-wall Passages taken out, 10 walk-through rooms' doors
+    added (the five Gorlitz88 cars), nothing else changed.
   - MaSzyna set 7 (`maszyna-sd-seats-map-20261123-7.zip`,
-    README7-maszyna.md, `plans-staged7-maszyna`): set 6 with 280 lines in
-    190 files, 218 Passages taken out.
+    README7-maszyna.md, `plans-staged7-maszyna`): set 6 with 300 lines in
+    204 files, 218 Passages taken out, 12 walk-through rooms' doors added
+    (the Bdhpumn interiors).
+  - The first run had 480 and 280. The user asked why Gorlitz88 and SN84
+    had none or odd ones. Their plans showed an end compartment past the
+    aisle's end wall (the user: "In reality there is a little walk trough
+    compartment with a WC"), hence the walk-through rule; the aisle may end
+    up to 3 m from the end; an open end no farther than the model's end.
+    New since: the Gorlitz88s, SN84's middle car, SA133/SA134's B cars,
+    ED160 013e, MaSzyna's Elf and SA134 interiors.
   - Coaches have both ends; EMU cab cars one (EN57, ED72, EN57AL); cabs
     found by part in MaSzyna (94 ends). Aisles that stop short of the ends
     give none (Impuls, EN75, SA railbuses, ED78, Elf's end cars). A second
@@ -301,12 +330,6 @@ centred on its own passage's x.
   where coupled to another Bhp. In the 17:09 this end faces the SU42 and
   stays closed. A Passage there belongs in the set, after a look at the
   model.
-- **Gorlitz88:** its aisles end at a partition 1.9 m from the end (no
-  `EndPassage`). Its gangways need that partition's Passage, and the end
-  room's floor, written in its `.sd`.
-- **SN84:** its end passages come out 0.14 m past the model's end (an
-  open end at the aisle's end). Harmless (its middle car has none), but
-  worth a look.
 - **The third-person camera** tests only its own car's world: in a
   doorway it can sit inside the end doors (seen live, walking back).
 - **Real end doors:** most models draw them closed, and the character walks

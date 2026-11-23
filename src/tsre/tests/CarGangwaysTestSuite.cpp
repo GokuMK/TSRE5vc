@@ -142,7 +142,7 @@ struct Pair {
 };
 
 Pair couple(const Track &track, double front, float gap, float rollA, float rollB, bool flipB, bool carriers,
-            float floorA = 1.2f, float floorB = 1.2f) {
+            float floorA = 1.2f, float floorB = 1.2f, float xA = 0.0f, float xB = 0.0f) {
     Pair p;
     carMatrix(track, front, rollA, false, carriers, p.a);
     carMatrix(track, front - Length - gap, rollB, flipB, carriers, p.b);
@@ -150,13 +150,13 @@ Pair couple(const Track &track, double front, float gap, float rollA, float roll
     rigidInverse(p.b, p.ib);
     p.endA = Gangways::endTowards(p.ia, p.b);
     p.endB = Gangways::endTowards(p.ib, p.a);
-    p.doorA = door(0.0f, floorA, float(p.endA) * Wall, 0.8f);
-    p.doorB = door(0.0f, floorB, float(p.endB) * Wall, 0.7f);
+    p.doorA = door(xA, floorA, float(p.endA) * Wall, 0.8f);
+    p.doorB = door(xB, floorB, float(p.endB) * Wall, 0.7f);
     float width = 0.0f;
     p.open = Gangways::matches(p.doorA, Coupling, p.doorB, Coupling, &width);
     if (p.open) {
-        p.plateA = Gangways::plateOf(p.doorA, Coupling, width);
-        p.plateB = Gangways::plateOf(p.doorB, Coupling, width);
+        p.plateA = Gangways::plateOf(p.doorA, Coupling, width, Gangways::facingX(p.doorB, p.endA, p.endB));
+        p.plateB = Gangways::plateOf(p.doorB, Coupling, width, Gangways::facingX(p.doorA, p.endB, p.endA));
     }
     return p;
 }
@@ -271,9 +271,9 @@ struct Walked {
 // character is (Gangways::handedOver: through the world into the other
 // car's frame). A moving car keeps it within its footprint or its plate.
 Walked walkAcross(const Track &track, double front, float speed, bool back, bool carriers, float floorA,
-                  float floorB, bool closed = false) {
+                  float floorB, bool closed = false, float xA = 0.0f, float xB = 0.0f) {
     Walked out;
-    Pair p = couple(track, front, 0.0f, 0.0f, 0.0f, false, carriers, floorA, floorB);
+    Pair p = couple(track, front, 0.0f, 0.0f, 0.0f, false, carriers, floorA, floorB, xA, xB);
     const Gangways::Plate none;
     const CollisionWorld worlds[2] = {carWorld(floorA, closed ? none : p.plateA, p.doorA),
                                       carWorld(floorB, closed ? none : p.plateB, p.doorB)};
@@ -284,14 +284,14 @@ Walked walkAcross(const Track &track, double front, float speed, bool back, bool
     CharacterBody::Settings settings;
     settings.radius = 0.22f;
     body.setSettings(settings);
-    const float start[3] = {0.0f, back ? floorB : floorA, float(ends[in]) * (Wall - 3.0f)};
+    const float start[3] = {back ? xB : xA, back ? floorB : floorA, float(ends[in]) * (Wall - 3.0f)};
     body.setPosition(start);
     float lastWorld[3] = {0, 0, 0};
     bool hasLast = false;
     constexpr float Dt = 1.0f / 60.0f;
     for (int frame = 0; frame < 60 * 12; ++frame) {
         const double at = front + double(speed) * double(frame) * Dt;
-        const Pair now = couple(track, at, 0.0f, 0.0f, 0.0f, false, carriers, floorA, floorB);
+        const Pair now = couple(track, at, 0.0f, 0.0f, 0.0f, false, carriers, floorA, floorB, xA, xB);
         const float *m[2] = {now.a, now.b}, *inverse[2] = {now.ia, now.ib};
         // Toward the other car in the first, away from it in the second.
         const float vz = (in == (back ? 1 : 0) ? 1.4f : -1.4f) * float(ends[in]);
@@ -402,9 +402,12 @@ int runCarGangwaysSuite(bool verbose) {
                            && Gangways::matches(door(0, 1.2f, 10.75f, 0.8f), Coupling, door(0, 1.2f, 11.6f, 0.8f),
                                                 Coupling),
                    "a wall 2.75 m from its coupling end (a cab's partition) closed, 1.5 m (MaxReach) open");
-        test.check(!Gangways::matches(door(0, 1.2f, 12.5f, 0.8f), Coupling, door(0, 1.2f, 11.6f, 0.8f), Coupling)
+        test.check(Gangways::matches(door(0, 1.2f, 12.5f, 0.8f), Coupling, door(0, 1.2f, 11.6f, 0.8f), Coupling)
+                           && !Gangways::matches(door(0, 1.2f, 12.9f, 0.8f), Coupling, door(0, 1.2f, 11.6f, 0.8f),
+                                                 Coupling)
                            && !Gangways::reaches(door(0, 1.2f, 11.6f, 0.8f), 0.0f),
-                   "a wall past its coupling end, or a car without a length: closed");
+                   "an open end 0.25 m past its coupling end open (SN84's bellows), 0.65 m or a car without a "
+                   "length closed");
     }
 
     // Which end faces which car: the other car's middle in its frame.
@@ -476,11 +479,29 @@ int runCarGangwaysSuite(bool verbose) {
         test.check(movingBack.reached && movingBack.handovers == 1 && movingBack.grounded
                            && movingBack.worstStep < 0.05f,
                    "at 10 m/s, walking back to the front car: " + movingBack.text());
+        // Doors not in line (MaSzyna's SA134: -0.43 and 0): each plate
+        // spans both.
+        const Walked offset = walkAcross(straight, 100.0, 0.0f, false, false, 1.2f, 1.2f, false, -0.43f, 0.0f);
+        const Walked offsetBack = walkAcross(straight, 100.0, 0.0f, true, false, 1.2f, 1.2f, false, -0.43f, 0.0f);
+        test.check(offset.reached && offset.handovers == 1 && offset.grounded && offsetBack.reached
+                           && offsetBack.handovers == 1,
+                   "doors 0.43 m apart across: walked across both ways: " + offset.text() + "; " + offsetBack.text());
         const Walked closed = walkAcross(straight, 100.0, 0.0f, false, false, 1.2f, 1.2f, true);
         test.check(!closed.reached && closed.handovers == 0 && closed.endZ * float(couple(straight, 100.0, 0.0f, 0.0f,
                                                                                          0.0f, false, false).endA)
                                                                     < Wall,
                    "a closed end: its wall stops it: " + closed.text());
+    }
+
+    // The facing door's x: as it is for two cars the same way round,
+    // negated where one is turned.
+    {
+        const EndPassage other = door(0.3f, 1.2f, 11.6f, 0.8f);
+        const Gangways::Plate plate = Gangways::plateOf(door(-0.43f, 1.2f, -11.6f, 0.8f), Coupling, 0.8f,
+                                                        Gangways::facingX(door(0.0f, 1.2f, 11.6f, 0.8f), -1, 1));
+        test.check(near(Gangways::facingX(other, -1, 1), 0.3f) && near(Gangways::facingX(other, 1, 1), -0.3f)
+                           && near(plate.x, -0.215f) && near(plate.width, 1.23f),
+                   "the facing door's x through a turned car; a plate spanning two doors not in line");
     }
 
     // A joint walked over: the cars either side of it are next to each

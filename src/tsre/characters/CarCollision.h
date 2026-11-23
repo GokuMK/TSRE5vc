@@ -61,7 +61,9 @@ public:
     // EndPassage's end with the narrower door's width (its plate, and its
     // door's opening), closed (both taken away). An end: 1 its front, -1
     // its rear.
-    void openEnd(const ShapeSeats::EndPassage &door, float width);
+    // `otherX`: the facing door's middle across in this car's frame
+    // (Gangways::facingX).
+    void openEnd(const ShapeSeats::EndPassage &door, float width, float otherX);
     void closeEnd(int end);
     const Gangways::Plate &plate(int end) const { return ends[end > 0 ? 0 : 1].plate; }
     // Its coupling end along it (m): half its full length, as the train

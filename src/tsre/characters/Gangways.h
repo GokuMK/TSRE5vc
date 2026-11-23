@@ -74,20 +74,28 @@ struct Plate {
 bool within(float halfWidth, float halfLength, const Plate &front, const Plate &rear, float x, float z,
             float margin = 0.0f);
 // A door's wall within MaxReach of its car's coupling end (half its full
-// length), not past it.
+// length), at most Overlap past it.
 bool reaches(const ShapeSeats::EndPassage &door, float couplingEnd);
 // Two facing doors (each of its own car, with its car's coupling end) open
 // a gangway: both reach, their floors at most OneStep apart. Its width: the
 // narrower door's.
 bool matches(const ShapeSeats::EndPassage &a, float couplingA, const ShapeSeats::EndPassage &b, float couplingB,
              float *width = nullptr);
-// The plate of a car's open end, `width` wide on its door's middle.
+// The plate of a car's open end, `width` wide on its door's middle, and on
+// the facing door's (`otherX`, in this car's frame: facingX) where the two
+// are not in line (MaSzyna's SA134: one at -0.43, one at 0): wide enough to
+// take both.
 Plate plateOf(const ShapeSeats::EndPassage &door, float couplingEnd, float width);
+Plate plateOf(const ShapeSeats::EndPassage &door, float couplingEnd, float width, float otherX);
+// The facing door's middle across in this car's frame: its own x, negated
+// where one of the two cars is turned (both ends of one kind facing: front
+// to front, rear to rear). Fixed while they are coupled.
+float facingX(const ShapeSeats::EndPassage &other, int end, int facing);
 // Its triangles (nine floats each): its floor, from WallDepth inside its
 // door's wall to its far end, and its two walls, from the wall on.
 std::vector<float> triangles(const Plate &plate);
-// Its door's opening (min x, y, z, then max): the door's width and Aside
-// either side, from just over the floor to WallHeight, from WallDepth inside
+// Its door's opening (min x, y, z, then max): the door's width and the
+// plate's, and Aside either side, from just over the floor to WallHeight, from WallDepth inside
 // its wall to the plate's far end (its own car's bellows and a gangway's
 // cover there are walked through: the plate's walls keep the way).
 void opening(const ShapeSeats::EndPassage &door, const Plate &plate, float *box);

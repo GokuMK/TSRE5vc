@@ -389,7 +389,7 @@ void Character::gangways() {
                 continue;
             open[end > 0 ? 0 : 1] = true;
             nextCars[end > 0 ? 0 : 1] = next;
-            carWorld.openEnd(*door, width);
+            carWorld.openEnd(*door, width, Gangways::facingX(*across, end, facing));
         }
     }
     for (const int end : {1, -1}) {

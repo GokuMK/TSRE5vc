@@ -1456,11 +1456,15 @@ def cab_vehicle(model):
     return name.lower() in _CABS[folder]
 
 
-def end_passages(tris, found, doors=(), log=None, model=None):
+def end_passages(tris, found, doors=(), log=None, model=None, inner=None):
     """EndPassages ([x, floor, z, width], the model's space) where a level
     aisle of `found` reaches an end wall (see END_WALL); `doors` the car's
     ([x, y, z, width...]: its .sd's, else its door parts'), `model` its
-    path (cab_vehicle()). Notes for each end into `log`."""
+    path (cab_vehicle()). A wall farther from the end with the floor going
+    on past it at the aisle's height is a walk-through room's door (the
+    user, 2026-11-23: Gorlitz88's end compartment with a WC, walked through
+    to the gangway): a Passage into `inner`, the end wall then looked for
+    past it. Notes for each end into `log`."""
     level = [a for a in (found.get("aisles") or ([found["aisle"]] if found.get("aisle") else [])) if not sloped(a)]
     if not level or not tris:
         return []
@@ -1469,10 +1473,12 @@ def end_passages(tris, found, doors=(), log=None, model=None):
     for e in (1, -1):
         end = max(zs) if e > 0 else min(zs)
         name = "front" if e > 0 else "rear"
-        a = max(level, key=lambda q: q[3] if e > 0 else -q[2])
+        # The aisle reaching furthest; of those, the longest (a level
+        # beside it ending as far: SN84's middle car).
+        a = max(level, key=lambda q: (round(q[3] if e > 0 else -q[2], 2), q[3] - q[2]))
         x, floor = a[0], a[1]
         za = a[3] if e > 0 else a[2]
-        if e * (end - za) > END_WALL + END_AISLE:
+        if e * (end - za) > END_ROOM_DEEP:
             if log is not None:
                 log.append("%s: no EndPassage, its aisle ends %.2f m from the end" % (name, e * (end - za)))
             continue
@@ -1481,47 +1487,93 @@ def end_passages(tris, found, doors=(), log=None, model=None):
         walls += [p[2] for p in found.get("passages", []) if abs(p[0] - x) < 0.5 and lo <= p[2] <= hi
                   and all(abs(p[2] - w) >= 0.25 for w in walls)]
         walls.sort(key=lambda w: e * w)
-        # The end wall: the first one the aisle's end meets near the end;
-        # none drawn: an open end at the aisle's end.
-        near = [w for w in walls if abs(w - za) <= END_AISLE and e * (end - w) <= END_WALL]
-        if near:
-            wall = near[0]
-        elif e * (end - za) <= END_WALL:
-            wall = za
-        else:
-            if log is not None:
-                log.append("%s: no EndPassage, no wall within %.1f m of the end" % (name, END_WALL))
-            continue
-        inner = [w for w in walls if 0.3 <= e * (wall - w) <= END_ROOM_DEEP]
-        if inner:
-            room = sorted((inner[-1], wall))
+        # The floor along the line at the aisle's height (a step either
+        # way): upward faces over it.
+        ups = []
+        for t, _ in tris:
+            n, area = normal_area(t)
+            if n[1] > 0.85 and area > 0.0005 and min(p[0] for p in t) <= x <= max(p[0] for p in t) \
+                    and abs(sum(p[1] for p in t) / 3 - floor) <= ONE_STEP:
+                ups.append(t)
+
+        def floor_at(z):
+            return any(covers(t, x, z) for t in ups)
+
+        def cab_room(room):
+            """A room between two z: a cab (cab_vehicle(), no passenger
+            door into it, CAB_PLACES seats at most; or a cab's part in it)."""
             opens = [d for d in doors if d[2] + d[3] / 2 > room[0] and d[2] - d[3] / 2 < room[1]]
             seats = [q for q in found.get("seats", []) if room[0] < q[2] < room[1]]
-            cab = any(part and CAB.search(part) for t, part in tris
-                      if room[0] < sum(p[2] for p in t) / 3 < room[1])
-            if cab or (not opens and len(seats) <= CAB_PLACES and cab_vehicle(model)):
+            part = any(p and CAB.search(p) for t, p in tris if room[0] < sum(q[2] for q in t) / 3 < room[1])
+            return part or (not opens and len(seats) <= CAB_PLACES and cab_vehicle(model)), part
+        # Outward from the aisle's end (or a wall it was drawn through):
+        # walls farther than END_WALL from the end with the floor going on
+        # past them are walk-through rooms' doors; the first within it the
+        # end wall.
+        ahead = [w for w in walls if e * (w - za) >= -END_AISLE]
+        crossed, wall, stop = [], None, None
+        for i, w in enumerate(ahead):
+            if e * (end - w) <= END_WALL:
+                wall = w
+                break
+            if not floor_at(w + e * 0.3):
+                stop = "a wall at %.2f, no floor past it" % w
+                break
+            nxt = ahead[i + 1] if i + 1 < len(ahead) else end
+            cab, part = cab_room(sorted((w, nxt)))
+            if cab:
+                stop = "a cab past its wall at %.2f (%s)" % (w, "a cab's part" if part else "no door")
+                break
+            crossed.append(w)
+        if wall is None and stop is None:
+            # An open end: the floor going on to within END_WALL of the end
+            # (no farther than the model's end).
+            z = crossed[-1] if crossed else za
+            while e * (end - z) > 0.05 and floor_at(z + e * 0.1):
+                z += e * 0.1
+            if e * (end - z) <= END_WALL:
+                wall = end if e * (z - end) > 0 else z
+            else:
+                stop = "no wall within %.1f m of the end" % END_WALL
+        if wall is None:
+            if log is not None:
+                log.append("%s: no EndPassage, %s" % (name, stop))
+            continue
+        inside = [w for w in walls if 0.3 <= e * (wall - w) <= END_ROOM_DEEP]
+        if inside:
+            cab, part = cab_room(sorted((inside[-1], wall)))
+            if cab:
                 if log is not None:
                     log.append("%s: no EndPassage, a cab (a room %.2f m deep behind its wall at %.2f, %s)"
-                               % (name, room[1] - room[0], wall, "a cab's part" if cab else "no door"))
+                               % (name, e * (wall - inside[-1]), wall, "a cab's part" if part else "no door"))
                 continue
         width = min([END_WIDTH] + [p[3] for p in found.get("passages", [])
                                    if abs(p[2] - wall) < 0.25 and abs(p[0] - x) < 0.5])
         out.append([round(x, 3), round(floor, 3), round(wall, 3), round(width, 2)])
+        for w in crossed:
+            if inner is not None and not any(abs(p[2] - w) < 0.25 and abs(p[0] - x) < 0.5
+                                             for p in found.get("passages", [])):
+                inner.append([round(x, 3), round(floor, 3), round(w, 3), END_WIDTH])
         if log is not None:
-            log.append("%s: EndPassage at z %.2f (x %.2f, floor %.2f, %.2f m from the end)"
-                       % (name, wall, x, floor, e * (end - wall)))
+            log.append("%s: EndPassage at z %.2f (x %.2f, floor %.2f, %.2f m from the end)%s"
+                       % (name, wall, x, floor, e * (end - wall),
+                          "; a walk-through room, its door a Passage at %s" % ", ".join("%.2f" % w for w in crossed)
+                          if crossed else ""))
     return out
 
 
 def with_end_passages(tris, found, doors=(), log=None, model=None):
     """`found` with its EndPassages (end_passages()), the Passages on their
-    walls taken out (each became one)."""
+    walls taken out (each became one), walk-through rooms' doors added as
+    Passages."""
     if "problem" in found:
         return found
-    ends = end_passages(tris, found, doors, log, model)
+    inner = []
+    ends = end_passages(tris, found, doors, log, model, inner)
     found["endPassages"] = ends
-    found["passages"] = [p for p in found.get("passages", [])
-                         if not any(abs(p[2] - q[2]) < 0.25 and abs(p[0] - q[0]) < 0.5 for q in ends)]
+    found["passages"] = sorted([p for p in found.get("passages", [])
+                                if not any(abs(p[2] - q[2]) < 0.25 and abs(p[0] - q[0]) < 0.5 for q in ends)]
+                               + inner, key=lambda p: p[2])
     return found
 
 
@@ -2334,8 +2386,9 @@ def stairs(models, root, archive, tsre, readme=None, plans_dir=None):
 def gangways(models, root, archive, tsre, readme=None, plans_dir=None):
     """EndPassage lines (end_passages(): task characters 05, the user's
     design 2026-11-23) put into models' .sd written before them, after its
-    last Passage or Aisle line; a Passage on an end wall taken out (it became
-    the EndPassage); every other line kept. Written in the .sd's axes. Left
+    last Passage or Aisle line, with a Passage on each walk-through end
+    room's door; a Passage on an end wall taken out (it became the
+    EndPassage); every other line kept. Written in the .sd's axes. Left
     as they are: .sd files without aisles, with EndPassage lines already
     (a second run writes nothing), and models whose aisles reach no end."""
     plans, skipped = [], []
@@ -2365,6 +2418,7 @@ def gangways(models, root, archive, tsre, readme=None, plans_dir=None):
             skipped.append((model, "no aisle reaches an end wall"))
             continue
         gone = [p for p in before if p not in found["passages"]]
+        added = [p for p in found["passages"] if p not in before]
         sd = sd_path(model)
         text = read_sd(sd_read(model)).replace("\r\n", "\n")
         span = block_span(text, "ESD_TSRESeats")
@@ -2379,7 +2433,9 @@ def gangways(models, root, archive, tsre, readme=None, plans_dir=None):
             return any(len(values) >= 4 and all(abs(values[k] - g[k]) < 1e-3 for k in range(4)) for g in gone_written)
         inner = re.sub(r"^[ \t]*Passage[ \t]*\(([^()]*)\)[ \t]*\n", lambda m: "" if is_gone(m) else m.group(0),
                        inner, flags=re.M | re.I)
-        lines = end_passage_lines(written["endPassages"])
+        lines = ["\t\tPassage ( %s )" % " ".join(fmt(v) for v in p)
+                 for p in (mirrored({"passages": added})["passages"] if flip else added)]
+        lines += end_passage_lines(written["endPassages"])
         anchors = list(re.finditer(r"^[ \t]*(Passage|Aisle)\b[^()\n]*\([^()]*\)[ \t]*\n", inner, flags=re.M | re.I))
         at = anchors[-1].end() if anchors else inner.find("\n") + 1
         inner = inner[:at] + "".join(line + "\n" for line in lines) + inner[at:]
