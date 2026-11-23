@@ -372,6 +372,22 @@ Prudnik is bound by the CPU (paint 38 to 40 ms in both). With main's
 profile (fps limit 30) both hold 30 fps at the start view, the GPU 23.7 ms
 against 29.3.
 
+### Later: the second lookup at 1920 x 1080 (2026-11-24, task 50)
+
+Steps 2 and 3 measured the second lookup at 842 x 755 only (+0.4 to 0.6
+ms of the view, +0.4 of the cube; +1.6 and +1.0 on Prudnik's ride), and
+the early-out was left until the full lookup showed. It shows at 1920 x
+1080: the dynamic maps are read whatever they hold, and their taps cost
+(every timed pass, a shader copy without them) 4.2 ms at Prudnik's forest
+and 7.9 at its freight station, where they are empty, and 2.7 to 3.7 in
+the ET22's cab, where they hold the cab's train. On Prudnik's ride step 3
+saved the near map's 8.4 ms against +2.6 of lookups at 842 x 755; at 1920
+x 1080 the lookups (about 3.3 times the pixels) take most of that back.
+The drawing saved does not change with the resolution; the lookups grow
+with it. Next: skip a map's dynamic taps when nothing was drawn into it,
+and outside the light-space rectangles of what was (task 50, "The lookups
+at high resolution").
+
 ### Measuring noise
 
 The near map's pass runs at one of two levels, about 5 or about 12 ms at

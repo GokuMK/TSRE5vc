@@ -445,8 +445,10 @@ protected:
     float shadowForward[2] = {0.0f, 1.0f};
     bool shadowSnapped = false;
     // The cab's sun shadow map (cabShadows()): on while the camera rides a
-    // 3D cab, fading in from when it started.
-    bool cabShadowOn = false;
+    // 3D cab, fading in from when it started; or a car's (task renderer 49),
+    // while the camera is in one with the walking character: what it is for
+    // (none, the cab, a car), fading in again when that changes.
+    const void *cabShadowFor = nullptr;
     QElapsedTimer cabShadowSince;
     // Cached static shadow casters (task renderer 37): each map's cache and
     // what it was drawn for.

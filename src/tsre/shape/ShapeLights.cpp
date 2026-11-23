@@ -660,6 +660,20 @@ QString scheduleName(Schedule schedule) {
     }
 }
 
+SelfLit selfLitFrom(const QString &name) {
+    const QString value = name.trimmed();
+    if (value.isEmpty() || value.compare(QLatin1String("On"), Qt::CaseInsensitive) == 0)
+        return SelfLit::On;
+    if (value.compare(QLatin1String("Off"), Qt::CaseInsensitive) == 0)
+        return SelfLit::Off;
+    return SelfLit::Unknown;
+}
+
+QString selfLitProblem(const QString &name) {
+    //% "ESD_TSRESelfLit %1 is neither On nor Off; On used"
+    return qtTrId("shapelights.problem.selflit").arg(name.trimmed());
+}
+
 namespace {
 bool nightNow = true;
 }

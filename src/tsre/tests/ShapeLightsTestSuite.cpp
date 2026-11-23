@@ -25,7 +25,9 @@
 #include <tsre/shape/SFileComplex.h>
 #include <tsre/shape/SFileLegacy.h>
 #include <tsre/shape/ShapeLights.h>
+#include <tsre/shape/MstsMaterials.h>
 #include <tsre/shape/ShapeLod.h>
+#include <tsre/shape/ShapeMetadata.h>
 #include <tsre/trains/CarLights.h>
 #include <tsre/trains/EngLights.h>
 
@@ -833,6 +835,76 @@ int TsreTests::runShapeLightsSuite(bool verbose) {
         renderer.resetFrame();
         check(lit.size() == 2 && glows.size() == 1 && renderer.lightsShown(),
               "gathered-lights-dropped-and-view-distance");
+    }
+
+    // A shape's own light off (task renderer 49): ESD_TSRESelfLit ( Off )
+    // draws full and half bright as lit, in both backends; the names; an
+    // unknown value told and taken as On.
+    {
+        using ShapeLights::SelfLit;
+        check(ShapeLights::selfLitFrom("") == SelfLit::On && ShapeLights::selfLitFrom(" off ") == SelfLit::Off
+                      && ShapeLights::selfLitFrom("ON") == SelfLit::On && ShapeLights::selfLitFrom("Dim") == SelfLit::Unknown
+                      && MstsMaterials::lightMaterial(-8, false) == -5 && MstsMaterials::lightMaterial(-11, false) == -5
+                      && MstsMaterials::lightMaterial(-12, false) == -12 && MstsMaterials::lightMaterial(-6, false) == -6
+                      && MstsMaterials::lightMaterial(-9, false) == -9 && MstsMaterials::lightMaterial(-8, true) == -8
+                      && MstsMaterials::lightMaterial(-11, true) == -11,
+              "self-lit-names-and-light-materials");
+        // The shape with PART full bright (-8).
+        QByteArray brightShape(Shape);
+        brightShape.replace("vtx_state ( 00000000 1 -5 0 00000002 )", "vtx_state ( 00000000 1 -8 0 00000002 )");
+        auto sdWith = [](const QString &name, const QString &selfLit) {
+            QByteArray sd = "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\nshape ( " + name.toLatin1()
+                    + "\r\n\tESD_Detail_Level ( 0 )\r\n\tESD_Alternative_Texture ( 0 )\r\n";
+            if (!selfLit.isEmpty())
+                sd += "\tESD_TSRESelfLit ( " + selfLit.toLatin1() + " )\r\n";
+            return sd + ")\r\n";
+        };
+        // Its two quads' packets: PART's on its matrix 5 m up.
+        auto quads = [](ComplexShape &shape, const RenderItem *&body, const RenderItem *&part) {
+            Recorder recorder;
+            shape.pushRenderItem(recorder, 0, 0);
+            body = part = nullptr;
+            for (const RenderItem *item : recorder.packets)
+                if (item->lights.isEmpty() && item->mesh.count == 6)
+                    (item->msMatrix != nullptr && near(item->msMatrix[13], 5) ? part : body) = item;
+            return body != nullptr && part != nullptr;
+        };
+        struct Case {
+            const char *name;
+            const char *value;
+            bool selfLit;
+            bool told;
+        };
+        for (const Case &c : {Case{"off", "Off", false, false}, Case{"on", "", true, false},
+                              Case{"dim", "Dim", true, true}}) {
+            const QString name = QString("bright-%1").arg(c.name);
+            const QString path = dir.filePath(name + ".s");
+            const QString savedName = name + "-saved.s";
+            bool written = writeFile(path, brightShape) && writeFile(dir.filePath(name + ".sd"), sdWith(name + ".s", c.value));
+            SFileComplex brightComplex(path, name + ".s", dir.path());
+            brightComplex.loadData();
+            QString saveError;
+            written = written && brightComplex.save(dir.filePath(savedName), SFileComplex::Format::Text, false, &saveError)
+                    && writeFile(dir.filePath(name + "-saved.sd"), sdWith(savedName, c.value));
+            SFileLegacy brightLegacy(dir.filePath(savedName), savedName, dir.path());
+            brightLegacy.load();
+            ShapeMetadata metadata;
+            const bool read = ShapeMetadata::read(path, metadata);
+            for (ComplexShape *shape : {static_cast<ComplexShape *>(&brightComplex), static_cast<ComplexShape *>(&brightLegacy)}) {
+                const RenderItem *body = nullptr, *part = nullptr;
+                const bool found = written && shape->isLoaded() && quads(*shape, body, part);
+                const bool told = shape->lightProblems().size() == (c.told ? 1 : 0);
+                const bool ok = found && body->material.lit && !body->material.nightFromDay
+                        && part->material.lit == !c.selfLit && part->material.nightFromDay == c.selfLit && told
+                        && read && (metadata.selfLit == SelfLit::Off) == !c.selfLit
+                        && metadata.lightProblems.size() == (c.told ? 1 : 0);
+                if (!ok)
+                    qWarning().noquote() << "[tests:shape-lights] self-lit" << c.name << (shape == &brightComplex ? "complex" : "legacy")
+                                         << written << saveError << found << (part ? part->material.lit : false)
+                                         << (part ? part->material.nightFromDay : false) << shape->lightProblems();
+                check(ok, shape == &brightComplex ? "self-lit-complex" : "self-lit-legacy");
+            }
+        }
     }
 
     if (gl)

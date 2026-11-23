@@ -131,6 +131,13 @@ public:
     // half the near map, 2048 at 4096, by default; the user, 2026-11-16),
     // TSRE_CAB_SHADOW_SIZE over it.
     virtual int cabShadowSize() const { return 0; }
+    // The car's map instead, set each frame (task renderer 49: the camera
+    // in a car with the walking character): the same target and lookups,
+    // four times as wide as high, a car's length along it. Its size:
+    // cabShadowWidth() by cabShadowHeight() (the cab's square without).
+    virtual void setCarShadowMap(bool car) { (void)car; }
+    virtual int cabShadowWidth() const { return cabShadowSize(); }
+    virtual int cabShadowHeight() const { return cabShadowSize(); }
     // Cached static shadow maps (task 37), when the renderer has them.
     // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
     // 3 to 5 vegetation's), cleared and at the static map's size, for its

@@ -55,15 +55,17 @@ public:
     float shadowNormalOffset[3] = {0.0f, 0.0f, 0.0f};
     float shadowDepthBias[2] = {0.0f, 0.0f};
     float shadowLightDirection[3] = {0.0f, 1.0f, 0.0f};
-    // The cab's sun shadow map (QRhi, TARGET_SHADOW_CAB): its matrix, and
-    // its weight (0 off, fading in to 1), normal offset (m), depth bias (its
-    // depth units) and tap spread (its UV).
+    // The cab's sun shadow map (QRhi, TARGET_SHADOW_CAB; a car's, task
+    // renderer 49): its matrix, and its weight (0 off, fading in to 1),
+    // normal offset (m), depth bias (its depth units) and tap spread (its
+    // UV, across).
     float cabShadowMatrix[16] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
                                  0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     float cabShadowParams[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     // Its filter: the kernel (0 the 16-point disc of cabShadowParams.w; 3, 5
-    // or 7 a tent over so many texels), a texel in its UV, the per-tap
-    // receiver-plane correction (1 on, 0 off).
+    // or 7 a tent over so many texels), a texel in its UV across, the
+    // per-tap receiver-plane correction (1 on, 0 off), a texel in its UV up
+    // (a car's map is not square).
     float cabShadowFilter[4] = {0.0f, 0.0f, 1.0f, 0.0f};
     // The dynamic shadow maps' depth bias against the static maps' (QRhi,
     // task renderer 48): near, middle and far, 1 at the same size, more at

@@ -112,6 +112,7 @@ void SFileLegacy::adopt(ComplexShape &copy) {
     std::swap(sdEmitterProblems, o.sdEmitterProblems);
     std::swap(sdExtension, o.sdExtension);
     std::swap(sdLightSchedule, o.sdLightSchedule);
+    std::swap(sdSelfLit, o.sdSelfLit);
     std::swap(primFactors, o.primFactors);
     std::swap(tpoints, o.tpoints);
     std::swap(iloscd, o.iloscd);
@@ -544,6 +545,7 @@ void SFileLegacy::loadSd() {
     sdEmitterProblems.clear();
     sdExtension = ShapeLod::Extension::Default;
     sdLightSchedule = ShapeLights::Schedule::Default;
+    sdSelfLit = true;
     texPath = textureRoot;
     QFile file(ContentPath::withExtension(pathid, "sd"));
     if (!file.open(QIODevice::ReadOnly)){
@@ -648,6 +650,16 @@ void SFileLegacy::loadSd() {
                 // When its lights are on (task renderer 46).
                 if (sh == ("esd_tsrelightschedule")) {
                     sdLightSchedule = ShapeLights::scheduleFrom(ParserX::GetString(data));
+                    ParserX::SkipToken(data);
+                    continue;
+                }
+                // Its materials' own light (task renderer 49).
+                if (sh == ("esd_tsreselflit")) {
+                    const QString value = ParserX::GetString(data);
+                    const ShapeLights::SelfLit selfLit = ShapeLights::selfLitFrom(value);
+                    if (selfLit == ShapeLights::SelfLit::Unknown)
+                        sdLightProblems << ShapeLights::selfLitProblem(value);
+                    sdSelfLit = selfLit != ShapeLights::SelfLit::Off;
                     ParserX::SkipToken(data);
                     continue;
                 }
@@ -1487,7 +1499,7 @@ const QVector<RenderItem *> &SFileLegacy::staticPackets(unsigned int stateId) {
                 }
                 r->msMatrix = (float*)&macierz[matrix].fixed;
 
-                MstsMaterials::applyLight(*r, vtxstate[vtx_state].arg2);
+                MstsMaterials::applyLight(*r, MstsMaterials::lightMaterial(vtxstate[vtx_state].arg2, sdSelfLit));
 
                 r->material.surface = gatherSurface(prim_state);
                 r->material.doubleSided = doubleSided;
@@ -1612,7 +1624,7 @@ void SFileLegacy::pushPosed(RenderQueue &queue, quint32 selectionId, unsigned in
                 r->msMatrix = queue.frameMatrix(m);
             }
 
-            MstsMaterials::applyLight(*r, vtxstate[vtx_state].arg2);
+            MstsMaterials::applyLight(*r, MstsMaterials::lightMaterial(vtxstate[vtx_state].arg2, sdSelfLit));
 
             r->setSelectionId(numbered(index));
             r->material.surface = gatherSurface(prim_state);

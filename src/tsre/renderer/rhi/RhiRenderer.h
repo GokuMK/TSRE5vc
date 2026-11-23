@@ -103,6 +103,9 @@ public:
     bool farShadowInAir() const override;
     bool cabShadows() const override { return true; }
     int cabShadowSize() const override;
+    void setCarShadowMap(bool car) override;
+    int cabShadowWidth() const override;
+    int cabShadowHeight() const override;
     bool beginSkyEnclosure(int size, int map = 0) override;
     void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
                             const float *ground = nullptr, int groundSize = 0) override;
@@ -179,6 +182,12 @@ private:
     int skinnedSelectionProgram = -1;
     int skinnedShadowProgram = -1;
     int skinnedLampShadowProgram = -1;
+    // Opaque casters' shadow programs, the sun's and a lamp's (task renderer
+    // 49): without the alpha test's discard, so the GPU tests and writes
+    // depth before the fragment shader (early depth) and skips what lies
+    // behind; -1 until made.
+    int opaqueShadowProgram = -1;
+    int opaqueLampShadowProgram = -1;
     struct PipelineKeyHash { size_t operator()(const PipelineKey &key) const; };
     // Textures and samplers of a draw: one resource set per distinct key.
     struct BindingKey {
@@ -1625,6 +1634,10 @@ private:
     Attachments shadowMaps[3];
     // The cab's sun shadow map (TARGET_SHADOW_CAB), cabShadowSize() square.
     Attachments cabShadowMap;
+    // A car's (task renderer 49), made the first time the camera is in a
+    // car: four times as wide as high, the target's while carShadow.
+    Attachments carShadowMap;
+    bool carShadow = false;
     // The static maps: the cached static casters (task 37; 0 to 2 the main
     // maps', 3 to 5 vegetation's), read by the lit shaders as they are
     // (task 48), at staticSizes.

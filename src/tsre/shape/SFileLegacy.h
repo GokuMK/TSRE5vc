@@ -366,6 +366,9 @@ private:
     ShapeLod::Extension sdExtension = ShapeLod::Extension::Default;
     // When its lights are on (task renderer 46), from the .sd.
     ShapeLights::Schedule sdLightSchedule = ShapeLights::Schedule::Default;
+    // Its materials' own light shown (task renderer 49), from the .sd: off,
+    // full and half bright lit as the rest (night textures stay).
+    bool sdSelfLit = true;
     ShapeLights::Drawn drawnLights;
     QVector<MstsMaterials::Factors> primFactors;
     bool pbrPrimState(int primState) const;

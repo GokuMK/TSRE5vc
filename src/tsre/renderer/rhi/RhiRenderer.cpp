@@ -286,6 +286,12 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", skinned});
     skinnedLampShadowProgram = int(definitions.size());
     definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", skinned + QStringList{"TSRE_LAMP_SHADOW"}});
+    // Opaque casters (task renderer 49): no discard.
+    const QStringList opaque{"TSRE_SHADOW_OPAQUE"};
+    opaqueShadowProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", opaque});
+    opaqueLampShadowProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", opaque + QStringList{"TSRE_LAMP_SHADOW"}});
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -429,6 +435,9 @@ void RhiRenderer::releaseResources() {
         releaseAttachments(map);
     for (Attachments &cache : shadowCaches)
         releaseAttachments(cache);
+    carShadowMap.sharedPass = nullptr;
+    releaseAttachments(carShadowMap);
+    releaseAttachments(cabShadowMap);
     delete uniformArena.buffer;
     uniformArena.buffer = nullptr;
     delete instanceArena.buffer;
@@ -476,6 +485,18 @@ RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass, bool movin
     if (baseProgram == PROGRAM_SHADOW) {
         if (skinned)
             return variant(lampShadowDrawing ? skinnedLampShadowProgram : skinnedShadowProgram);
+        // Opaque casters without the alpha test (task renderer 49): early
+        // depth, what lies behind them skipped. The shadow program's discard
+        // (the alpha test, the terrain's gaps) made every caster's depth
+        // late: the cab's and a coach's maps, layers of floors, seats and
+        // roofs, cost 3.0 and 1.1 ms of the Deck's GPU, about 2.1 and 0.7
+        // with these programs, drawn first (QueueRenderer::
+        // groupShadowCasters). Opaque as the view draws them (an opaque MSTS
+        // part whatever its texture's alpha; PBR's OPAQUE).
+        // TSRE_SHADOW_OPAQUE=0: as before.
+        static const bool opaqueCasters = qEnvironmentVariable("TSRE_SHADOW_OPAQUE") != "0";
+        if (opaqueCasters && item->drawSurface() == RenderItem::SURFACE_OPAQUE)
+            return variant(lampShadowDrawing ? opaqueLampShadowProgram : opaqueShadowProgram);
         return variant(lampShadowDrawing ? lampShadowProgram : int(RhiProgram::SHADOW));
     }
     if (skinned && !isUnlitPass(pass) && !usesTerrainProgram(item))
@@ -1821,7 +1842,7 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize, in
     if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
         createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
     cabShadowMap.openGlRows = true;
-    targets[TARGET_SHADOW_CAB].attachments = &cabShadowMap;
+    targets[TARGET_SHADOW_CAB].attachments = carShadow && carShadowMap.valid() ? &carShadowMap : &cabShadowMap;
 }
 
 int RhiRenderer::frameShadowMapSize(int map) const {
@@ -1875,6 +1896,48 @@ int RhiRenderer::cabShadowSize() const {
         return ok ? std::clamp(s, 512, 4096) : 0;
     }();
     return forced > 0 ? forced : std::clamp(frameShadowMapSize(0), 512, 4096);
+}
+
+// The car's map (task renderer 49): made the first time the camera is in a
+// car, made again when the cab's size changed; drawn with the cab map's
+// pipelines (the same depth format: compatible passes).
+void RhiRenderer::setCarShadowMap(bool car) {
+    carShadow = car;
+    if (car) {
+        const QSize size(cabShadowWidth(), cabShadowHeight());
+        if (!carShadowMap.valid() || carShadowMap.size != size) {
+            beginFrameIfNeeded();
+            // Its release leaves the cab's pipelines alone.
+            carShadowMap.sharedPass = nullptr;
+            if (!createAttachments(carShadowMap, QRhiTexture::UnknownFormat, size, {}))
+                carShadow = false;
+            carShadowMap.openGlRows = true;
+        }
+        carShadowMap.sharedPass = cabShadowMap.valid() ? cabShadowMap.passes[0] : nullptr;
+    }
+    targets[TARGET_SHADOW_CAB].attachments = carShadow ? &carShadowMap : &cabShadowMap;
+}
+
+// A car's map: TSRE_CAR_SHADOW_SIZE texels along (512 to 8192), a quarter
+// of that across; else as long as the cab's is wide (2048 x 512, 12 mm
+// texels over a 20 m coach). Its drawing is fill-bound (a coach's floors,
+// seats and roofs over each other): 4096 x 1024 cost 4.4 ms of the Deck's
+// GPU a frame, 2048 x 512 1.1 ms (task renderer 49).
+static int carShadowLength(int cabSize) {
+    static const int forced = [] {
+        bool ok = false;
+        const int s = qEnvironmentVariable("TSRE_CAR_SHADOW_SIZE").toInt(&ok);
+        return ok ? std::clamp(s, 512, 8192) : 0;
+    }();
+    return forced > 0 ? forced : cabSize;
+}
+
+int RhiRenderer::cabShadowWidth() const {
+    return carShadow ? carShadowLength(cabShadowSize()) : cabShadowSize();
+}
+
+int RhiRenderer::cabShadowHeight() const {
+    return carShadow ? std::max(1, carShadowLength(cabShadowSize()) / 4) : cabShadowSize();
 }
 
 bool RhiRenderer::enclosureTarget(int which) const {
@@ -2887,10 +2950,14 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
         const int vegetation = binding - RhiShaderSource::VegetationShadowBinding;
         if (vegetation >= 0 && vegetation < 3 && shadows)
             texture = staticShadowDepth(3 + vegetation);
-        // The cab's, while the view rides a cab.
-        if (binding == RhiShaderSource::CabShadowBinding && cabShadowMap.valid() && Game::shadowsEnabled > 0
-                && gluu->cabShadowParams[0] > 0.0f)
-            texture = cabShadowMap.depth;
+        // The cab's, while the view rides a cab; a car's, while the camera
+        // is in one (task renderer 49).
+        if (binding == RhiShaderSource::CabShadowBinding && Game::shadowsEnabled > 0
+                && gluu->cabShadowParams[0] > 0.0f) {
+            const Attachments &map = carShadow ? carShadowMap : cabShadowMap;
+            if (map.valid())
+                texture = map.depth;
+        }
         break;
     }
     case 4:

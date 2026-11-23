@@ -1024,4 +1024,16 @@ void QueueRenderer::groupShadowCasters(){
         }
         groupPlans.push_back(plan);
     }
+    // Opaque casters first (task renderer 49): drawn without the alpha
+    // test's discard (RhiRenderer's opaque shadow programs), their depth
+    // written early rejects the alpha-tested and blended casters' fragments
+    // behind them (the ET22's cab map about 3.0 against 2.1 ms of the
+    // Deck's GPU).
+    // Each group keeps its instances' rows. TSRE_SHADOW_OPAQUE_FIRST=0: by
+    // packet alone, as before.
+    static const bool opaqueFirst = qEnvironmentVariable("TSRE_SHADOW_OPAQUE_FIRST") != "0";
+    if(opaqueFirst)
+        std::stable_partition(groupPlans.begin(), groupPlans.end(), [this](const GroupPlan &plan){
+            return shadowCasters[plan.begin]->packet->drawSurface() == RenderItem::SURFACE_OPAQUE;
+        });
 }

@@ -73,6 +73,10 @@ float nightStrength(int lightMaterial) {
     return lightMaterial == -11 ? HalfBright : 1.0f;
 }
 
+int lightMaterial(int lightMaterial, bool selfLit) {
+    return !selfLit && (lightMaterial == -8 || lightMaterial == -11) ? -5 : lightMaterial;
+}
+
 void applyLight(RenderItem &item, int lightMaterial) {
     item.material.lit = lightMaterial >= -7;
     item.material.brightness = lightMaterial == -12 ? 0.5f : 1.0f;

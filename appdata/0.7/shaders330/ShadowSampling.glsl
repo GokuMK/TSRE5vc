@@ -211,16 +211,18 @@ uniform sampler2DShadow dynamicShadow1;
 uniform sampler2DShadow dynamicShadow2;
 uniform vec3 dynamicShadowBias;
 #endif
-// The cab's sun shadow map (TARGET_SHADOW_CAB, while the view rides a cab):
-// its weight (x: 0 off, fading in to 1), normal offset (y, m, the vertex
-// shader's), depth bias (z, its depth units) and tap spread (w, its UV).
-// Fine texels moving with the train: its own frames and pillars do not
-// crawl over the near map's grid.
+// The cab's sun shadow map (TARGET_SHADOW_CAB, while the view rides a cab;
+// a car's, four times as wide as high, while the camera is in one: task
+// renderer 49): its weight (x: 0 off, fading in to 1), normal offset (y, m,
+// the vertex shader's), depth bias (z, its depth units) and tap spread (w, its
+// UV across). Fine texels moving with the train: its own frames and pillars
+// do not crawl over the near map's grid.
 uniform sampler2DShadow cabShadowMap;
 uniform vec4 cabShadowParams;
 // Its filter (RouteEditorGLWidget's cab tuning): the kernel (0 the 16-point
 // disc of cabShadowParams.w; 3, 5 or 7 a tent over so many texels), a texel
-// in its UV, the per-tap receiver-plane correction (1 on, 0 off).
+// in its UV across (y) and up (w; 0: as across), the per-tap receiver-plane
+// correction (1 on, 0 off).
 uniform vec4 cabShadowFilter;
 
 // A tap of the cab map at uv: a filtered 2 x 2 comparison, its depth moved
@@ -234,7 +236,7 @@ float cabTap(vec2 uv, vec3 c, float depth, vec2 gradient, float limit) {
 // is the tent's, even over whole texels: an edge moving a fraction of a
 // texel changes the result gently, no steps.
 float cabTentLit(vec3 c, float depth, vec2 gradient, float limit) {
-    float texel = cabShadowFilter.y;
+    vec2 texel = vec2(cabShadowFilter.y, cabShadowFilter.w > 0.0 ? cabShadowFilter.w : cabShadowFilter.y);
     vec2 uv = c.xy/texel;
     vec2 base = floor(uv + 0.5);
     float s = uv.x + 0.5 - base.x;
@@ -615,7 +617,8 @@ float shadowedVisibility(float cosTheta) {
                 occludedCab = 1.0 - cabTentLit(cab, cab.z - cabBias, gradientCab, 3.0*cabBias);
             } else {
                 for (int i = 0; i < 16; i++) {
-                    vec2 offset = poissonDisk[i]*cabShadowParams.w;
+                    vec2 offset = poissonDisk[i]*cabShadowParams.w
+                            *vec2(1.0, cabShadowFilter.w > 0.0 ? cabShadowFilter.w/cabShadowFilter.y : 1.0);
                     vec3 tap = vec3(cab.xy + offset, cab.z - cabBias
                             + cabShadowFilter.z*receiverPlaneBias(gradientCab, offset, 3.0*cabBias));
                     occludedCab += (1.0 - texture(cabShadowMap, tap))/16.0;
