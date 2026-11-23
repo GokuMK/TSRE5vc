@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps merged from `feature/fog-lamp-shadows` (2026-11-10), tested live by the user. C, a car's own lamps in its frame, in progress on `feature/car-lamp-shadows` (2026-11-22, design decided 2026-11-23: below).
+Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps merged from `feature/fog-lamp-shadows` (2026-11-10), tested live by the user. C, a car's own lamps in its frame (`Shadows`, fills, cubes), merged from `feature/car-lamp-shadows` (2026-11-23, tested live by the user; below).
 
 ## Objective
 
