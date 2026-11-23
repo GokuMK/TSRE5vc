@@ -7,30 +7,40 @@ after TSRE's
 [tracks task 17](../tasks/tracks/17-trprofile-complex-tracks.md):
 procedural junctions, crossings and other complex track shapes.
 
-The task has no Open Rails code (its decision 30). Any change needs a
-review first, and the mainstream pull request needs tests on Windows. This
-document covers three things:
+TSRE and Open Rails share the TrProfile design, so Open Rails will
+implement complex tracks too, once the feature is finished and tested in
+TSRE. That is another team's task (decision 34). Until then, the task's
+design sections are the shared specification and TSRE's code the
+reference implementation.
+
+The task itself has no Open Rails code (its decision 30). Any change needs
+a review first, and the mainstream pull request needs tests on Windows.
+This document covers three things:
 
 - what the profile files may now contain;
 - what Open Rails does with them today, read from the code of our branch,
   not run;
-- the smallest change that keeps Open Rails quiet and leaves what it draws
-  unchanged.
+- the smallest change that keeps Open Rails quiet until its own
+  implementation, and leaves what it draws unchanged.
 
-The patch is a follow-up task.
+The patch is a follow-up task. Porting notes for the full implementation
+come here once TSRE has finished the feature.
 
 ## Summary
 
 - Family files can now hold a member `ObjectType ( TRACK COMPLEX )`. TSRE
-  uses it to draw junctions and crossings procedurally. Open Rails keeps
-  drawing them as static shapes and never needs this member.
+  uses it to draw junctions and crossings procedurally. Until Open Rails
+  implements the feature, it keeps drawing them as static shapes and does
+  not need this member.
 - Today Open Rails rejects the member with a warning. It then stops reading
   the file at the member's first LOD item, so any member written after
   `COMPLEX` is lost.
-- Recommended: accept `COMPLEX` as a known role, skip the member's `LOD`
-  blocks without reading them, and leave the member out of the profile
-  list. That is about ten lines in `DynamicTrack.cs`. Open Rails then never
-  needs to learn the new generation modes, including ones TSRE adds later.
+- Recommended for now: accept `COMPLEX` as a known role, skip the
+  member's `LOD` blocks without reading them, and leave the member out of
+  the profile list. That is about ten lines in `DynamicTrack.cs`. Until its
+  own implementation, Open Rails then needs to know none of the new
+  generation modes, including ones TSRE adds later. The implementation
+  later reads what this skips.
 - Until Open Rails has that change, keep `COMPLEX` as the last member of a
   family file. All of TSRE's example families do.
 
@@ -149,7 +159,9 @@ The members TSRE wrote before (`MAIN`, `SINGLE`, `LEFT`, `MIDDLE`,
 
 `<route>/trackprofiles.dat` holds name filters that give TSRE's static
 track objects their profile family, ahead of the `IncludedShapes` guess.
-This is TSRE-only route data, edited by hand. Open Rails can ignore it.
+It is edited by hand. Open Rails can ignore it for now. Its own
+implementation should read it too, so that a route gets the same families
+in both programs.
 
 ## What Open Rails does today
 
@@ -186,9 +198,10 @@ The results:
 - Selection is unaffected: `GetBestTrackProfile` considers only
   `TRACK MAIN`, and `FindFamilyRole` looks up only the named side roles.
 
-## Recommended change
+## Recommended change for now
 
-The change is small and alters nothing Open Rails draws:
+The change is small and alters nothing Open Rails draws. It is the first
+step of Open Rails' own implementation, which later reads what it skips:
 
 1. Add `Complex` to `TrProfile.ProfileObjectRole`, accept `COMPLEX` in
    `SetObjectType`, and return `"_complex"` from `TRPFile.RoleSuffix`. The
@@ -279,8 +292,12 @@ easier to test with.
   will follow Open Rails' `SwitchTrackShape` (`Viewer3D/Shapes.cs`):
   animation key 0 on the main route, 1 otherwise, over about half a
   second.
-- Procedural junctions in Open Rails itself would port TSRE's planner
-  (`src/tsre/procedural/ComplexTrackPlan.*`, `TrackShapeAnalysis.*`,
-  `OrtsTrackProfileRenderer::buildComplexMeshes`). It builds geometry in
-  the shape's space, drawn rigid with each object's matrix. That would be
-  a separate proposal, if ever.
+- Complex tracks in Open Rails itself (another team's task), once TSRE
+  has finished and tested them. The specification is the task's design,
+  sections 1 to 8. The reference implementation is TSRE's planner and
+  mesh builder: `src/tsre/procedural/ComplexTrackPlan.*`,
+  `TrackShapeAnalysis.*`, `TrackProfileFilters.*` and
+  `OrtsTrackProfileRenderer::buildComplexMeshes`. It builds the geometry in
+  the shape's space, drawn rigid with each object's matrix. Porting notes,
+  and the checks that show both programs lay the same ties and rails,
+  come here when the feature is finished.

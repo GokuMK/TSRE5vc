@@ -625,10 +625,17 @@ change needs a review first, and the mainstream pull request needs tests on
 Windows. The task leaves a document for the Open Rails feature PR team,
 [`docs/features/openrails-trprofile-complex.md`](../../features/openrails-trprofile-complex.md)
 (written 2026-11-24, after phase 2, decision 32), with what Open Rails
-would need; the patch is a follow-up task. What the document says:
+would need; the patch is a follow-up task.
 
-- Open Rails does not read the filter file; it keeps guessing by
-  `IncludedShapes`. TSRE-only route data, nothing to do.
+TSRE shares the TrProfile design with Open Rails, so Open Rails will
+implement complex tracks too, once the feature is finished and tested in
+TSRE; another team's task (decision 34). This task's design sections are
+then the shared specification, and TSRE's code the reference
+implementation. What the document says now:
+
+- Open Rails does not read the filter file yet; it keeps guessing by
+  `IncludedShapes`. Nothing to do before its implementation, which reads
+  the file too, so a route gets the same families in both.
 - Our Open Rails branch (`77d31fbb0`, read, not run) rejects the role
   `COMPLEX` with a warning, then still reads the member: each new mode
   warns twice, and the first `LODItem` left without a valid template
@@ -644,8 +651,9 @@ would need; the patch is a follow-up task. What the document says:
 - The road centre roles `CENTERLEFT`, `CENTERRIGHT`, `CENTER` (section
   11) when TSRE has them; blades from the junction state follow Open
   Rails' `SwitchTrackShape`.
-- Open Rails keeps static shapes for junctions; complex procedural track is
-  TSRE's.
+- Until its implementation, Open Rails keeps static shapes for junctions.
+  The skip above is its first step: the implementation reads what the
+  skip leaves out.
 
 ### 11. Roads
 
@@ -710,7 +718,8 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    road junction parts (`ROAD COMPLEX`), the road centre roles, conductor
    rail ramps and rack points, DB-style 3D sleepers for PRUDNIK's
    profiles, an editor for `trackprofiles.dat`. A follow-up task: the Open
-   Rails patch (section 10).
+   Rails patch (section 10). Another team's task: complex tracks in Open
+   Rails, after TSRE has finished and tested them (decision 34).
 
 Each step stops for the user's visual check before the next.
 
@@ -1001,6 +1010,13 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
     family ever needs one). The user: one name if they were the same,
     two as they differ (2026-11-23). One example asset: the concrete
     family's check rail.
+34. Open Rails implements complex tracks too (the user, 2026-11-24: the
+    TrProfile design is shared with Open Rails), once the feature is
+    finished and tested in TSRE. Another team's task. The design sections
+    here are the shared specification and TSRE's code the reference
+    implementation; porting notes are added to the Open Rails document
+    when the feature is finished (decision 32's rule: no external docs
+    before the format is settled).
 
 ## Open questions
 
