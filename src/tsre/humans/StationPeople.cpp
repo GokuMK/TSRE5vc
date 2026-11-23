@@ -324,6 +324,11 @@ std::shared_ptr<const ShapeSeats::Seats> carSeatsOf(const Eng &eng, QString *mod
                 passage.position[k] += o[k];
             out->passages.push_back(passage);
         }
+        for (ShapeSeats::EndPassage passage : part.seats->endPassages) {
+            for (int k = 0; k < 3; ++k)
+                passage.position[k] += o[k];
+            out->endPassages.push_back(passage);
+        }
     }
     ShapeSeats::connect(*out);
     merged.insert(key, out);

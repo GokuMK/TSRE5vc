@@ -429,8 +429,8 @@ server's task 06; 01-03 on the renderer's side.
   walked through (saloons; classic carriages' compartments later).
 - [ ] `04-in-the-simulation.md`: the character's state in the core, local
   first; then the server's task 07 over the network.
-- [ ] [`05-walking-between-cars.md`](05-walking-between-cars.md) (brief
-  2026-11-23, waiting for a go): end passages in the `.sd` (the seats
+- [ ] [`05-walking-between-cars.md`](05-walking-between-cars.md) (built on
+  `feature/characters` 2026-11-23, not merged): end passages in the `.sd` (the seats
   tool), open where coupled to a matching one, each car's own floor plate
   over the gap (the user's design: overlapping, fixed in its frame), the
   character handed from car to car.

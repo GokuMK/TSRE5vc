@@ -18825,32 +18825,38 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="shapeseats.seat">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="93"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="149"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="160"/>
         <source>a Seat without its four numbers (x y z heading) left out</source>
         <translation>a Seat without its four numbers (x y z heading) left out</translation>
     </message>
     <message id="shapeseats.aisle">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="105"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="161"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="172"/>
         <source>an Aisle without its four numbers (x y z0 z1) left out</source>
         <translation>an Aisle without its four numbers (x y z0 z1) left out</translation>
     </message>
     <message id="shapeseats.passage">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="113"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="169"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="180"/>
         <source>a Passage without its four numbers (x y z width) left out</source>
         <translation>a Passage without its four numbers (x y z width) left out</translation>
     </message>
-    <message id="shapeseats.door">
+    <message id="shapeseats.endpassage">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="124"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="180"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="191"/>
+        <source>an EndPassage without its four numbers (x y z width) left out</source>
+        <translation>an EndPassage without its four numbers (x y z width) left out</translation>
+    </message>
+    <message id="shapeseats.door">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="135"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="202"/>
         <source>a Door without its four numbers (x y z width) left out</source>
         <translation>a Door without its four numbers (x y z width) left out</translation>
     </message>
     <message id="shapeseats.unknown">
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="134"/>
-        <source>%1 is not one of its lines (Seat, Aisle, Passage, Door)</source>
-        <translation>%1 is not one of its lines (Seat, Aisle, Passage, Door)</translation>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="145"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage, EndPassage, Door)</source>
+        <translation>%1 is not one of its lines (Seat, Aisle, Passage, EndPassage, Door)</translation>
     </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>

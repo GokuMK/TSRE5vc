@@ -118,6 +118,17 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems) {
                 std::copy(v, v + 3, passage.position);
                 passage.width = v[3];
                 out.passages.push_back(passage);
+            } else if (name == QLatin1String("endpassage")) {
+                if (!numbers(line, 4, v) || !(v[3] > 0.0f)) {
+                    if (problems != nullptr)
+                        //% "an EndPassage without its four numbers (x y z width) left out"
+                        *problems << qtTrId("shapeseats.endpassage");
+                    continue;
+                }
+                EndPassage passage;
+                std::copy(v, v + 3, passage.position);
+                passage.width = v[3];
+                out.endPassages.push_back(passage);
             } else if (name == QLatin1String("door")) {
                 if (!numbers(line, 4, v) || !(v[3] > 0.0f)) {
                     if (problems != nullptr)
@@ -131,7 +142,7 @@ Seats read(const SFileDetail::Node &shape, QStringList *problems) {
                 door.number = line.label().toInt();
                 out.doors.push_back(door);
             } else if (problems != nullptr) {
-                //% "%1 is not one of its lines (Seat, Aisle, Passage, Door)"
+                //% "%1 is not one of its lines (Seat, Aisle, Passage, EndPassage, Door)"
                 *problems << qtTrId("shapeseats.unknown").arg(line.name());
             }
         }
@@ -174,6 +185,17 @@ Seats fromExtras(const QJsonObject &extras, QStringList *problems) {
         std::copy(v, v + 3, passage.position);
         passage.width = v[3];
         out.passages.push_back(passage);
+    }
+    for (const QJsonValue &value : block.value(QStringLiteral("endPassages")).toArray()) {
+        if (!numbers(value, 4, v) || !(v[3] > 0.0f)) {
+            if (problems != nullptr)
+                *problems << qtTrId("shapeseats.endpassage");
+            continue;
+        }
+        EndPassage passage;
+        std::copy(v, v + 3, passage.position);
+        passage.width = v[3];
+        out.endPassages.push_back(passage);
     }
     for (const QJsonValue &value : block.value(QStringLiteral("doors")).toArray()) {
         if (!numbers(value, 4, v) || !(v[3] > 0.0f)) {
@@ -255,6 +277,8 @@ void mirror(Seats &seats) {
     for (Aisle &aisle : seats.aisles)
         aisle.x = -aisle.x;
     for (Passage &passage : seats.passages)
+        ShapeAxes::mirrorPoint(passage.position);
+    for (EndPassage &passage : seats.endPassages)
         ShapeAxes::mirrorPoint(passage.position);
     for (Door &door : seats.doors)
         ShapeAxes::mirrorPoint(door.position);

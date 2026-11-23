@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Sitting places and doors of cars for TSRE's people (ESD_TSRESeats in a
 model's .sd): the car's Aisle, its Passages (partitions' closed doors across
-the aisle), its numbered Seats and its numbered Doors, found in the model's
-most detailed level (an MSTS .s through TSRE's converter, a MaSzyna .e3d by
+the aisle), its EndPassages (doors in its end walls to the next car: TSRE
+task characters 05), its numbered Seats and its numbered Doors, found in the
+model's most detailed level (an MSTS .s through TSRE's converter, a MaSzyna .e3d by
 its records), in the model's space as written (an S file's as its file's,
 as the lights' positions). TSRE never guesses seats at load: a car has them
 once its .sd has them; its doors it takes from the .sd when written there,
@@ -32,6 +33,12 @@ script.
          --archive <prefix> [--stage <dir>]   its Aisle lines replaced by
                                               these (numbered A1, A2...),
                                               its other lines kept
+  gangways: car_seats.py gangways <model> ... --root <game root> --archive
+         <prefix> [--plans <dir>] [--stage <dir>]   EndPassage lines where
+                                              an aisle reaches an end wall
+                                              (an end wall's Passage
+                                              becomes one), its other lines
+                                              kept
   axes:  car_seats.py axes <model> ... --root <game root> --archive <prefix>
          [--stage <dir>]                      ESD_TSREAxes ( glTF ) put into
                                               .e3d models' .sd written before
@@ -1370,7 +1377,166 @@ def stairs_passages(tris, aisles, passages=()):
     return sorted(out, key=lambda p: p[2])
 
 
-def find(tris, doors=None, log=None):
+# Gangways between cars (TSRE task characters 05; the user's design,
+# 2026-11-23): an EndPassage, a door in an end wall, where a level aisle
+# reaches the car's end. TSRE opens it while the car is coupled to one with
+# an EndPassage at the facing end, their floors at most a step apart. Its
+# wall at most END_WALL from the model's end (buffers included; TSRE takes
+# 1.5 m from the coupling end at most), the aisle's end at most END_AISLE
+# from it either side (it reaches the wall; an aisle drawn through it). A
+# room closed by a wall less than END_ROOM_DEEP inside it is a cab (no
+# EndPassage) where a cab's part (CAB) is in it, or where the vehicle has a
+# cab (cab_vehicle()) and no passenger door opens into the room (a
+# vestibule) and it holds CAB_PLACES seats at most. A Passage the aisle had
+# on that wall becomes the EndPassage (a Passage opens its wall coupled or
+# not).
+END_WALL = 1.3
+END_AISLE = 0.7
+END_ROOM_DEEP = 3.0
+END_WIDTH = 0.8
+
+
+def walls_across(tris, x, floor, z0, z1):
+    """Walls across a line along the car at x between z0 and z1: where faces
+    across the car cover at least STAIRS_WALL of a door's band
+    (STAIRS_ACROSS either side of the line, WALL_BAND over the floor); their
+    z (a wall's faces within 0.25 m one wall), sorted."""
+    across = [x + STAIRS_ACROSS * k / 2 for k in (-2, -1, 0, 1, 2)]
+    steps = int(round((WALL_BAND[1] - WALL_BAND[0]) / 0.1))
+    heights = [floor + WALL_BAND[0] + (WALL_BAND[1] - WALL_BAND[0]) * k / steps for k in range(steps + 1)]
+    bins = collections.defaultdict(list)
+    for t, _ in tris:
+        n, area = normal_area(t)
+        if abs(n[2]) < 0.9 or area < 0.0005:
+            continue
+        z = sum(p[2] for p in t) / 3
+        if not z0 - 0.05 <= z <= z1 + 0.05:
+            continue
+        if max(p[0] for p in t) < x - STAIRS_ACROSS or min(p[0] for p in t) > x + STAIRS_ACROSS:
+            continue
+        if max(p[1] for p in t) < heights[0] or min(p[1] for p in t) > heights[-1]:
+            continue
+        bins[round(z / 0.1)].append((t, z, area))
+    out = []
+    for key in sorted(bins):
+        near = bins[key] + bins.get(key - 1, []) + bins.get(key + 1, [])
+        covered = sum(1 for dx in across for h in heights if any(covers_across(t, dx, h) for t, _, _ in near))
+        if covered < STAIRS_WALL * len(across) * len(heights):
+            continue
+        z = sum(w[1] * w[2] for w in bins[key]) / sum(w[2] for w in bins[key])
+        if out and z - out[-1] < 0.25:
+            continue
+        out.append(z)
+    return out
+
+
+_CABS = {}
+
+
+def cab_vehicle(model):
+    """Whether a vehicle with a cab uses this model: an .eng beside an .s
+    naming it its WagonShape with a CabView or an ORTS3DCab. A MaSzyna
+    interior: False (its cab is a part named for one: OR_PSK_NEW's and
+    MaSzyna's sets of 2026-11-23, every MaSzyna cab end found by its part,
+    every doorless end room a coach's); no model: True."""
+    if not model:
+        return True
+    if not model.lower().endswith(".s"):
+        return False
+    folder, name = os.path.split(os.path.abspath(model))
+    if folder not in _CABS:
+        cabs = set()
+        for eng in glob.glob(os.path.join(folder, "*.eng")) + glob.glob(os.path.join(folder, "*.ENG")):
+            text = msts_vehicle(eng)
+            if not re.search(r"(?i)\b(cabview|orts3dcab)\s*\(", text):
+                continue
+            for m in re.finditer(r'(?i)\bwagonshape\s*\(\s*"?([^")\s]+)', text):
+                cabs.add(m.group(1).lower())
+        _CABS[folder] = cabs
+    return name.lower() in _CABS[folder]
+
+
+def end_passages(tris, found, doors=(), log=None, model=None):
+    """EndPassages ([x, floor, z, width], the model's space) where a level
+    aisle of `found` reaches an end wall (see END_WALL); `doors` the car's
+    ([x, y, z, width...]: its .sd's, else its door parts'), `model` its
+    path (cab_vehicle()). Notes for each end into `log`."""
+    level = [a for a in (found.get("aisles") or ([found["aisle"]] if found.get("aisle") else [])) if not sloped(a)]
+    if not level or not tris:
+        return []
+    zs = [p[2] for t, _ in tris for p in t]
+    out = []
+    for e in (1, -1):
+        end = max(zs) if e > 0 else min(zs)
+        name = "front" if e > 0 else "rear"
+        a = max(level, key=lambda q: q[3] if e > 0 else -q[2])
+        x, floor = a[0], a[1]
+        za = a[3] if e > 0 else a[2]
+        if e * (end - za) > END_WALL + END_AISLE:
+            if log is not None:
+                log.append("%s: no EndPassage, its aisle ends %.2f m from the end" % (name, e * (end - za)))
+            continue
+        lo, hi = sorted((za - e * (END_ROOM_DEEP + END_AISLE), end))
+        walls = walls_across(tris, x, floor, lo, hi)
+        walls += [p[2] for p in found.get("passages", []) if abs(p[0] - x) < 0.5 and lo <= p[2] <= hi
+                  and all(abs(p[2] - w) >= 0.25 for w in walls)]
+        walls.sort(key=lambda w: e * w)
+        # The end wall: the first one the aisle's end meets near the end;
+        # none drawn: an open end at the aisle's end.
+        near = [w for w in walls if abs(w - za) <= END_AISLE and e * (end - w) <= END_WALL]
+        if near:
+            wall = near[0]
+        elif e * (end - za) <= END_WALL:
+            wall = za
+        else:
+            if log is not None:
+                log.append("%s: no EndPassage, no wall within %.1f m of the end" % (name, END_WALL))
+            continue
+        inner = [w for w in walls if 0.3 <= e * (wall - w) <= END_ROOM_DEEP]
+        if inner:
+            room = sorted((inner[-1], wall))
+            opens = [d for d in doors if d[2] + d[3] / 2 > room[0] and d[2] - d[3] / 2 < room[1]]
+            seats = [q for q in found.get("seats", []) if room[0] < q[2] < room[1]]
+            cab = any(part and CAB.search(part) for t, part in tris
+                      if room[0] < sum(p[2] for p in t) / 3 < room[1])
+            if cab or (not opens and len(seats) <= CAB_PLACES and cab_vehicle(model)):
+                if log is not None:
+                    log.append("%s: no EndPassage, a cab (a room %.2f m deep behind its wall at %.2f, %s)"
+                               % (name, room[1] - room[0], wall, "a cab's part" if cab else "no door"))
+                continue
+        width = min([END_WIDTH] + [p[3] for p in found.get("passages", [])
+                                   if abs(p[2] - wall) < 0.25 and abs(p[0] - x) < 0.5])
+        out.append([round(x, 3), round(floor, 3), round(wall, 3), round(width, 2)])
+        if log is not None:
+            log.append("%s: EndPassage at z %.2f (x %.2f, floor %.2f, %.2f m from the end)"
+                       % (name, wall, x, floor, e * (end - wall)))
+    return out
+
+
+def with_end_passages(tris, found, doors=(), log=None, model=None):
+    """`found` with its EndPassages (end_passages()), the Passages on their
+    walls taken out (each became one)."""
+    if "problem" in found:
+        return found
+    ends = end_passages(tris, found, doors, log, model)
+    found["endPassages"] = ends
+    found["passages"] = [p for p in found.get("passages", [])
+                         if not any(abs(p[2] - q[2]) < 0.25 and abs(p[0] - q[0]) < 0.5 for q in ends)]
+    return found
+
+
+def find(tris, doors=None, log=None, model=None):
+    """find_levels() with the car's EndPassages (end_passages()): its doors
+    (`doors`, or a function giving them) asked for them, its model's path
+    (`model`: cab_vehicle())."""
+    found = find_levels(tris, doors, log)
+    if "problem" in found:
+        return found
+    listed = doors() if callable(doors) else doors
+    return with_end_passages(tris, found, listed or [], log, model)
+
+
+def find_levels(tris, doors=None, log=None):
     """The car's floor, aisles, passages and seats (its model's space), as
     find_main() finds them; a double-deck car's lower deck where its doors
     open onto it (lower_deck(); `doors`: the car's doors, or a function
@@ -1690,7 +1856,8 @@ def plan(tris, found, out_svg, title):
     floor heights (A1 1.07) and their joins orange, passages yellow, seats
     green with a tick the way the sitter faces and their numbers (a seat's
     5th value, else its place in the list from 1: the numbers write gives),
-    doors magenta on the car's side with their numbers (D1, D2...)."""
+    doors magenta on the car's side with their numbers (D1, D2...), end
+    passages red with their floors (E 1.26)."""
     scale = 60.0
     zs = [p[2] for t, _ in tris for p in t] or [-1.0, 1.0]
     z0, z1 = percentile(zs, 0.01) - 0.5, percentile(zs, 0.99) + 0.5
@@ -1733,6 +1900,12 @@ def plan(tris, found, out_svg, title):
     for p in found.get("passages", []):
         parts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#eb0" stroke-width="3"/>'
                      % (X(p[2]), Y(p[0] - p[3] / 2), X(p[2]), Y(p[0] + p[3] / 2)))
+    for p in found.get("endPassages", []):
+        # An end door (task characters 05): red, E with its floor.
+        parts.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#e22" stroke-width="5"/>'
+                     % (X(p[2]), Y(p[0] - p[3] / 2), X(p[2]), Y(p[0] + p[3] / 2)))
+        parts.append('<text x="%.1f" y="%.1f" font-size="10" fill="#c11" text-anchor="middle">E %.2f</text>'
+                     % (X(p[2]), Y(p[0] + p[3] / 2) - 3, p[1]))
     for i, s in enumerate(found.get("seats", [])):
         h = math.radians(s[3])
         number = int(s[4]) if len(s) > 4 else i + 1
@@ -1766,11 +1939,16 @@ def block(found):
         lines += aisle_lines(found.get("aisles") or [found["aisle"]])
         for p in found["passages"]:
             lines.append("\t\tPassage ( %s )" % " ".join(fmt(v) for v in p))
+        lines += end_passage_lines(found.get("endPassages", []))
         for i, s in enumerate(found["seats"]):
             lines.append("\t\tSeat %d ( %s )" % (i + 1, " ".join(fmt(v) for v in s[:4])))
     lines += door_lines(found.get("doors", []))
     lines.append("\t)")
     return lines
+
+
+def end_passage_lines(ends):
+    return ["\t\tEndPassage ( %s )" % " ".join(fmt(v) for v in p[:4]) for p in ends]
 
 
 def door_lines(doors):
@@ -1847,8 +2025,8 @@ def sd_read(model):
 
 def sd_seats(model):
     """A model's .sd block as written: {"aisles", "aisle", "passages",
-    "seats" ([x, y, z, heading, number]), "doors" ([x, y, z, width,
-    number]), "floor"}; None without one."""
+    "endPassages", "seats" ([x, y, z, heading, number]), "doors" ([x, y, z,
+    width, number]), "floor"}; None without one."""
     sd = sd_read(model)
     if not os.path.exists(sd):
         return None
@@ -1858,7 +2036,7 @@ def sd_seats(model):
         return None
     inner = text[span[0]:span[1]]
     inner = inner[inner.index("(") + 1:]
-    out = {"aisles": [], "passages": [], "seats": [], "doors": []}
+    out = {"aisles": [], "passages": [], "endPassages": [], "seats": [], "doors": []}
     for name, label, body in re.findall(r"(\w+)\s*([^\s()]*)\s*\(([^()]*)\)", inner):
         try:
             values = [float(v) for v in body.split()]
@@ -1876,6 +2054,8 @@ def sd_seats(model):
             out["aisles"].append([x, y0, z0, z1, number] + ([y1] if abs(y1 - y0) > LEVEL_STEP else []))
         elif name.lower() == "passage" and len(values) >= 4:
             out["passages"].append(values[:4])
+        elif name.lower() == "endpassage" and len(values) >= 4:
+            out["endPassages"].append(values[:4])
         elif name.lower() == "door" and len(values) >= 4:
             number = int(label) if label.isdigit() else len(out["doors"]) + 1
             out["doors"].append(values[:4] + [number])
@@ -1906,14 +2086,15 @@ def text_axes(text):
 
 
 def mirrored(found):
-    """Seats, aisles, passages and doors (found, or read from an .sd)
-    mirrored in x: between an .sd's axes and its model's."""
+    """Seats, aisles, passages, end passages and doors (found, or read from
+    an .sd) mirrored in x: between an .sd's axes and its model's."""
     out = dict(found)
     out["seats"] = [[-s[0], s[1], s[2], (-s[3]) % 360.0] + list(s[4:]) for s in found.get("seats", [])]
     out["aisles"] = [[-a[0]] + list(a[1:]) for a in found.get("aisles", [])]
     if found.get("aisle"):
         out["aisle"] = [-found["aisle"][0]] + list(found["aisle"][1:])
     out["passages"] = [[-p[0]] + list(p[1:]) for p in found.get("passages", [])]
+    out["endPassages"] = [[-p[0]] + list(p[1:]) for p in found.get("endPassages", [])]
     out["doors"] = [[-d[0]] + list(d[1:]) for d in found.get("doors", [])]
     return out
 
@@ -1999,7 +2180,7 @@ def write(models, root, archive, tsre, min_seats, readme=None, plans_dir=None):
             continue
         try:
             tris = triangles(model, tsre)
-            found = find(tris, doors_of(model, tris))
+            found = find(tris, doors_of(model, tris), model=model)
             # MaSzyna's doors are not written: TSRE reads them by the .mmd's
             # door prefix (a part named door_b... is no DOOR_B).
             doors = find_doors(tris) if model.lower().endswith(".s") else []
@@ -2144,6 +2325,66 @@ def stairs(models, root, archive, tsre, readme=None, plans_dir=None):
         plans.append((model, sd, text, found, tris))
         for line in log:
             print("  %s: %s" % (os.path.basename(model), line))
+    finish_writing(plans, root, archive, readme, plans_dir)
+    for model, why in skipped:
+        print("SKIPPED %s: %s" % (os.path.relpath(os.path.abspath(model), os.path.abspath(root)), why))
+    print("%d written, %d skipped; %s.zip, %s-backup.zip" % (len(plans), len(skipped), archive, archive))
+
+
+def gangways(models, root, archive, tsre, readme=None, plans_dir=None):
+    """EndPassage lines (end_passages(): task characters 05, the user's
+    design 2026-11-23) put into models' .sd written before them, after its
+    last Passage or Aisle line; a Passage on an end wall taken out (it became
+    the EndPassage); every other line kept. Written in the .sd's axes. Left
+    as they are: .sd files without aisles, with EndPassage lines already
+    (a second run writes nothing), and models whose aisles reach no end."""
+    plans, skipped = [], []
+    for model in models:
+        found = sd_seats(model)
+        if found is None or not found["aisles"]:
+            skipped.append((model, "no aisles in its .sd"))
+            continue
+        if found["endPassages"]:
+            skipped.append((model, "EndPassage written already"))
+            continue
+        try:
+            tris = triangles(model, tsre)
+        except Exception as e:  # a model the readers cannot take
+            skipped.append((model, repr(e)[:120]))
+            continue
+        doors = found["doors"]
+        if not doors:
+            parts = doors_of(model, tris)
+            doors = (parts() if parts else None) or []
+        log = []
+        before = [list(p) for p in found["passages"]]
+        with_end_passages(tris, found, doors, log, model)
+        for line in log:
+            print("  %s: %s" % (os.path.basename(model), line))
+        if not found["endPassages"]:
+            skipped.append((model, "no aisle reaches an end wall"))
+            continue
+        gone = [p for p in before if p not in found["passages"]]
+        sd = sd_path(model)
+        text = read_sd(sd_read(model)).replace("\r\n", "\n")
+        span = block_span(text, "ESD_TSRESeats")
+        inner = text[span[0]:span[1]]
+        # Written in the .sd's axes (task shapes 20).
+        flip = text_axes(text) != own_axes(model)
+        written = mirrored(found) if flip else found
+        gone_written = mirrored({"passages": gone})["passages"] if flip else gone
+
+        def is_gone(m):
+            values = [float(v) for v in m.group(1).split()]
+            return any(len(values) >= 4 and all(abs(values[k] - g[k]) < 1e-3 for k in range(4)) for g in gone_written)
+        inner = re.sub(r"^[ \t]*Passage[ \t]*\(([^()]*)\)[ \t]*\n", lambda m: "" if is_gone(m) else m.group(0),
+                       inner, flags=re.M | re.I)
+        lines = end_passage_lines(written["endPassages"])
+        anchors = list(re.finditer(r"^[ \t]*(Passage|Aisle)\b[^()\n]*\([^()]*\)[ \t]*\n", inner, flags=re.M | re.I))
+        at = anchors[-1].end() if anchors else inner.find("\n") + 1
+        inner = inner[:at] + "".join(line + "\n" for line in lines) + inner[at:]
+        text = text[:span[0]] + inner + text[span[1]:]
+        plans.append((model, sd, text, found, tris))
     finish_writing(plans, root, archive, readme, plans_dir)
     for model, why in skipped:
         print("SKIPPED %s: %s" % (os.path.relpath(os.path.abspath(model), os.path.abspath(root)), why))
@@ -2374,7 +2615,7 @@ def scan_one(job):
     try:
         tris = triangles(model, tsre)
         row["triangles"] = len(tris)
-        found = find(tris, doors_of(model, tris))
+        found = find(tris, doors_of(model, tris), model=model)
     except Exception as e:  # a model the readers cannot take
         row["problem"] = "not read: " + repr(e)[:100]
         return row
@@ -2492,7 +2733,7 @@ def scan(folders, out, tsre, maszyna, min_seats, jobs):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["scan", "find", "plan", "write", "doors", "drop", "aisles", "stairs", "axes",
-                                        "archive"])
+                                        "gangways", "archive"])
     ap.add_argument("paths", nargs="*", help="models; scan: vehicle folders; drop: a model, then seat numbers "
                                               "(12) and door numbers (d2); aisles: a model, then its aisles "
                                               "(\"x y z0 z1\" each, \"x y z0 z1 y1\" for stairs); archive: none "
@@ -2529,7 +2770,7 @@ def main():
         os.makedirs(a.out or ".", exist_ok=True)
         for model in a.paths:
             tris = triangles(model, a.tsre)
-            found = sd_seats(model) if a.sd else find(tris, doors_of(model, tris))
+            found = sd_seats(model) if a.sd else find(tris, doors_of(model, tris), model=model)
             if found is None:
                 print("%s: no ESD_TSRESeats in its .sd" % model)
                 continue
@@ -2547,7 +2788,7 @@ def main():
         for model in a.paths:
             try:
                 tris = triangles(model, a.tsre)
-                found = find(tris, doors_of(model, tris))
+                found = find(tris, doors_of(model, tris), model=model)
             except Exception as e:
                 found = {"problem": repr(e)[:200]}
             found["model"] = model
@@ -2582,6 +2823,10 @@ def main():
         if not a.root or not a.archive:
             ap.error("stairs needs --root and --archive")
         stairs(a.paths, a.root, a.archive, a.tsre, a.readme, a.plans)
+    elif a.command == "gangways":
+        if not a.root or not a.archive:
+            ap.error("gangways needs --root and --archive")
+        gangways(a.paths, a.root, a.archive, a.tsre, a.readme, a.plans)
     elif a.command == "axes":
         if not a.root or not a.archive:
             ap.error("axes needs --root and --archive")

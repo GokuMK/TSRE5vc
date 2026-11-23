@@ -38,6 +38,7 @@ In the model's `.sd` (beside `car.s`: `car.sd`; beside a MaSzyna
 ESD_TSRESeats (
     Aisle 1 ( 0 1.16 -11.25 11.25 )
     Passage ( 0 1.16 -5.4 0.62 )
+    EndPassage ( 0 1.16 10.71 0.62 )
     Seat 1 ( -1.07 1.658 -10.358 0 )
     Seat 2 ( -0.57 1.658 -10.358 0 )
     Door 1 ( -1.357 1.144 -4.517 1.301 )
@@ -53,12 +54,14 @@ before its root matrix mirrors it, as the lights' positions in
 |---|---|---|
 | `Aisle n` | x y z0 z1 (y1) | A straight way along the car (z0 to z1) at x, its floor at y. Seats without an aisle are not used. A car may have several: pieces of their own x and floor height (a low entrance, a raised end, an aisle beside an obstacle). With a fifth number, the floor at z1: stairs or a ramp (a level change, nobody's place). TSRE joins two only where they meet: their ranges overlap or leave at most 0.3 m between them, their floors at most 0.25 m apart there (a step); stairs at their ends only. People walk from one onto the other there, stairs with the stairs clips. `n` as a seat's (A1, A2... on the plans); an aisle without one is read too. |
 | `Passage` | x y z width | A closed door across an aisle (a partition's), or a wall across stairs (a doorway drawn see-through on it). Its floor at y (on stairs, theirs at z). TSRE's walking characters pass through it: their collision opened there (0.3 m beyond its width either side, 0.35 m along the car, from its floor to 2.1 m over it). People walk through it anyway, for now; kept for doors that open later. |
+| `EndPassage` | x y z width | A door in an end wall (task characters 05): its middle across x, the floor at it y, the wall's face along the car z (its sign the end: + the model's front), the door's width. One per end. TSRE's walking characters go through it into the next car while the car is coupled to one with an `EndPassage` at the facing end, their floors at most 0.25 m apart and each wall at most 1.5 m from its car's coupling end; each car then has a floor plate over the gap (collision only), and the wall is opened there. Uncoupled, the end stays closed. |
 | `Seat n` | x y z heading | A place: the top of its cushion in the middle; the way the sitter faces in degrees (0 faces +z, 90 +x). `n` is its number, as on the plans; a seat without one is read too. |
 | `Door n` | x y z width | A door people use: its outer face across at x (its side: in an S file as written, -x is the car's left, the side of `DOOR_D`..`DOOR_F`), the floor at its threshold y, its middle along the car z, its width. `n` as a seat's. A block may hold doors only. |
 
 A glTF model holds the same in its default scene's `extras`:
 `"TSRE_seats": {"aisles": [[x, y, z0, z1]], "passages": [[x, y, z,
-width]], "seats": [[x, y, z, heading]], "doors": [[x, y, z, width]]}`
+width]], "endPassages": [[x, y, z, width]], "seats": [[x, y, z,
+heading]], "doors": [[x, y, z, width]]}`
 (seats and doors numbered by their place in the list, from 1).
 
 Axes (TSRE task shapes 20): the `.sd`'s places are in an S file's axes
@@ -72,7 +75,7 @@ own space, and:
   instead;
 - writes an `.s`'s block without the line (MSTS, its own);
 - reads an `.sd` in the axes it says, and writes values back (`stairs`,
-  `aisles`) in them.
+  `aisles`, `gangways`) in them.
 
 Doors are found as TSRE finds them at load: the parts named `DOOR_A` to
 `DOOR_F` and the parts under them, each triangle on the side of the car it
@@ -171,6 +174,22 @@ characters, a Passage opens it; the fix belongs in the car's `.sd`, not in
 TSRE's collision for every model. `stairs` adds them to an `.sd` written
 before, its other lines kept.
 
+End passages (task characters 05, the user's design 2026-11-23: where an
+aisle reaches the car's end): for each end, the level aisle reaching
+furthest toward it; the first wall across its line within 0.7 m of its end
+(either side: aisles are often drawn through their end wall) and within
+1.3 m of the model's end (buffers included) gets an `EndPassage` at the
+aisle's floor, 0.8 m wide (a Passage's width if one was on that wall: the
+Passage becomes the `EndPassage`, as a Passage opens its wall whether the
+car is coupled or not). No wall drawn and the aisle within 1.3 m of the
+end: an open end, at the aisle's end. A cab is left out: the room between
+that wall and the next one inward (up to 3 m) is a cab where a part named
+for a cab is in it, or where a vehicle with a cab uses the model (an `.eng`
+beside it with a `CabView` or an `ORTS3DCab`) and no passenger door opens
+into the room and it has 3 seats at most (a vestibule has its doors).
+`gangways` adds them to an `.sd` written before, its other lines kept; an
+`.sd` with an `EndPassage` already is left as it is.
+
 Saloons with aisles of their own (2+1 seating swapping sides at a
 vestibule): the benches are grouped into saloons along the car (more than
 1 m apart: another saloon), each saloon's aisle the widest gap across the
@@ -220,7 +239,8 @@ down.
   partitions, backrests.
 - Cyan: the aisles, each with its number and floor height (A1 0.81);
   purple dashed: stairs and ramps with both ends' floors (A3 1.12-0.36);
-  orange: where they join (as TSRE joins them). Yellow: passages. Decks
+  orange: where they join (as TSRE joins them). Yellow: passages. Red
+  across the aisle at an end: end passages with their floor (E 1.16). Decks
   drawn over each other (a double-deck car's): read the floors by the
   aisles' heights.
 - Green dots: seats, with a tick the way the sitter faces and their number
@@ -239,6 +259,10 @@ What to look for:
   compartment car (a corridor along one side) gets an aisle through the
   compartments: not usable, leave the car out.
 - **Missed seats**: benches without dots. Usually harmless (fewer places).
+- **End passages**: a red bar at each end with a gangway to the next car;
+  none at a cab's front or an end without a door to the next car (most
+  locomotives, an EMU's cab end). One where the car has no gangway: note
+  the model, take it out of its `.sd`.
 - **Doors**: one bar per door opening, on the car's side, where the plan's
   outline has its vestibules; none on a cab's door or a closed partition.
   A bar much wider than a door (two doors joined) or a door missing on one
@@ -328,6 +352,18 @@ block, its other lines kept. `.s` models, `.sd` files with the line and
 those without a seats block are left as they are; a second run writes
 nothing.
 
+Sets written before end passages (OR set 7, MaSzyna set 6 and earlier,
+before 2026-11-23): add them with
+
+```
+python3 -I car_seats.py gangways <model> ... --root <game root> --archive <path>/<name>-gangways [--plans <folder>] [--stage <folder>]
+```
+
+It writes each end's `EndPassage` (see "End passages" above; the reasons
+for an end without one are printed), takes out the Passage on that end
+wall, and keeps every other line; `.sd` files with an `EndPassage` already
+are left as they are, so a second run writes nothing.
+
 ### 6. See them in TSRE
 - Shape Viewer: open the model, 3D View > Seats: the aisle, passages,
   seats and doors (magenta frames) drawn over it. Look from inside the car
@@ -388,5 +424,11 @@ written.
   the cushions 0.33 to 0.58 m above it, of the car's usual height (a cab's
   higher seats are left out).
 - Seats and doors are found in the model's most detailed level only.
+- End passages from the model alone: an end wall the aisle reaches is taken
+  for a door to the next car. A car whose end has no such door (a solid
+  end wall) gets one where its aisle reaches it; TSRE opens it only when
+  the next car has one too. An articulated unit's shared bogie made a car
+  of its own (shorter than 1 m) is walked over: the cars either side of it
+  join.
 - Doors only from door parts: a car whose doors are part of its body (no
   `DOOR_` parts) gets none written; TSRE guesses them.

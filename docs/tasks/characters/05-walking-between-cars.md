@@ -1,7 +1,8 @@
 # 05 - Walking between cars
 
-Status: brief, 2026-11-23 (the user's go for the brief: "Ok, let's write
-it"); the user's answers the same day. Building waits for a go. It takes task [03](03-trains.md)'s Left item
+Status: built on `feature/characters` (worktree `../TSRE5vc-characters`),
+2026-11-23, not merged (the user's go: "Ok, proceed"). The brief and the
+user's answers the same day. It takes task [03](03-trains.md)'s Left item
 "Gangways between cars"; the walking character is task
 [02](02-walking.md)'s.
 
@@ -192,6 +193,124 @@ centred on its own passage's x.
   captures (the scratch roots, never `~/ORTS`), and a MaSzyna train whose
   interiors have end doors (to find).
 - Build all, ctest, the app suites, `character-body`, `station-people`.
+
+## As built (2026-11-23, `feature/characters`)
+- **`ShapeSeats`:** `EndPassage` (its `end()` by z's sign;
+  `Seats::endPassageAt(end)`), read from the line and from a glTF's
+  `extras.TSRE_seats.endPassages`, mirrored with the axes
+  (`ShapeSeats::mirror`, so `drawn()` too), its message
+  `shapeseats.endpassage` and the unknown-line message naming it (both
+  `.ts` files). `StationPeople`'s merged car seats (an interior as a
+  freight animation, MaSzyna's) carry them.
+- **`Gangways`** (`src/tsre/characters/Gangways.h/.cpp`): the margins
+  (`MaxReach` 1.5, `Overlap` 0.5, `Handover` 0.15, `WallHeight` 2.1,
+  `WallDepth` 0.35, `Aside` 0.3, `StepIn` 0.5 m), `reaches`, `matches`,
+  `Plate` (`holds`), `plateOf`, `triangles` (its floor from `WallDepth`
+  inside the wall to its far end, its two walls from the wall on),
+  `opening` (the door's width and `Aside` either side, from `WallDepth`
+  inside the wall to the plate's far end: its own car's bellows and a
+  gangway's cover there are walked through, the plate's walls keep the
+  way), `endTowards`, `handedOver`, `insidePlace`, and `nextCar` with
+  `JointLength` 1 m (found on the user's content: the VD Bhp's halves are
+  coupled through a 0.2 m car, their shared bogie; a car shorter than 1 m
+  is walked over, the gangway joins the cars either side).
+- **`CollisionWorld`:** openings by index (`addOpening` returns it,
+  `removeOpening`), and meshes added not `openable` (the plate's walls
+  stand inside its door's opening).
+- **`CarCollision`:** `couplingEnd()` (half the definition's full length,
+  as `Consist::initPos` spaces cars, else half its footprint),
+  `openEnd(door, width)`/`closeEnd(end)` (the plate a mesh and the opening,
+  added and taken away), `plate(end)`, and `within` taking in open plates.
+  `passages()` counts Passages only.
+- **`Character`:** `gangways()` each tick in a car (both ends: the next
+  car on each side by `nextCar`, which end faces it by where it is, so
+  flips need no rule; open when both doors match, else closed with
+  `stepInside` first), `crossGangway` after it moves (past the coupling end
+  by `Handover`: `changeCar`, its place, eyes, velocity, way and look
+  turned into the next car's frame, that car's ends opened at once), logs
+  ("through to train N's car M", "end closed: back inside").
+- **The flips:** an unflipped car's +z end faces the car before it (the
+  train's front), as the brief guessed; the code does not rely on it.
+- **`extra/car-seats`:** `end_passages` (for each end the level aisle
+  reaching furthest; the first wall across its line within 0.7 m of its
+  end, either side, and 1.3 m of the model's end, else an open end at the
+  aisle's end within 1.3 m; a cab left out: a part named for a cab in the
+  room behind it, or a vehicle with a cab (`cab_vehicle`: an `.eng` beside
+  the `.s` with a `CabView` or `ORTS3DCab`) with no passenger door into it
+  and 3 seats at most), `with_end_passages` (a Passage on that wall becomes
+  the EndPassage: a Passage opens its wall coupled or not), `find` with
+  them, `sd_seats`/`mirrored`/`block` with `EndPassage` lines, red on the
+  plans (E and its floor), and the `gangways` command for written sets
+  (a second run writes nothing). README.
+  - For MaSzyna interiors only named cab parts make a cab: on the first
+    run every doorless end room judged a cab was a coach's (111A, 120A,
+    113A, B89, Bhp, EW60 s: 29 ends) and every real cab was found by its
+    part.
+
+## Results (2026-11-23)
+- **`car-gangways` 28:**
+  - Reading: `EndPassage` read, mirrored for `.s` and `.e3d` with and
+    without the axes line, and from glTF extras; a short line left out
+    with its message.
+  - Matching: floors 0.25 m apart open and 0.3 m closed; a wall 1.5 m from
+    its coupling end open and 2.75 m (a cab's partition) closed.
+  - Facing ends: opposite for two cars the same way round, the same for a
+    flipped one; the coupling points meet.
+  - Plates overlap on every point walked across, with a step's height at
+    the handover: straight, a 150 m curve, carriers, the curve's start
+    between the cars, 0.15 m cant on one car, slack ±0.2 m, a 0.2 m joint;
+    joints walked over by `nextCar`.
+  - Walking across with `CharacterBody` between two cars' worlds (their
+    plates, openings, walls drawn closed): standing; up a 0.2 m step; at
+    10 m/s into a 150 m curve, both ways. Each handed over once, on a
+    floor all the way, no jump. A closed end stops it.
+  - A moving car's footprint meets its open plate (found live, below);
+    `insidePlace`, `holds`, `handedOver`.
+- **Live** (`--game-root` a scratch overlay of OR_PSK_NEW with set 8, never
+  `~/ORTS`; PRUDNIK, PSK_2026, train 68, 1707_R60950: SU42, Bhp 18965,
+  joint 965_w, Bhp 18968):
+  - Standing at Nysa: from 18965's vestibule through its end doors, over
+    the joint, into 18968 (`through to train 68's car 3`), up its stairs
+    to the upper deck, then back (`through to train 68's car 1`).
+  - Moving, at 17:12 after Nysa: the same both ways, `its train moving`.
+  - Found and fixed: on a moving train the first try stopped 0.16 m short
+    of the end wall. A moving car's footprint ends the body's radius
+    inside its size, and the plate's zone began at the wall; it now
+    begins `WallDepth` inside it (`Gangways::within`). With the old zone
+    the suite fails the moving walks in the same way.
+- **Unchanged:** character-body 29, station-people 43 (45 with both staged
+  sets as `TSRE_OR_PSK_ROOT` and `TSRE_MASZYNA_ROOT`), shape-axes 19,
+  walk-areas 22, humans-crowd 66, shape-lights 53, e3d-shape 81. Build
+  all, ctest 11/11, 128 of 147 app suites. The 19 others need content or
+  arguments: a game root, `--test-cases`, a corpus folder.
+- **Sets** (in `~/humans-11`, outside the repo):
+  - OR set 8 (`OR_PSK_NEW-sd-seats-map-20261123-8.zip`, README8-or.md,
+    plans in `plans-staged8-or`): set 7 with 480 `EndPassage` lines in 298
+    files, 308 end-wall Passages taken out, nothing else changed.
+  - MaSzyna set 7 (`maszyna-sd-seats-map-20261123-7.zip`,
+    README7-maszyna.md, `plans-staged7-maszyna`): set 6 with 280 lines in
+    190 files, 218 Passages taken out.
+  - Coaches have both ends; EMU cab cars one (EN57, ED72, EN57AL); cabs
+    found by part in MaSzyna (94 ends). Aisles that stop short of the ends
+    give none (Impuls, EN75, SA railbuses, ED78, Elf's end cars). A second
+    `gangways` run writes nothing.
+
+## Left
+- **The VD Bhp's front ends:** a wall 1.4 m inside the end wall
+  (18965 at 7.73) has no Passage, so that end's door can't be reached even
+  where coupled to another Bhp. In the 17:09 this end faces the SU42 and
+  stays closed. A Passage there belongs in the set, after a look at the
+  model.
+- **Gorlitz88:** its aisles end at a partition 1.9 m from the end (no
+  `EndPassage`). Its gangways need that partition's Passage, and the end
+  room's floor, written in its `.sd`.
+- **SN84:** its end passages come out 0.14 m past the model's end (an
+  open end at the aisle's end). Harmless (its middle car has none), but
+  worth a look.
+- **The third-person camera** tests only its own car's world: in a
+  doorway it can sit inside the end doors (seen live, walking back).
+- **Real end doors:** most models draw them closed, and the character walks
+  through them, as with the stairs' doors.
 
 ## The user's answers (2026-11-23)
 1. The plate's side walls: yes.
