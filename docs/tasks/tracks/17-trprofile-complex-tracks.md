@@ -829,8 +829,13 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
     1.5 m past the nose tip, flared 8 cm. A check rail opposite the nose
     on the other rail of each track, inside by a head and the flangeway,
     `CheckRailLength` (4.8 m) centred on the nose's first half, flared at
-    both ends. Otherwise an obtuse crossing (a diamond's middle): a gap of
-    a head and the flangeway each side in both rails.
+    both ends. Otherwise an obtuse crossing (a diamond's middle, a
+    K-crossing): the two half-rails whose gauge faces both look out of
+    their obtuse sector stay whole and meet at the crossing as a bent
+    knuckle rail; the other two are point rails, starting where they are a
+    flangeway from the knuckle (0.68 m from the crossing at 7.5°),
+    narrowed from 20 % at the tip to the full section a head and a
+    flangeway from it (first a plain gap of 1.2 m: the user's report).
   - Rails lying on each other elsewhere (dual gauge) still drawn once.
 - `ComplexTrack` takes `Flangeway`, `BladeOpening`, `CheckRailLength`;
   the `CheckRail` part and filter part name. assets-gen: the concrete
@@ -841,7 +846,7 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
   Checked (assets-gen `checks/complex-phase2.json`): 7.5° points (blades,
   the frog, check rails), the 7.5° diamond (frogs at its ends, the middle
   gaps), the scissors, 10° points.
-- Not yet: point rails and check rails at obtuse crossings; ends of cut
+- Not yet: check rails at obtuse crossings; ends of cut
   rails show the meshes' open insides (dark squares: end faces later);
   wing and check rails reach past a shape's end into the next piece (as
   on real track) without the next piece knowing; three-way points' third

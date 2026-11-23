@@ -635,6 +635,56 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                         .arg(group.bed.isEmpty() ? 0 : group.bed.last().right).arg(group.pathBeds.size()));
         }
 
+        // A 7.5 degree diamond (phase 2): frogs at both ends; in the middle
+        // two obtuse crossings, each rail cut on its point rail's side only,
+        // a flangeway beside the knuckle: (half a head + flangeway + half
+        // the tip) / sin 7.5 = 0.676 m, the knuckle side whole to the point.
+        {
+            Sections diamondSections;
+            // 30 m: the frogs lie 11.5 m from the middle.
+            const int straight30 = diamondSections.straight(30);
+            const float h = radians(7.5f);
+            Shape diamond(9, {path(0, -15, 0, {straight30}),
+                              path(-15 * std::sin(h), -15 * std::cos(h), 7.5f, {straight30})});
+            QVector<ComplexTrackPlan::Path> diamondPaths;
+            for(int i = 0; i < 2; i++){
+                ComplexTrackPlan::Path planPath;
+                planPath.line = TrackShapeAnalysis::samplePath(diamond.shape, i, diamondSections.map);
+                diamondPaths.append(planPath);
+            }
+            const ComplexTrackPlan diamondPlan = ComplexTrackPlan::make(diamondPaths, ComplexTrackPlan::Settings());
+            int common = 0, obtuse = 0;
+            bool gaps = true;
+            for(const ComplexTrackPlan::Crossing &crossing : diamondPlan.crossings){
+                (crossing.obtuse ? obtuse : common)++;
+                if(!crossing.obtuse)
+                    continue;
+                for(int r : {crossing.railA, crossing.railB}){
+                    const ComplexTrackPlan::RailLine &rail = diamondPlan.rails[r];
+                    float at = 0;
+                    TrackShapeAnalysis::Point p;
+                    p.x = crossing.position[0];
+                    p.z = crossing.position[1];
+                    float best = 1e9f;
+                    for(const TrackShapeAnalysis::Point &q : rail.line)
+                        if(std::hypot(q.x - p.x, q.z - p.z) < best){
+                            best = std::hypot(q.x - p.x, q.z - p.z);
+                            at = q.distance;
+                        }
+                    bool found = false;
+                    for(int k = 0; k + 1 < rail.drawn.size(); k++){
+                        const float gap = rail.drawn[k + 1].first - rail.drawn[k].second;
+                        const bool beside = std::abs(rail.drawn[k].second - at) < 0.12f
+                                || std::abs(rail.drawn[k + 1].first - at) < 0.12f;
+                        found = found || (beside && near(gap, 0.676f, 0.12f));
+                    }
+                    gaps = gaps && found;
+                }
+            }
+            check(common == 2 && obtuse == 2, QString("a diamond: two frogs, two obtuse crossings (%1, %2)").arg(common).arg(obtuse));
+            check(gaps, "obtuse crossings: each rail cut 0.68 m on its point rail's side, whole to the knuckle");
+        }
+
         // A third rail on the left (decision 24): the straight's stops
         // where the diverging track comes over it; the diverging track's
         // lies on the straight's at the toe (drawn once), then starts where

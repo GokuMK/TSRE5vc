@@ -577,6 +577,14 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
 
     // Crossings between drawn rails of different paths.
     QHash<int, QVector<Range>> cuts;
+    // An obtuse crossing's point rail on a rail line: from the crossing at
+    // `at` along `direction`, narrowed near its tip.
+    struct PointRail {
+        float at;
+        int direction;
+        float alpha;
+    };
+    QHash<int, QVector<PointRail>> pointRails;
     auto addPiece = [&](RailPiece::Kind kind, int path, int side, const Line &line) {
         if(line.size() < 2 || line.last().distance < 0.05f)
             return;
@@ -668,10 +676,25 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
                     const bool awayA = (cross(dAx, dAz, mx, mz) > 0) != (cross(dAx, dAz, nA.first, nA.second) > 0);
                     const bool awayB = (cross(dBx, dBz, mx, mz) > 0) != (cross(dBx, dBz, nB.first, nB.second) > 0);
                     if(awayA != awayB){
+                        // An obtuse crossing (K-crossing): the two half-rails
+                        // whose gauge faces both look out of their obtuse
+                        // sector stay whole and meet at the crossing as a bent
+                        // knuckle rail; the other two are point rails, starting
+                        // a flangeway beside the knuckle, narrowed to the tip.
                         crossing.obtuse = true;
-                        const float c = (w / 2 + f) / std::sin(alpha);
-                        cuts[ra].append(Range(sA - c, sA + c));
-                        cuts[rb].append(Range(sB - c, sB + c));
+                        const float ox = dAx - dBx, oz = dAz - dBz;
+                        const bool knuckleOut =
+                                (cross(dAx, dAz, ox, oz) > 0) != (cross(dAx, dAz, nA.first, nA.second) > 0)
+                                && (cross(-dBx, -dBz, ox, oz) > 0) != (cross(-dBx, -dBz, nB.first, nB.second) > 0);
+                        // The point rails' sides: along A, along B's distances.
+                        const int pointA = knuckleOut ? -1 : 1;
+                        const int pointB = knuckleOut ? signB : -signB;
+                        const float tip = 0.2f * w;
+                        const float start = (w / 2 + f + tip / 2) / std::sin(alpha);
+                        cuts[ra].append(Range(std::min(sA, sA + pointA * start), std::max(sA, sA + pointA * start)));
+                        cuts[rb].append(Range(std::min(sB, sB + pointB * start), std::max(sB, sB + pointB * start)));
+                        pointRails[ra].append(PointRail{sA, pointA, alpha});
+                        pointRails[rb].append(PointRail{sB, pointB, alpha});
                         plan.crossings.append(crossing);
                         continue;
                     }
@@ -714,6 +737,19 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
         Line line = rail.line;
         QVector<float> scale;
         RailPiece::Kind kind = RailPiece::Kind::Plain;
+        // Point rails: a flangeway from the knuckle rail, their width
+        // growing from the tip until a head and a flangeway from it.
+        auto pointWidth = [&](const Point &p) {
+            float factor = 1.0f;
+            for(const PointRail &point : pointRails.value(r)){
+                const float along = (p.distance - point.at) * point.direction;
+                if(along <= 0)
+                    continue;
+                const float width = 2 * (along * std::sin(point.alpha) - w / 2 - f);
+                factor = std::min(factor, std::clamp(width, 0.2f * w, w) / w);
+            }
+            return factor;
+        };
         if(blades.contains(r)){
             kind = RailPiece::Kind::Blade;
             const Line &stock = plan.rails[blades[r].stock].line;
@@ -740,6 +776,12 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
                 p.z += n.second * shift;
                 scale[k] = width / w;
             }
+        }
+        if(pointRails.contains(r)){
+            if(scale.isEmpty())
+                scale.fill(1.0f, line.size());
+            for(int k = 0; k < line.size(); k++)
+                scale[k] = std::min(scale[k], pointWidth(line[k]));
         }
         for(const Range &range : rail.drawn){
             RailPiece piece;
