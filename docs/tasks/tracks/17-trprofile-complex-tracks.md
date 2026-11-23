@@ -852,11 +852,14 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
   Checked (assets-gen `checks/complex-phase2.json`): 7.5° points (blades,
   the frog, check rails), the 7.5° diamond (frogs at its ends, the middle
   gaps), the scissors, 10° points.
+- Three-way points (`A1t3WayPnt10dMnl`, checked 2026-11-24): four blades,
+  two a side, the outer rails stock rails; the second blade of a side lies
+  open beside the first rather than its stock rail (alike when open); the
+  frogs where the diverging tracks cross the straight and each other.
 - Not yet: ends of cut
   rails show the meshes' open insides (dark squares: end faces later);
   wing and check rails reach past a shape's end into the next piece (as
-  on real track) without the next piece knowing; three-way points' third
-  blade; blades from the junction's state (a task of its own, for static
+  on real track) without the next piece knowing; blades from the junction's state (a task of its own, for static
   and procedural junctions alike: MSTS junction shapes carry their blades
   on animated matrices, which Open Rails' `SwitchTrackShape` poses by
   the junction's route, key 0 on `MainRoute`, 1 off it, over half a
