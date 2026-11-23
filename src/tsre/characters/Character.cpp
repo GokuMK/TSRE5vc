@@ -12,6 +12,7 @@
 #include <tsre/Game.h>
 #include <tsre/KeyTaker.h>
 #include <tsre/camera/CameraMount.h>
+#include <tsre/characters/Gangways.h>
 #include <tsre/humans/HumanSet.h>
 #include <tsre/humans/StationPeople.h>
 #include <tsre/trains/CarAnimation.h>
@@ -294,6 +295,7 @@ void Character::enterCar(int train, int car) {
     const float feetNow[3] = {body.position()[0], body.position()[1], body.position()[2]};
     const float eyeNow[3] = {eye[0], eye[1], eye[2]};
     ride = Ride();
+    nextCars[0] = nextCars[1] = -1;
     ride.train = train;
     ride.car = car;
     ride.eng = eng;
@@ -344,6 +346,137 @@ void Character::leaveCar() {
     qInfo().noquote() << QString("Character: out of train %1's car %2 at tile %3 %4 (%5, %6, %7)")
                          .arg(train).arg(car).arg(at[0]).arg(at[1]).arg(double(feetNow[0]), 0, 'f', 2)
                          .arg(double(feetNow[1]), 0, 'f', 2).arg(double(feetNow[2]), 0, 'f', 2);
+}
+
+// Its car's ends (task 05): each open toward the car beside it in the train
+// on that side (found by where that car is: flips need no rule; a joint
+// shorter than Gangways::JointLength walked over) whose facing end's
+// EndPassage matches its own (Gangways::matches); else closed,
+// one closing under its feet putting it back inside first. Both cars'
+// seats are read on a worker: closed until they are.
+void Character::gangways() {
+    bool open[2] = {false, false};
+    const std::shared_ptr<const ShapeSeats::Seats> own = Humans::StationPeople::seatsOfCar(*ride.eng);
+    if (own && !own->endPassages.isEmpty()) {
+        const float tile[2] = {float(at[0]), float(at[1])};
+        // The train's cars' lengths: a joint (Gangways::JointLength) walked
+        // over.
+        std::vector<float> lengths;
+        for (int i = 0;; ++i) {
+            const Eng *car = carOf(ride.train, i);
+            if (car == nullptr)
+                break;
+            lengths.push_back(2.0f * CarCollision::couplingEndOf(*car));
+        }
+        for (const int step : {-1, 1}) {
+            const int next = Gangways::nextCar(lengths, ride.car, step);
+            Eng *eng = carOf(ride.train, next);
+            float matrix[16], inverse[16];
+            if (eng == nullptr || !eng->definition || !eng->placedMatrix(tile, matrix))
+                continue;
+            const int end = Gangways::endTowards(ride.inverse, matrix);
+            rigidInverse(matrix, inverse);
+            const int facing = Gangways::endTowards(inverse, ride.matrix);
+            const ShapeSeats::EndPassage *door = own->endPassageAt(end);
+            if (door == nullptr)
+                continue;
+            const std::shared_ptr<const ShapeSeats::Seats> theirs = Humans::StationPeople::seatsOfCar(*eng);
+            const ShapeSeats::EndPassage *across = theirs ? theirs->endPassageAt(facing) : nullptr;
+            float width = 0.0f;
+            if (across == nullptr
+                    || !Gangways::matches(*door, carWorld.couplingEnd(), *across, CarCollision::couplingEndOf(*eng),
+                                          &width))
+                continue;
+            open[end > 0 ? 0 : 1] = true;
+            nextCars[end > 0 ? 0 : 1] = next;
+            carWorld.openEnd(*door, width, Gangways::facingX(*across, end, facing));
+        }
+    }
+    for (const int end : {1, -1}) {
+        const int i = end > 0 ? 0 : 1;
+        if (open[i])
+            continue;
+        nextCars[i] = -1;
+        if (carWorld.plate(end).open()) {
+            stepInside(end);
+            carWorld.closeEnd(end);
+        }
+    }
+}
+
+// Back inside its car from an end closing (uncoupled, the train made
+// again): on the floor half a metre in from that end's door, on its middle
+// across, facing as it was; only when it is in the door's way.
+void Character::stepInside(int end) {
+    const Gangways::Plate &plate = carWorld.plate(end);
+    float place[2];
+    if (!Gangways::insidePlace(plate, body.position(), place))
+        return;
+    float in[3] = {place[0], body.position()[1], place[1]};
+    CollisionWorld::Floor floor;
+    if (carWorld.world().floorAt(in[0], in[2], plate.y + 0.5f, plate.y - 1.0f, floor))
+        in[1] = floor.height;
+    body.setPosition(in);
+    velocity[0] = velocity[1] = moved[0] = moved[1] = 0.0f;
+    qInfo().noquote() << QString("Character: train %1's car %2's end %3 closed: back inside (%4, %5, %6)")
+                         .arg(ride.train).arg(ride.car).arg(end > 0 ? "front" : "rear").arg(double(in[0]), 0, 'f', 2)
+                         .arg(double(in[1]), 0, 'f', 2).arg(double(in[2]), 0, 'f', 2);
+}
+
+// On to the next car: its feet Handover past its car's coupling end on an
+// open end's plate.
+bool Character::crossGangway(float &lyaw, float &lpitch) {
+    for (const int end : {1, -1}) {
+        const int next = nextCars[end > 0 ? 0 : 1];
+        if (next < 0 || !Gangways::handedOver(carWorld.plate(end), carWorld.couplingEnd(), body.position()[2]))
+            continue;
+        const float yawBefore = ride.yaw, pitchBefore = ride.pitch;
+        if (!changeCar(next))
+            return false;
+        lyaw -= ride.yaw - yawBefore;
+        lpitch -= ride.pitch - pitchBefore;
+        return true;
+    }
+    return false;
+}
+
+// Into another car of its train, where it stands now: its place, eyes, way
+// and velocity turned from its car's frame into that one's (a camera riding
+// it keeps looking where it looked); that car's ends opened at once, so the
+// plate it stands on is there before it moves again.
+bool Character::changeCar(int car) {
+    Eng *eng = carOf(ride.train, car);
+    if (eng == nullptr)
+        return false;
+    float feetNow[3], eyeNow[3];
+    toWorld(body.position(), feetNow);
+    toWorld(eye, eyeNow);
+    const Ride before = ride;
+    ride.car = car;
+    ride.eng = eng;
+    if (!placeCar()) {
+        ride = before;
+        return false;
+    }
+    carWorld.build(eng);
+    nextCars[0] = nextCars[1] = -1;
+    float local[3];
+    toFrame(feetNow, local);
+    body.setPosition(local);
+    toFrame(eyeNow, eye);
+    for (float *v : {velocity, moved}) {
+        turnBy(v, before.yaw);
+        turnBy(v, -ride.yaw);
+    }
+    way = std::remainder(way + before.yaw - ride.yaw, TwoPi);
+    startLook[0] = look[0] - ride.yaw;
+    startLook[1] = look[1] - ride.pitch;
+    carWorld.readPassages();
+    gangways();
+    qInfo().noquote() << QString("Character: through to train %1's car %2 (%3, %4, %5 in it)%6")
+                         .arg(ride.train).arg(car).arg(double(local[0]), 0, 'f', 2).arg(double(local[1]), 0, 'f', 2)
+                         .arg(double(local[2]), 0, 'f', 2).arg(ride.moving ? ", its train moving" : "");
+    return true;
 }
 
 // A human of the route's set (else TSRE's: always, whatever the people
@@ -431,10 +564,12 @@ void Character::update(float seconds, float yaw, float pitch, const int *cameraT
                     > RestDistance;
     if (rest)
         return;
-    if (!inCar())
+    if (!inCar()) {
         route.update(at, body.position());
-    else
+    } else {
         carWorld.readPassages();
+        gangways();
+    }
 
     // The look in its frame: the player's as the camera looks; one left,
     // its way.
@@ -544,6 +679,8 @@ void Character::update(float seconds, float yaw, float pitch, const int *cameraT
             lyaw -= ride.yaw - yawBefore;
             lpitch -= ride.pitch;
         }
+    } else if (crossGangway(lyaw, lpitch)) {
+        // In the next car.
     } else if (!body.onGround() && !carWorld.within(body.position()[0], body.position()[2])) {
         lyaw += ride.yaw;
         lpitch += ride.pitch;

@@ -230,6 +230,9 @@ private:
     };
     Ride ride;
     CarCollision carWorld;
+    // The car beside its car at each end (its front, its rear) while that
+    // end's gangway is open (task 05), -1 none.
+    int nextCars[2] = {-1, -1};
     std::vector<Usable> usables;
     int aim = -1;
     // Moving by itself in its frame (task 03: through a door): legs in
@@ -297,6 +300,14 @@ private:
     bool placeCar();
     void enterCar(int train, int car);
     void leaveCar();
+    // Walking between cars (task 05, Gangways): its car's ends opened and
+    // closed by the cars beside it; on to the next car past a coupling end
+    // (the look in its frame turned with it); into another car of its
+    // train where it stands now.
+    void gangways();
+    bool crossGangway(float &lyaw, float &lpitch);
+    bool changeCar(int car);
+    void stepInside(int end);
     // Behind the eyes along a look (in its frame), in front of what is
     // between; in its frame.
     void placeBehind(float yaw, float pitch, float *out) const;
