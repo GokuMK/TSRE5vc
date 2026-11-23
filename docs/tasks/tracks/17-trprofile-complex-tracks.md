@@ -835,7 +835,13 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
     knuckle rail; the other two are point rails, starting where they are a
     flangeway from the knuckle (0.68 m from the crossing at 7.5°),
     narrowed from 20 % at the tip to the full section a head and a
-    flangeway from it (first a plain gap of 1.2 m: the user's report).
+    flangeway from it (first a plain gap of 1.2 m: the user's report). Both
+    rails of each track have their gap at the same place, so a check rail
+    opposite cannot guide: a bent check knuckle runs along both point rails
+    on their gauge side, a head and a flangeway off, its legs half
+    `CheckRailLength` each from where they meet, flared ends (as fixed
+    K-crossings are built: a running knuckle, two point rails, a check
+    knuckle).
   - Rails lying on each other elsewhere (dual gauge) still drawn once.
 - `ComplexTrack` takes `Flangeway`, `BladeOpening`, `CheckRailLength`;
   the `CheckRail` part and filter part name. assets-gen: the concrete
@@ -846,7 +852,7 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
   Checked (assets-gen `checks/complex-phase2.json`): 7.5° points (blades,
   the frog, check rails), the 7.5° diamond (frogs at its ends, the middle
   gaps), the scissors, 10° points.
-- Not yet: check rails at obtuse crossings; ends of cut
+- Not yet: ends of cut
   rails show the meshes' open insides (dark squares: end faces later);
   wing and check rails reach past a shape's end into the next piece (as
   on real track) without the next piece knowing; three-way points' third

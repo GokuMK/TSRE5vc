@@ -695,6 +695,25 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
                         cuts[rb].append(Range(std::min(sB, sB + pointB * start), std::max(sB, sB + pointB * start)));
                         pointRails[ra].append(PointRail{sA, pointA, alpha});
                         pointRails[rb].append(PointRail{sB, pointB, alpha});
+                        // The check knuckle: a bent check rail along both point
+                        // rails on their gauge side, a head and a flangeway off,
+                        // its legs meeting where those lines cross, flared ends.
+                        if(laysPart(ra, TrackProfileFilters::CheckRail)){
+                            const float d = w + f;
+                            const float dot = nA.first * nB.first + nA.second * nB.second;
+                            const float qx = crossing.position[0] + d * (nA.first + nB.first) / (1 + dot);
+                            const float qz = crossing.position[1] + d * (nA.second + nB.second) / (1 + dot);
+                            const float uAx = pointA * std::sin(hA), uAz = pointA * std::cos(hA);
+                            const float uBx = pointB * std::sin(hB), uBz = pointB * std::cos(hB);
+                            const float leg = st.checkRailLength / 2;
+                            constexpr float Flare = 0.06f, FlareLength = 0.6f;
+                            addPiece(RailPiece::Kind::CheckRail, A.path, A.side, polyline({
+                                {qx + uAx * leg + nA.first * Flare, qz + uAz * leg + nA.second * Flare},
+                                {qx + uAx * (leg - FlareLength), qz + uAz * (leg - FlareLength)},
+                                {qx, qz},
+                                {qx + uBx * (leg - FlareLength), qz + uBz * (leg - FlareLength)},
+                                {qx + uBx * leg + nB.first * Flare, qz + uBz * leg + nB.second * Flare}}));
+                        }
                         plan.crossings.append(crossing);
                         continue;
                     }

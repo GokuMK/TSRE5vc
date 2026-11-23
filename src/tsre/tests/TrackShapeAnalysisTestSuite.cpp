@@ -683,6 +683,11 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
             }
             check(common == 2 && obtuse == 2, QString("a diamond: two frogs, two obtuse crossings (%1, %2)").arg(common).arg(obtuse));
             check(gaps, "obtuse crossings: each rail cut 0.68 m on its point rail's side, whole to the knuckle");
+            int checkRails = 0;
+            for(const ComplexTrackPlan::RailPiece &piece : diamondPlan.railPieces)
+                checkRails += piece.kind == ComplexTrackPlan::RailPiece::Kind::CheckRail;
+            check(checkRails == 6, QString("check rails: two at each frog, a check knuckle at each obtuse crossing (%1)")
+                    .arg(checkRails));
         }
 
         // A third rail on the left (decision 24): the straight's stops
