@@ -403,12 +403,12 @@ QStringList rows(const QString &folder, int *unlisted) {
                 && !MaszynaMaterial::exists(livery.skin + QLatin1String(",1"), folder))
             continue;
         withLivery.insert(livery.type);
-        out.push_back(livery.type + QLatin1Char('#') + livery.skin + QLatin1String(".mmd"));
+        out.push_back(livery.type + RowSeparator + livery.skin + QLatin1String(".mmd"));
     }
     for (const QString &mmd : dir.entryList(QStringList() << "*.mmd", QDir::Files)) {
         const QString type = mmd.chopped(4);
         if (!withLivery.contains(type.toLower()) && isTrain(type))
-            out.push_back(type + QLatin1String("#.mmd"));
+            out.push_back(type + RowSeparator + QLatin1String(".mmd"));
     }
     if (unlisted != nullptr) {
         QSet<QString> skins;
@@ -423,11 +423,11 @@ QStringList rows(const QString &folder, int *unlisted) {
 }
 
 QString firstRow(const QString &folder, const QString &type) {
-    const QString wanted = type.toLower() + QLatin1Char('#');
+    const QString wanted = type.toLower() + RowSeparator;
     for (const QString &row : rows(folder))
         if (row.startsWith(wanted, Qt::CaseInsensitive))
             return row;
-    return type + QLatin1String("#.mmd");
+    return type + RowSeparator + QLatin1String(".mmd");
 }
 
 namespace {
@@ -540,8 +540,8 @@ QString engText(const MaszynaVehicle &vehicle, QAnyStringView path, int index) {
 std::shared_ptr<const VehicleDefinition> definition(const QString &folder, const QString &row) {
     auto def = std::make_shared<VehicleDefinition>();
     const QString stem = row.endsWith(QLatin1String(".mmd"), Qt::CaseInsensitive) ? row.chopped(4) : row;
-    const QString type = stem.section(QLatin1Char('#'), 0, 0);
-    const QString skin = stem.section(QLatin1Char('#'), 1);
+    const QString type = stem.section(RowSeparator, 0, 0);
+    const QString skin = stem.section(RowSeparator, 1);
     def->path = folder + QLatin1Char('/') + row;
     def->folder = folder;
     def->maszyna = MaszynaVehicle::read(folder, type);

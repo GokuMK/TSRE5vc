@@ -461,7 +461,7 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
         qInfo() << "[tests:mmd-cab-script] SKIP: no dynamic/pkp/et22_v3 in the game root" << Game::root;
         return 0;
     }
-    const auto et22 = MaszynaVehicles::definition(folder, "201e#201e-037.mmd");
+    const auto et22 = MaszynaVehicles::definition(folder, "201e|201e-037.mmd");
     const std::shared_ptr<const VehicleDefinition::Cab3D> cab = et22 ? et22->cab3DOf() : nullptr;
     test.check(cab != nullptr && cab->viewpoints.size() == 4 && !cab->mirrored,
                "ET22: a 3D cab at each end, standing and seated");
@@ -662,7 +662,7 @@ int TsreTests::runMmdCabScriptSuite(bool verbose) {
     // button's) stopping it.
     const QString st44Folder = QDir::cleanPath(Game::root) + "/dynamic/pkp/st44_v2";
     if (QFileInfo(st44Folder).isDir()) {
-        const auto st44 = MaszynaVehicles::definition(st44Folder, "st44-1030#st44-1030.mmd");
+        const auto st44 = MaszynaVehicles::definition(st44Folder, "st44-1030|st44-1030.mmd");
         const std::shared_ptr<const CabControls> st44Controls = st44 ? st44->cab3DControlsAt(false) : nullptr;
         std::unique_ptr<Sim::VehicleModel> loco = st44Controls ? scripts.make(st44) : nullptr;
         test.check(loco != nullptr, "ST44 gets its script and its cab's controls");

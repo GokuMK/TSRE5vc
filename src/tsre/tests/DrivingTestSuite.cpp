@@ -1776,7 +1776,7 @@ Train (
                 v.definition = definition;
             return v;
         };
-        const Sim::Vehicle et22 = fizVehicle("et22_v3", "201e#201e-037.mmd");
+        const Sim::Vehicle et22 = fizVehicle("et22_v3", "201e|201e-037.mmd");
         const Sim::Vehicle ra = fizVehicle("en57_v1", "5bgaiii_led_spot.mmd");
         const Sim::Vehicle rb = fizVehicle("en57_v1", "5bgbiii_led_spot.mmd");
         const auto run = [&](std::vector<Sim::Vehicle> vehicles) {

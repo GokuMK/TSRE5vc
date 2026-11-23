@@ -1436,24 +1436,24 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
 
     int unlisted = -1;
     const QStringList rows = MaszynaVehicles::rows(folder, &unlisted);
-    test.check(rows.contains("loco#skin-a.mmd") && rows.contains("loco#skin-b.mmd") && rows.contains("wagon#s1.mmd"), "a row per livery: " + rows.join(' '));
-    test.check(!rows.contains("truck#t1.mmd"), "only railway vehicles");
+    test.check(rows.contains("loco|skin-a.mmd") && rows.contains("loco|skin-b.mmd") && rows.contains("wagon|s1.mmd"), "a row per livery: " + rows.join(' '));
+    test.check(!rows.contains("truck|t1.mmd"), "only railway vehicles");
     test.check(rows.size() == 3, "nothing else");
     QFile::remove(folder + "/s1.mat");
-    test.check(!MaszynaVehicles::rows(folder).contains("wagon#s1.mmd") && MaszynaVehicles::rows(folder).contains("wagon#.mmd"),
+    test.check(!MaszynaVehicles::rows(folder).contains("wagon|s1.mmd") && MaszynaVehicles::rows(folder).contains("wagon|.mmd"),
                "a livery not copied has no row, its type a plain one");
     writeFile(folder + "/s1.mat", "texture1: x\n");
     // own, unlisted, skin-c (its slots counted once); the vehicles' other .mat files count too.
     test.check(unlisted == 2, QString("liveries not in the catalogue (%1)").arg(unlisted));
-    test.check(MaszynaVehicles::firstRow(folder, "loco") == "loco#skin-a.mmd", "the first row of a type");
+    test.check(MaszynaVehicles::firstRow(folder, "loco") == "loco|skin-a.mmd", "the first row of a type");
 
     writeFile(folder + "/named.fiz", "Param. Category=train M=1\n");
     writeFile(folder + "/named.mmd", "models: base/(p1).t3d\nendmodels\n");
-    test.check(VehicleDefinition::read(folder, "named#a1.mmd", root, false)->shapePath == folder + "/base/a1.e3d", "a model named by the placed vehicle's name: its livery");
+    test.check(VehicleDefinition::read(folder, "named|a1.mmd", root, false)->shapePath == folder + "/base/a1.e3d", "a model named by the placed vehicle's name: its livery");
 
-    const auto def = VehicleDefinition::read(folder, "loco#skin-a.mmd", root, false);
+    const auto def = VehicleDefinition::read(folder, "loco|skin-a.mmd", root, false);
     test.check(def->ok() && def->document == nullptr && def->maszyna == vehicle, "a definition without a document");
-    test.check(def->engName == "loco#skin-a" && def->skin == "skin-a", "the consist's name and its livery");
+    test.check(def->engName == "loco|skin-a" && def->skin == "skin-a", "the consist's name and its livery");
     test.check(def->displayName == "ET22-037 (pkp/veh1)", "its name with the folder: " + def->displayName);
     test.check(def->searchKeywords.contains("KR Depot"), "search keywords");
     test.check(def->wagonTypeId == 4 && def->typeHash == "Engine-Electric", "an electric engine");
@@ -1466,8 +1466,19 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
     test.check(def->files().contains(folder + "/loco.mmd") && def->files().contains(folder + "/loco.fiz")
                        && def->files().contains(folder + "/common.inc") && def->files().contains(folder + "/textures.txt"),
                "its files: .fiz, .mmd, includes, the catalogue");
-    test.check(VehicleDefinition::read(folder, "wagon#s1.mmd", root, false)->wagonTypeId == 1, "passengers: a carriage");
-    test.check(!VehicleDefinition::read(folder, "nothing#x.mmd", root, false)->ok(), "a type not there");
+    test.check(VehicleDefinition::read(folder, "wagon|s1.mmd", root, false)->wagonTypeId == 1, "passengers: a carriage");
+    test.check(!VehicleDefinition::read(folder, "nothing|x.mmd", root, false)->ok(), "a type not there");
+
+    // An ENG with a '#' in its name is an ENG (the user's report, 2026-11-23:
+    // the '#' rows took it for a MaSzyna row, "not exist").
+    writeFile(folder + "/Dash9#BNSF.eng", "SIMISA@@@@@@@@@@JINX0D0t______\n\nWagon ( Dash9#BNSF\n\tType ( Engine )\n\tMass ( 100t )\n)\n"
+                                         "Engine ( Dash9#BNSF\n\tType ( Diesel )\n)\n");
+    test.check(!MaszynaVehicles::isRow("Dash9#BNSF") && MaszynaVehicles::fileOf("Dash9#BNSF", ".eng") == "Dash9#BNSF.eng"
+                       && MaszynaVehicles::fileOf("loco|skin-a", ".eng") == "loco|skin-a.mmd",
+               "a consist's name: '#' an ENG's, '|' a MaSzyna row's");
+    const auto hashed = VehicleDefinition::read(folder, "Dash9#BNSF.eng", root, false);
+    test.check(hashed->ok() && hashed->maszyna == nullptr && hashed->engName == "Dash9#BNSF",
+               "an ENG named with a '#' read as an ENG: " + hashed->engName);
 
     // The rig on a model in MaSzyna's frames: a root turning x' = -x, y' = z,
     // z' = y, below it its parts' z up.
@@ -1572,7 +1583,7 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
                 found << EngLib::consistFolder(entry.second->path) + "/" + entry.second->name;
         found.sort();
         // Files without content do not load; rows do. What was tried is in the library.
-        test.check(found.contains("pkp/veh1/loco#skin-a.mmd"), "MaSzyna rows from a group folder: " + found.join(' '));
+        test.check(found.contains("pkp/veh1/loco|skin-a.mmd"), "MaSzyna rows from a group folder: " + found.join(' '));
         test.check(!found.join(' ').contains("deep/"), "no deeper than one group");
     }
     // A consist of such rows: read, saved and read back with its nested folder.
@@ -1581,8 +1592,8 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
         QScopedValueRollback<EngLib *> current(Game::currentEngLib, &lib);
         const QString consists = root + "/TRAINS/CONSISTS";
         const QString consistText = QStringLiteral("SIMISA@@@@@@@@@@JINX0D0t______\n\nTrain (\n\tTrainCfg ( \"m\"\n\t\tName ( \"m\" )\n\t\tSerial ( 1 )\n\t\tMaxVelocity ( 40 1 )\n"
-                                       "\t\tNextWagonUID ( 3 )\n\t\tDurability ( 1 )\n\t\tEngine (\n\t\t\tUiD ( 0 )\n\t\t\tEngineData ( \"loco#skin-a\" \"pkp/veh1\" )\n\t\t)\n"
-                                       "\t\tWagon (\n\t\t\tWagonData ( \"wagon#s1\" \"pkp/veh1\" )\n\t\t\tUiD ( 1 )\n\t\t)\n\t)\n)\n");
+                                       "\t\tNextWagonUID ( 3 )\n\t\tDurability ( 1 )\n\t\tEngine (\n\t\t\tUiD ( 0 )\n\t\t\tEngineData ( \"loco|skin-a\" \"pkp/veh1\" )\n\t\t)\n"
+                                       "\t\tWagon (\n\t\t\tWagonData ( \"wagon|s1\" \"pkp/veh1\" )\n\t\t\tUiD ( 1 )\n\t\t)\n\t)\n)\n");
         QByteArray utf16("\xFF\xFE", 2);
         utf16.append(reinterpret_cast<const char *>(consistText.utf16()), consistText.size() * 2);
         writeFile(consists + "/m.con", utf16);
@@ -1599,7 +1610,7 @@ int TsreTests::runMaszynaVehicleSuite(bool verbose) {
             con.name = "m2.con";
             con.save();
             Consist back(consists, "m2.con");
-            test.check(back.loaded == 1 && back.engItems.size() == 2 && back.engItems[0].epath == "pkp/veh1" && back.engItems[0].ename == "loco#skin-a", "saved and read back");
+            test.check(back.loaded == 1 && back.engItems.size() == 2 && back.engItems[0].epath == "pkp/veh1" && back.engItems[0].ename == "loco|skin-a", "saved and read back");
             test.check(!back.isBroken(), "still whole");
         }
     }
@@ -1775,7 +1786,7 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
     writeFile(folder + "/model/a.e3d", file({records({part, second, third, skinPart}), chunk("VNT2", triangle(0.0f, true)),
                                              chunk("TEX0", strings({"", "tabor/shared", "dynamic/pkp/other/part", "tabor/gone"}))}));
 
-    const int id = engs.addEng(folder, "a#skin-a.mmd");
+    const int id = engs.addEng(folder, "a|skin-a.mmd");
     test.check(id >= 0 && engs.eng[id]->loaded == 1, "the row loads");
     if (id < 0 || engs.eng[id]->loaded != 1)
         return test.finish();
@@ -1852,8 +1863,8 @@ int TsreTests::runVehicleFilesSuite(bool verbose) {
 
     // The train: its consist file and its cars', once each.
     const QString consistText = "SIMISA@@@@@@@@@@JINX0D0t______\n\nTrain (\n\tTrainCfg ( \"t\"\n\t\tName ( \"t\" )\n\t\tSerial ( 1 )\n\t\tMaxVelocity ( 40 1 )\n"
-                                "\t\tNextWagonUID ( 3 )\n\t\tDurability ( 1 )\n\t\tEngine (\n\t\t\tUiD ( 0 )\n\t\t\tEngineData ( \"a#skin-a\" \"pkp/veh\" )\n\t\t)\n"
-                                "\t\tEngine (\n\t\t\tUiD ( 1 )\n\t\t\tEngineData ( \"a#skin-b\" \"pkp/veh\" )\n\t\t)\n\t)\n)\n";
+                                "\t\tNextWagonUID ( 3 )\n\t\tDurability ( 1 )\n\t\tEngine (\n\t\t\tUiD ( 0 )\n\t\t\tEngineData ( \"a|skin-a\" \"pkp/veh\" )\n\t\t)\n"
+                                "\t\tEngine (\n\t\t\tUiD ( 1 )\n\t\t\tEngineData ( \"a|skin-b\" \"pkp/veh\" )\n\t\t)\n\t)\n)\n";
     writeFile(root + "/TRAINS/CONSISTS/t.con", utf16(consistText));
     Consist train(root + "/TRAINS/CONSISTS", "t.con");
     test.check(train.loaded == 1 && train.engItems.size() == 2, "the train reads");

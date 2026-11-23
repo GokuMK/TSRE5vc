@@ -103,8 +103,13 @@ struct MaszynaCatalogue {
 
 namespace MaszynaVehicles {
 
+// The sign between a row's type and its skin (the user, 2026-11-23): '|',
+// which Windows forbids in file names, so no MSTS or Open Rails vehicle file
+// can have it. It was '#' first, which broke ENG files named with a '#'.
+inline constexpr QLatin1Char RowSeparator{'|'};
+
 // The rows a vehicle folder gives: file names as Eng takes them,
-// <type>#<skin>.mmd, one per livery in its catalogue, <type>#.mmd for a type
+// <type>|<skin>.mmd, one per livery in its catalogue, <type>|.mmd for a type
 // with none. Only railway vehicles (Category=train). Liveries not in the
 // catalogue are counted in `unlisted`.
 QStringList rows(const QString &folder, int *unlisted = nullptr);
@@ -112,8 +117,11 @@ QStringList rows(const QString &folder, int *unlisted = nullptr);
 bool holdsVehicle(const QString &folder);
 // The first row of a type (what the Shape Viewer opens for an .mmd).
 QString firstRow(const QString &folder, const QString &type);
-// Whether a file name (or a consist's vehicle name) is a MaSzyna row.
-inline bool isRow(const QString &name) { return name.contains(QLatin1Char('#')); }
+// Whether a file name (or a consist's vehicle name) is a MaSzyna row: one
+// with a '|'; without it an ENG or WAG.
+inline bool isRow(const QString &name) { return name.contains(RowSeparator); }
+// The .mmd a row is read from: its type's, before the '|'.
+inline QString typeFile(const QString &row) { return row.section(RowSeparator, 0, 0) + QStringLiteral(".mmd"); }
 // The file Eng takes for a consist's vehicle name: .mmd for a MaSzyna row,
 // else with the extension given.
 inline QString fileOf(const QString &name, const QString &extension) {

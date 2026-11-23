@@ -404,10 +404,10 @@ public:
         }
         if(family=="cvf" && n=="enginedata")return; // Cab metadata, not a consist vehicle reference.
         if((family=="con" || family=="act") && (n=="enginedata" || n=="wagondata") && f.values.size()>=2) {
-            // A MaSzyna row (<type>#<skin>): its type's .mmd.
-            const bool row=f.values[0].text.contains('#');
+            // A MaSzyna row (<type>|<skin>, MaszynaVehicles::RowSeparator): its type's .mmd.
+            const bool row=f.values[0].text.contains('|');
             add(job,f,0,n,{"TRAINS/TRAINSET"},row?".mmd":n=="enginedata"?".eng":".wag",false,
-                f.values[1].text+"/"+(row?f.values[0].text.section('#',0,0):f.values[0].text));return;
+                f.values[1].text+"/"+(row?f.values[0].text.section('|',0,0):f.values[0].text));return;
         }
         if(n=="esd_alternative_texture")return; // Flag, never a filename.
         if(family=="s" && n=="image") {texture(job,f,0,job.textureBase);return;}

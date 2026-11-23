@@ -29,6 +29,7 @@
 #include <conEditor/OverwriteDialog.h>
 #include <tsre/gui/UnsavedDialog.h>
 #include <conEditor/VehicleFilesDialog.h>
+#include <tsre/maszyna/MaszynaVehicle.h>
 #include <conEditor/RandomConsist.h>
 #include <tsre/trains/ActLib.h>
 #include <tsre/trains/Activity.h>
@@ -595,7 +596,7 @@ void ConEditorWindow::eFilesSelected(){
     VehicleFilesDialog dialog(
         //% "Vehicle files: %1"
         qtTrId("con.editor.con.editor.window.title.vehicle.files").arg(currentEng->definition->displayName),
-        currentEng->name.section(".", 0, -2).replace('#', '_'), VehicleFiles::ofVehicle(*currentEng), this);
+        currentEng->name.section(".", 0, -2).replace(MaszynaVehicles::RowSeparator, u'_'), VehicleFiles::ofVehicle(*currentEng), this);
     dialog.exec();
 }
 
@@ -944,7 +945,8 @@ void ConEditorWindow::cSaveAsEngSetSelected(){
     currentCon->conName = fileName;
     currentCon->showName = fileName;
     cFileName.setText(currentCon->conName);
-    currentCon->name = fileName+".con";
+    // A MaSzyna lead's name holds a '|', which Windows forbids in a file name.
+    currentCon->name = QString(fileName).replace(MaszynaVehicles::RowSeparator, u'_') + ".con";
     
     OverwriteDialog owerwriteDialog;
         //% "Overwrite \"%1\"?"

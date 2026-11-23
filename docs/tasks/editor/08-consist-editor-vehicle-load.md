@@ -149,7 +149,7 @@ end marker, so every combination is its own file.
   freight.
 - Those would need one of:
   - a TSRE extension in the same form, which Open Rails would show empty;
-  - the MaSzyna way, rows named `<type>#<variant>`.
+  - the MaSzyna way, rows named `<type>|<variant>` (`#` until 2026-11-23).
 
 **TSRE today.** It keeps a consist's `LoadData` as a kept block
 ([task 07](07-activity-editing.md)). It does not draw or edit the loads.

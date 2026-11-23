@@ -261,7 +261,7 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
     Sim::LocoScripts scripts(locoFolder);
 
     // ET22: the resistor script, its contactors closing on the first notch.
-    const auto et22 = MaszynaVehicles::definition(pack + "/et22_v3", "201e#201e-037.mmd");
+    const auto et22 = MaszynaVehicles::definition(pack + "/et22_v3", "201e|201e-037.mmd");
     {
         LocoRun run(scripts, et22);
         test.check(run.model != nullptr, "ET22 gets a script");
@@ -407,7 +407,7 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
         const bool again = run.until([&] { return run.number("force") > 0.0; }, 5.0);
         bool dieselCut = true;
         if (QFileInfo(pack + "/st44_v2").isDir()) {
-            LocoRun diesel(scripts, MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030#st44-1030.mmd"));
+            LocoRun diesel(scripts, MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030|st44-1030.mmd"));
             diesel.in.speed = 20.0 / 3.6;
             diesel.step(100);
             diesel.command("direction", 1.0);
@@ -540,7 +540,7 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
     // motors moving; stopped and started again, its oil pump priming while
     // it cranks, then its ignition.
     if (QFileInfo(pack + "/st44_v2").isDir()) {
-        const auto st44 = MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030#st44-1030.mmd");
+        const auto st44 = MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030|st44-1030.mmd");
         const MaszynaSound::Sounds &sounds = st44->maszyna->sounds();
         LocoRun run(scripts, st44);
         run.step(100);
@@ -1345,7 +1345,7 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
     // exhaust scaled by the preset; the script publishes the engine's
     // exhaust (fx.exhaust.*) running, its definition naming the kind.
     if (QFileInfo(pack + "/st44_v2").isDir()) {
-        const auto st44 = MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030#st44-1030.mmd");
+        const auto st44 = MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030|st44-1030.mmd");
         QString error;
         const std::shared_ptr<const E3dModel> model = E3dFile::read(st44->shapePath, &error);
         const std::vector<MaszynaSmoke::Source> sources = model ? MaszynaSmoke::find(*model) : std::vector<MaszynaSmoke::Source>();
@@ -1382,7 +1382,7 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
     // engine command switches it on again and starts it, the oil pump
     // priming first.
     if (QFileInfo(pack + "/st44_v2").isDir()) {
-        LocoRun run(scripts, MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030#st44-1030.mmd"));
+        LocoRun run(scripts, MaszynaVehicles::definition(pack + "/st44_v2", "st44-1030|st44-1030.mmd"));
         run.step(100);
         const bool hot = run.flag("fuelpump_sw") && run.text("engineState") == "running";
         run.command("fuelpump_sw", false);
@@ -1773,8 +1773,8 @@ int TsreTests::runMaszynaScriptsSuite(bool verbose) {
     // Each kind's script's cost a step (task maszyna 06: what goes native),
     // pulling at half throttle at 36 km/h, in the cab (its sounds too).
     // Quote a Release build's.
-    const std::pair<const char *, const char *> timed[] = {{"et22_v3", "201e#201e-037.mmd"}, {"eu44_v1", "es64u4.mmd"},
-                                                           {"st44_v2", "st44-1030#st44-1030.mmd"}, {"sm42_v1", "6d1.mmd"},
+    const std::pair<const char *, const char *> timed[] = {{"et22_v3", "201e|201e-037.mmd"}, {"eu44_v1", "es64u4.mmd"},
+                                                           {"st44_v2", "st44-1030|st44-1030.mmd"}, {"sm42_v1", "6d1.mmd"},
                                                            {"sn61_v2", "sn61.mmd"}, {"sa134_v1", "214m.mmd"}};
     for (const auto &[folder, name] : timed) {
         if (!QFileInfo(pack + "/" + folder).isDir())
