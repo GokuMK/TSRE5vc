@@ -11,6 +11,8 @@
 #include <tsre/Game.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/procedural/ComplexLine.h>
+#include <tsre/procedural/ComplexTrackPlan.h>
+#include <tsre/procedural/TrackProfileFilters.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/renderer/RenderItem.h>
 #include <tsre/shape/ObjFile.h>
@@ -1313,6 +1315,284 @@ OglObj *profileObject(const QString &routePath, const Mesh &mesh) {
     return object;
 }
 
+}
+
+namespace {
+
+// Tracks task 17: COMPLEX members laid on a ComplexTrackPlan. The plan is in
+// MSTS shape space; a frame at one of its points is built as the renderer's
+// own static paths are (x mirrored, transformStaticPath), so the template
+// and polyline vertex transforms above apply unchanged: their winding,
+// normals and texture coordinates.
+GeneratedPathFrame complexFrame(float x, float z, float heading, float distance) {
+    GeneratedPathFrame frame;
+    frame.position[0] = -x;
+    frame.position[1] = 0;
+    frame.position[2] = z;
+    frame.right[0] = std::cos(heading);
+    frame.right[1] = 0;
+    frame.right[2] = std::sin(heading);
+    frame.forward[0] = -std::sin(heading);
+    frame.forward[1] = 0;
+    frame.forward[2] = std::cos(heading);
+    frame.distance = distance;
+    return frame;
+}
+
+struct MeshExtent {
+    float minX = 0, maxX = 0, minZ = 0, maxZ = 0;
+};
+
+MeshExtent meshExtent(const ObjFile &mesh) {
+    MeshExtent extent;
+    extent.minX = extent.minZ = std::numeric_limits<float>::max();
+    extent.maxX = extent.maxZ = -std::numeric_limits<float>::max();
+    for(int i = 0; i + 7 < mesh.points.size(); i += 8){
+        extent.minX = std::min(extent.minX, mesh.points[i]);
+        extent.maxX = std::max(extent.maxX, mesh.points[i]);
+        extent.minZ = std::min(extent.minZ, mesh.points[i + 2]);
+        extent.maxZ = std::max(extent.maxZ, mesh.points[i + 2]);
+    }
+    return extent;
+}
+
+// A mesh's x laid from `a` to `b` (design section 2, StretchZone): x at or
+// left of zone[0] keeps its distance from the left end, x right of zone[1]
+// from the right end, the zone between spreads.
+float stretchedX(float x, const MeshExtent &extent, const float *zone, float a, float b) {
+    const float z0 = zone[0];
+    const float z1 = zone[1];
+    if(x <= z0)
+        return a + (x - extent.minX);
+    if(x >= z1 && x > z0)
+        return b - (extent.maxX - x);
+    const float left = a + (z0 - extent.minX);
+    const float right = b - (extent.maxX - z1);
+    return left + (right - left) * (x - z0) / std::max(1e-6f, z1 - z0);
+}
+
+// A tie or bearer mesh laid on a plan's tie, stretched to its length.
+void appendTie(QVector<float> &target, const ObjFile &mesh, const OrtsProfileTemplate3D &source,
+        const ComplexTrackPlan::Tie &tie, float alpha) {
+    const MeshExtent extent = meshExtent(mesh);
+    const GeneratedPathFrame frame = complexFrame(tie.centre[0], tie.centre[1], tie.heading, 0);
+    const float offset[3] = {0, source.offset[1], source.offset[2]};
+    const bool stretch = std::abs(tie.length - (extent.maxX - extent.minX)) > 1e-4f;
+    float vertex[8];
+    for(int i = 0; i + 7 < mesh.points.size(); i += 8){
+        std::copy(mesh.points.constData() + i, mesh.points.constData() + i + 8, vertex);
+        if(stretch)
+            vertex[0] = stretchedX(vertex[0], extent, source.stretchZone, -tie.length / 2, tie.length / 2);
+        const GeneratedVertex placed = transformTemplateVertex(vertex, frame, offset, alpha, false, false);
+        appendVertex(target, placed);
+    }
+}
+
+// A swept mesh (the Rail part, a conductor or rack rail) along a line
+// between two distances, one mesh's depth at a time, as Sweep does.
+void appendSwept(QVector<float> &target, const ObjFile &mesh, const ComplexTrackPlan::Line &line,
+        float from, float to, const float *sourceOffset, float alpha) {
+    const MeshExtent extent = meshExtent(mesh);
+    const float depth = extent.maxZ - extent.minZ;
+    if(depth <= 1e-6f || to - from <= 1e-6f)
+        return;
+    const float offset[3] = {0, sourceOffset[1], 0};
+    for(float start = from; start < to - 1e-6f;){
+        const float end = std::min(to, start + depth);
+        for(int i = 0; i + 7 < mesh.points.size(); i += 8){
+            const float *vertex = mesh.points.constData() + i;
+            const float fraction = (extent.maxZ - vertex[2]) / depth;
+            const float distance = start + fraction * (end - start);
+            const TrackShapeAnalysis::Point p = TrackShapeAnalysis::at(line, distance);
+            GeneratedVertex placed = transformTemplateVertex(vertex,
+                    complexFrame(p.x, p.z, p.heading, distance), offset, alpha, false, true);
+            placed.values[7] = mesh.texYmin + (mesh.texYmax - mesh.texYmin) * distance;
+            appendVertex(target, placed);
+        }
+        start = end;
+    }
+}
+
+// A polyline across a bed between two cross-sections: vertices left of the
+// profile's centre follow the leftmost track, right of it the rightmost
+// (design section 6), as appendPolylineSpan's faces.
+void appendBedSpan(QVector<float> &target, const OrtsProfilePolyline &polyline,
+        const ComplexTrackPlan::BedSlice &previous, const ComplexTrackPlan::BedSlice &current,
+        float alpha) {
+    if(polyline.vertices.size() < 2)
+        return;
+    auto place = [&](const ComplexTrackPlan::BedSlice &slice) {
+        const GeneratedPathFrame frame = complexFrame(slice.position[0], slice.position[1],
+                slice.heading, slice.distance);
+        QVector<GeneratedVertex> vertices;
+        for(OrtsProfileVertex vertex : polyline.vertices){
+            const float x = vertex.position[0];
+            vertex.position[0] = x < 0 ? x + slice.left : x > 0 ? x + slice.right
+                    : (slice.left + slice.right) / 2;
+            vertices.append(transformVertex(vertex, polyline, frame, alpha));
+        }
+        return vertices;
+    };
+    const QVector<GeneratedVertex> before = place(previous);
+    const QVector<GeneratedVertex> after = place(current);
+    for(int i = 1; i < after.size(); i++){
+        appendVertex(target, after[i]);
+        appendVertex(target, after[i - 1]);
+        appendVertex(target, before[i - 1]);
+        appendVertex(target, after[i]);
+        appendVertex(target, before[i - 1]);
+        appendVertex(target, before[i]);
+    }
+}
+
+void appendBed(QVector<float> &target, const OrtsProfilePolyline &polyline,
+        const QVector<ComplexTrackPlan::BedSlice> &slices, float alpha) {
+    for(int i = 1; i < slices.size(); i++)
+        appendBedSpan(target, polyline, slices[i - 1], slices[i], alpha);
+}
+
+const OrtsProfileTemplate3D *firstTemplate(const OrtsTrackProfile &profile,
+        OrtsProfileTemplate3D::GenerationMode mode) {
+    for(const OrtsProfileLod &lod : profile.lods)
+        for(const OrtsProfileLodItem &item : lod.items)
+            for(const OrtsProfileTemplate3D &source : item.templates3D)
+                if(source.generationMode == mode && !source.shapes.isEmpty())
+                    return &source;
+    return nullptr;
+}
+
+}
+
+ComplexTrackPlan::Settings OrtsTrackProfileRenderer::complexSettings(
+        const OrtsTrackProfile &member, QStringList *diagnostics) {
+    ComplexTrackPlan::Settings settings;
+    settings.gauge = member.trackGauge;
+    settings.tieSpacing = member.complexTrack.tieSpacing;
+    settings.tiePhase = member.complexTrack.tiePhase;
+    settings.tieGap = member.complexTrack.tieGap;
+    settings.maxBearerLength = member.complexTrack.maxBearerLength;
+    settings.maxSharedAngle = member.complexTrack.maxSharedAngle;
+    settings.conductorClearance = member.complexTrack.conductorClearance;
+    if(const OrtsProfileTemplate3D *rail = firstTemplate(member, OrtsProfileTemplate3D::GenerationMode::Rail))
+        settings.railOffset = rail->offset[0];
+    if(const OrtsProfileTemplate3D *tie = firstTemplate(member, OrtsProfileTemplate3D::GenerationMode::Tie)){
+        const QSharedPointer<const ObjFile> mesh = templateMesh(member, tie->shapes.first(), diagnostics);
+        if(mesh != nullptr){
+            const MeshExtent extent = meshExtent(*mesh);
+            settings.tieLength = extent.maxX - extent.minX;
+            settings.tieWidth = extent.maxZ - extent.minZ;
+        }
+    }
+    return settings;
+}
+
+bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member,
+        const ComplexTrackPlan &plan, QVector<OrtsGeneratedProfileMesh> &meshes,
+        QStringList *diagnostics) {
+    meshes.clear();
+    if(!member.valid || plan.groups.isEmpty())
+        return false;
+    using Mode = OrtsProfileTemplate3D::GenerationMode;
+    float previousCutoff = -1;
+    for(const OrtsProfileLod &lod : member.lods){
+        // Bearers by the Bearer mesh where this LOD has one, else the Tie
+        // mesh stretched (decision 5).
+        bool bearerMesh = false;
+        for(const OrtsProfileLodItem &item : lod.items)
+            for(const OrtsProfileTemplate3D &source : item.templates3D)
+                bearerMesh = bearerMesh || source.generationMode == Mode::Bearer;
+        for(const OrtsProfileLodItem &item : lod.items){
+            OrtsGeneratedProfileMesh mesh;
+            mesh.textureName = item.textureName;
+            mesh.materialPass = materialPass(item);
+            mesh.blendInOrder = blendsInOrder(member, item);
+            mesh.lightMaterial = item.lightMaterial();
+            mesh.pbr = profilePbr(item);
+            if(member.lodMethod == OrtsTrackProfile::LodMethod::CompleteReplacement)
+                mesh.minimumDistance = previousCutoff;
+            mesh.maximumDistance = lod.cutoffRadius;
+            const float alpha = materialAlpha(item);
+
+            for(const OrtsProfilePolyline &polyline : item.polylines)
+                for(const ComplexTrackPlan::Group &group : plan.groups){
+                    appendBed(mesh.vertices, polyline, group.bed, alpha);
+                    for(const QVector<ComplexTrackPlan::BedSlice> &bed : group.pathBeds)
+                        appendBed(mesh.vertices, polyline, bed, alpha);
+                }
+
+            for(const OrtsProfileTemplate3D &source : item.templates3D){
+                if(!source.complexPart())
+                    continue;
+                const QSharedPointer<const ObjFile> part = templateMesh(member, source.shapes.first(), diagnostics);
+                if(part == nullptr)
+                    continue;
+                switch(source.generationMode){
+                case Mode::Rail:
+                    for(const ComplexTrackPlan::RailLine &rail : plan.rails)
+                        for(const ComplexTrackPlan::Range &range : rail.drawn)
+                            appendSwept(mesh.vertices, *part, rail.line, range.first, range.second,
+                                    source.offset, alpha);
+                    break;
+                case Mode::ConductorRail:
+                case Mode::RackRail: {
+                    const unsigned bit = source.generationMode == Mode::ConductorRail
+                            ? TrackProfileFilters::ConductorRail : TrackProfileFilters::RackRail;
+                    for(const ComplexTrackPlan::RailLine &rail : plan.conductorLines(source.offset[0], bit))
+                        for(const ComplexTrackPlan::Range &range : rail.drawn)
+                            appendSwept(mesh.vertices, *part, rail.line, range.first, range.second,
+                                    source.offset, alpha);
+                    break;
+                }
+                case Mode::Tie:
+                case Mode::Bearer:
+                    for(const ComplexTrackPlan::Group &group : plan.groups)
+                        for(const ComplexTrackPlan::Tie &tie : group.ties){
+                            const bool bearer = tie.kind == ComplexTrackPlan::Tie::Kind::Bearer;
+                            if(source.generationMode == Mode::Bearer ? !bearer : (bearer && bearerMesh))
+                                continue;
+                            appendTie(mesh.vertices, *part, source, tie, alpha);
+                        }
+                    break;
+                case Mode::Fastener: {
+                    const float offset[3] = {0, source.offset[1], source.offset[2]};
+                    for(const ComplexTrackPlan::Group &group : plan.groups)
+                        for(const ComplexTrackPlan::Fastener &fastener : group.fasteners)
+                            appendRigidTemplate(mesh.vertices, *part,
+                                    complexFrame(fastener.position[0], fastener.position[1],
+                                                 fastener.heading, 0),
+                                    offset, alpha, false);
+                    break;
+                }
+                default:
+                    break;
+                }
+            }
+            if(mesh.vertices.isEmpty())
+                continue;
+            updateBounds(mesh);
+            meshes.append(mesh);
+        }
+        previousCutoff = lod.cutoffRadius;
+    }
+    return !meshes.isEmpty();
+}
+
+bool OrtsTrackProfileRenderer::generateComplex(const OrtsTrackProfile &member,
+        const ComplexTrackPlan &plan, QVector<OglObj*> &objects, const QString &routePath,
+        QStringList *diagnostics) {
+    QVector<OrtsGeneratedProfileMesh> meshes;
+    if(!buildComplexMeshes(member, plan, meshes, diagnostics))
+        return false;
+    const OrtsGeneratedProfileMesh::MaterialPass passes[] = {
+        OrtsGeneratedProfileMesh::MaterialPass::Opaque,
+        OrtsGeneratedProfileMesh::MaterialPass::AlphaTest,
+        OrtsGeneratedProfileMesh::MaterialPass::Blended
+    };
+    for(OrtsGeneratedProfileMesh::MaterialPass pass : passes)
+        for(const OrtsGeneratedProfileMesh &mesh : meshes)
+            if(mesh.materialPass == pass)
+                objects.append(profileObject(routePath, mesh));
+    return true;
 }
 
 void OrtsTrackProfileRenderer::clearTemplateMeshCache() {

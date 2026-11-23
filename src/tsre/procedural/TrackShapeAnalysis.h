@@ -58,6 +58,9 @@ public:
         float crossingAngle = 0;
         // Sampled along the line; Path: the path's own samples.
         QVector<Point> line;
+        // The group's paths by the order above (the first keeps its rails
+        // and ties where tracks meet).
+        QVector<int> order;
     };
 
     struct Group {
@@ -97,6 +100,16 @@ public:
             const std::unordered_map<int, TSection*> &sections,
             float groupDistance = DefaultTieLength + DefaultTieGap,
             float maxSharedAngle = DefaultMaxSharedAngle);
+    // The same for centre lines already sampled (a shape's paths with
+    // other shapes' added, IncludedTrackShape); flags: Tunnel, Road.
+    static TrackShapeAnalysis analyseLines(const QVector<QVector<Point>> &lines,
+            int flags = 0,
+            float groupDistance = DefaultTieLength + DefaultTieGap,
+            float maxSharedAngle = DefaultMaxSharedAngle);
+    // A line placed in another shape's space: x, z metres, rotation
+    // degrees positive to the right (as SectionIdx, IncludedTrackShape).
+    static QVector<Point> placed(const QVector<Point> &line, float x, float z,
+            float rotationDeg);
     // One path's centre line; empty when a section is missing.
     static QVector<Point> samplePath(const TrackShape &shape, int path,
             const std::unordered_map<int, TSection*> &sections,

@@ -282,6 +282,9 @@ public:
     static QString profileId(const QString &familyId,
             OrtsTrackProfile::ObjectRole role);
     static QString routePath();
+    // Grows with every load (tracks task 17: shared complex track meshes
+    // are made again after a reload).
+    static int generation();
 
     // Task tracks 16. The built-in default track profile: the Track Main
     // profile of the content's GLOBAL/TRACKPROFILES/TrProfile.xml or .stf

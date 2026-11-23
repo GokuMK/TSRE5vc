@@ -12,7 +12,9 @@
 #include <functional>
 #include <unordered_map>
 #include <tsre/Game.h>
+#include <tsre/procedural/ComplexTrackPlan.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/TrackProfileFilters.h>
 #include <tsre/procedural/TrackShapeAnalysis.h>
@@ -277,6 +279,58 @@ void reviewChecks(Checks &check) {
         return a.groups.isEmpty() && a.independent.size() == 2
                 && (a.kinds & GeometryKinds) == TrackShapeAnalysis::Parallel;
     }, "two separate tracks");
+
+    // The tie planner against tieplan.py (its settings: gauge 1.435, ties
+    // 2.6 x 0.26 m every 0.6 m from 0.3, gap 0.1, bearers to 4.8 m, shared
+    // to 60 degrees): total, bearers, own ties, ties square to the
+    // reference alone on a station.
+    struct Expected {
+        const char *name;
+        int total, bearers, own, square;
+    };
+    const Expected expected[] = {
+        {"A1tPnt7_5dLft.s", 42, 42, 0, 0},
+        {"A1tFrog7_5dLft.s", 30, 13, 9, 8},
+        {"A1tPnt7_5dLftSlip.s", 21, 17, 4, 0},
+        {"A1tDblSlip7_5d.s", 8, 8, 0, 0},
+        {"A1tXover7_5d.s", 41, 41, 0, 0},
+        {"A2tFrog7_5dDbl.s", 22, 22, 0, 0},
+        {"A1tYPnt10d.s", 62, 38, 24, 0},
+        {"A1t3WayPnt10dMnl.s", 67, 50, 0, 17},
+        {"A1tXover45d.s", 12, 12, 0, 0},
+        {"A1tXover60d.s", 10, 10, 0, 0},
+        {"A2tFrog7_5dLft.s", 38, 21, 9, 8},
+        {"A1tPnt10dLft.s", 67, 50, 0, 17},
+    };
+    for(const Expected &e : expected){
+        const TrackShape *shape = byName.value(QString(e.name).toLower());
+        if(shape == nullptr)
+            continue;
+        QVector<ComplexTrackPlan::Path> paths;
+        for(int i = 0; i < shape->numpaths; i++){
+            ComplexTrackPlan::Path path;
+            path.line = TrackShapeAnalysis::samplePath(*shape, i, tsection->sekcja);
+            paths.append(path);
+        }
+        const ComplexTrackPlan plan = ComplexTrackPlan::make(paths, ComplexTrackPlan::Settings());
+        int total = 0, bearers = 0, own = 0, square = 0, fasteners = 0;
+        for(const ComplexTrackPlan::Group &group : plan.groups){
+            total += group.ties.size();
+            fasteners += group.fasteners.size();
+            for(const ComplexTrackPlan::Tie &tie : group.ties){
+                bearers += tie.kind == ComplexTrackPlan::Tie::Kind::Bearer;
+                own += tie.kind == ComplexTrackPlan::Tie::Kind::Own;
+                square += tie.kind == ComplexTrackPlan::Tie::Kind::Square;
+            }
+        }
+        const bool same = total == e.total && bearers == e.bearers && own == e.own && square == e.square;
+        if(!same)
+            qInfo().noquote() << QString("[tests:track-shape-analysis]   %1: TSRE %2 ties (%3 bearers, %4 own, %5 square), "
+                    "tieplan.py %6 (%7, %8, %9)").arg(e.name).arg(total).arg(bearers).arg(own).arg(square)
+                    .arg(e.total).arg(e.bearers).arg(e.own).arg(e.square);
+        check(same, QString("%1: ties as tieplan.py's").arg(e.name));
+        check(fasteners >= 2 * total, QString("%1: two fastenings or more on every tie (%2)").arg(e.name).arg(fasteners));
+    }
 }
 
 }
@@ -421,6 +475,135 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
         check(a.groups.size() == 1 && a.groups[0].reference.type == Type::Mean
                 && a.groups[0].reference.path == 0 && a.groups[0].reference.otherPath == 1 && central,
                 "a symmetric wye: the mean line runs straight up the middle");
+    }
+
+    // The tie planner and the COMPLEX member's meshes on 7.5 degree points
+    // (tracks task 17, step 4).
+    {
+        Sections sections;
+        Shape points(1, {path(0, 0, 0, {sections.curve(190.713f, -7.5f)}), path(0, 0, 0, {sections.straight(25)})});
+        QVector<ComplexTrackPlan::Path> paths;
+        for(int i = 0; i < 2; i++){
+            ComplexTrackPlan::Path planPath;
+            planPath.line = TrackShapeAnalysis::samplePath(points.shape, i, sections.map);
+            paths.append(planPath);
+        }
+        const ComplexTrackPlan plan = ComplexTrackPlan::make(paths, ComplexTrackPlan::Settings());
+        check(plan.groups.size() == 1 && plan.rails.size() == 4 && plan.independent.isEmpty(),
+                "points: one group, four rail lines");
+        if(plan.groups.size() == 1 && plan.rails.size() == 4){
+            const ComplexTrackPlan::Group &group = plan.groups.first();
+            // The straight (the reference) keeps its rails whole; the
+            // diverging track's start where they are a rail head apart.
+            const ComplexTrackPlan::RailLine *straightLeft = nullptr, *divergingLeft = nullptr, *divergingRight = nullptr;
+            for(const ComplexTrackPlan::RailLine &rail : plan.rails){
+                if(rail.path == 1 && rail.side < 0)
+                    straightLeft = &rail;
+                if(rail.path == 0)
+                    (rail.side < 0 ? divergingLeft : divergingRight) = &rail;
+            }
+            check(straightLeft != nullptr && straightLeft->drawn.size() == 1
+                    && near(straightLeft->drawn.first().first, 0) && straightLeft->drawn.first().second > 24.9f,
+                    "the straight's rails drawn whole");
+            check(divergingLeft != nullptr && divergingRight != nullptr
+                    && divergingLeft->drawn.size() == 1 && divergingRight->drawn.size() == 1
+                    && divergingLeft->drawn.first().first > 4.5f && divergingLeft->drawn.first().first < 6.0f
+                    && divergingRight->drawn.first().first > 4.5f && divergingRight->drawn.first().first < 6.0f,
+                    QString("the diverging rails left out where they lie on the straight's (from %1 and %2 m)")
+                        .arg(divergingLeft ? divergingLeft->drawn.value(0).first : -1)
+                        .arg(divergingRight ? divergingRight->drawn.value(0).first : -1));
+            int onFirst = 0;
+            for(const ComplexTrackPlan::Fastener &fastener : group.fasteners)
+                onFirst += fastener.tie == 0;
+            check(group.ties.size() == 42 && onFirst == 2,
+                    "points: 42 bearers; two fastenings on the first, not four (rails on each other)");
+            check(group.bed.size() > 40 && near(group.bed.first().left, 0, 0.01f) && near(group.bed.first().right, 0, 0.01f)
+                    && group.bed.last().left < -1.5f && near(group.bed.last().right, 0, 0.01f)
+                    && group.pathBeds.isEmpty(),
+                    QString("the bed widens to the diverging track, one bed (%1 slices, first %2..%3, last %4..%5, %6 path beds)")
+                        .arg(group.bed.size()).arg(group.bed.value(0).left).arg(group.bed.value(0).right)
+                        .arg(group.bed.isEmpty() ? 0 : group.bed.last().left)
+                        .arg(group.bed.isEmpty() ? 0 : group.bed.last().right).arg(group.pathBeds.size()));
+        }
+
+        // Meshes: a tie 2.6 x 0.26 m, a rail tile 1 m long, a clip; read
+        // from files beside the profile as Template3D meshes are.
+        QTemporaryDir directory;
+        auto writeObj = [&](const QString &name, float x0, float x1, float y0, float y1, float z0, float z1) {
+            QFile file(directory.filePath(name));
+            file.open(QIODevice::WriteOnly);
+            QTextStream out(&file);
+            const float xs[2] = {x0, x1}, ys[2] = {y0, y1}, zs[2] = {z0, z1};
+            for(float y : ys)
+                for(float z : zs)
+                    for(float x : xs)
+                        out << "v " << x << " " << y << " " << z << "\n";
+            out << "vt 0 0\nvt 1 0\nvt 1 1\nvt 0 1\nvn 0 1 0\n";
+            // top and the two long sides (enough for the checks)
+            out << "f 5/1/1 6/2/1 8/3/1\nf 5/1/1 8/3/1 7/4/1\n";
+            out << "f 1/1/1 2/2/1 6/3/1\nf 1/1/1 6/3/1 5/4/1\n";
+        };
+        writeObj("tie.obj", -1.3f, 1.3f, -0.2f, 0, -0.13f, 0.13f);
+        writeObj("rail.obj", -0.036f, 0.036f, 0, 0.17f, 0, 1);
+        writeObj("clip.obj", -0.1f, 0.1f, 0, 0.03f, -0.05f, 0.05f);
+        QFile stf(directory.filePath("Test.stf"));
+        stf.open(QIODevice::WriteOnly);
+        stf.write("SIMISA@@@@@@@@@@JINX0p0t______\n"
+                  "TrProfile ( ObjectType ( TRACK COMPLEX ) ComplexTrack ( TieSpacing ( 0.6 ) TiePhase ( 0.3 ) )\n"
+                  " LOD ( CutoffRadius ( 150 )\n"
+                  "  LODItem ( Name ( \"rails\" ) TexName ( \"r.ace\" ) ShaderName ( TexDiff )\n"
+                  "   Template3D ( GenerationMode ( Rail ) Shape ( \"rail.obj\" ) Offset ( 0.036 0.15 0 ) ) )\n"
+                  "  LODItem ( Name ( \"ties\" ) TexName ( \"t.ace\" ) ShaderName ( TexDiff )\n"
+                  "   Template3D ( GenerationMode ( Tie ) Shape ( \"tie.obj\" ) Offset ( 0 0.14 0 ) )\n"
+                  "   Template3D ( GenerationMode ( Fastener ) Shape ( \"clip.obj\" ) Offset ( 0 0.14 0 ) ) )\n"
+                  "  LODItem ( Name ( \"bed\" ) TexName ( \"b.ace\" ) ShaderName ( TexDiff )\n"
+                  "   Polyline ( Name ( \"top\" ) DeltaTexCoord ( 0 0.5 )\n"
+                  "    Vertex ( Position ( -2 0.1 0 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) )\n"
+                  "    Vertex ( Position ( 0 0.12 0 ) Normal ( 0 1 0 ) TexCoord ( 0.5 0 ) )\n"
+                  "    Vertex ( Position ( 2 0.1 0 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) ) ) ) ) )\n");
+        stf.close();
+        QStringList words;
+        const QSharedPointer<OrtsTrackProfile> member =
+                OrtsTrackProfileParser::parseFile(directory.filePath("Test.stf"), &words);
+        check(member != nullptr && member->valid && member->objectRole == OrtsTrackProfile::ObjectRole::Complex,
+                "a COMPLEX member read from a file");
+        if(member != nullptr && member->valid){
+            const ComplexTrackPlan::Settings settings = OrtsTrackProfileRenderer::complexSettings(*member);
+            check(near(settings.tieLength, 2.6f) && near(settings.tieWidth, 0.26f)
+                    && near(settings.railOffset, 0.036f) && near(settings.tieSpacing, 0.6f),
+                    "the plan's tie from the Tie mesh, the rail offset from the Rail part");
+            const ComplexTrackPlan meshPlan = ComplexTrackPlan::make(paths, settings);
+            QVector<OrtsGeneratedProfileMesh> meshes;
+            const bool built = OrtsTrackProfileRenderer::buildComplexMeshes(*member, meshPlan, meshes);
+            check(built && meshes.size() == 3, "rails, ties and fastenings, bed: one mesh each");
+            if(built && meshes.size() == 3){
+                const OrtsGeneratedProfileMesh &rails = meshes[0];
+                const OrtsGeneratedProfileMesh &ties = meshes[1];
+                const OrtsGeneratedProfileMesh &bed = meshes[2];
+                int fasteners = 0;
+                for(const ComplexTrackPlan::Group &group : meshPlan.groups)
+                    fasteners += group.fasteners.size();
+                // Six vertices a tile of the test meshes (two triangles a face, two faces).
+                check(ties.vertices.size() == (42 + fasteners) * 12 * 9, "a tie and a clip each where planned");
+                // Mirrored as the renderer's static paths: the diverging track
+                // (MSTS left, x < 0) lies at x > 0; bearers longer than 2.6 m.
+                check(ties.bounds[0] > 2.5f && ties.bounds[1] < -1.2f && ties.bounds[1] > -1.5f,
+                        QString("ties mirrored to the object's space, bearers stretched (x %1 to %2)")
+                            .arg(ties.bounds[1]).arg(ties.bounds[0]));
+                check(rails.bounds[4] > 24.9f && rails.bounds[5] > -0.01f && rails.bounds[5] < 0.01f
+                        && near(rails.bounds[2], 0.32f, 0.001f),
+                        "rails along the paths, 0.15 + 0.17 m up");
+                check(bed.bounds[0] > 3.6f && near(bed.bounds[1], -2, 0.01f)
+                        && near(bed.bounds[2], 0.12f, 0.001f),
+                        "the bed stretched from the straight to the diverging track");
+                // Faces as the per-path profiles: their normals up where the
+                // profile's are.
+                bool upward = true;
+                for(int v = 0; v + 8 < bed.vertices.size(); v += 9)
+                    upward = upward && bed.vertices[v + 4] > 0.9f;
+                check(upward, "the bed's normals up");
+            }
+        }
     }
 
     check(TrackShapeAnalysis::kindFromName("complex") == TrackShapeAnalysis::Complex

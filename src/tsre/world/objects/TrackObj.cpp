@@ -27,6 +27,7 @@
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
 #include <tsre/procedural/TrackProfileFilters.h>
+#include <tsre/procedural/ComplexTrackCache.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
@@ -172,6 +173,58 @@ void TrackObj::clearProceduralShape(){
     procShape.clear();
     procShapeOwned = false;
     proceduralShapeUsesBakedPath = false;
+    complexShared.reset();
+}
+
+bool TrackObj::useComplexShape(const OrtsTrackProfile &profile, OrtsTrackProfile::ObjectType type,
+        const TrackProfileFilters::Filter *filter, const TrackShape &shape,
+        const QVector<OrtsProfileRoll> &rolls,
+        const QVector<QSharedPointer<const OrtsTrackProfile>> *pathProfiles,
+        const QString &routePath, const ProceduralPathTransform &transform){
+    if(Game::trackDB == NULL || Game::trackDB->tsection == NULL)
+        return false;
+    const QSharedPointer<const OrtsTrackProfile> member = OrtsTrackProfileCatalog::find(
+            OrtsTrackProfileCatalog::profileId(profile.familyId, OrtsTrackProfile::ObjectRole::Complex), type);
+    if(member == nullptr)
+        return false;
+    const QSharedPointer<ComplexTrackMeshes> shared = ComplexTrackCache::meshes(
+            shape, *Game::trackDB->tsection, *member, filter, routePath);
+    if(shared == nullptr)
+        return false;
+    clearProceduralShape();
+    complexShared = shared;
+    // The shape's own paths in no group (included shapes' paths follow
+    // them in the plan), per object as plain track.
+    QVector<int> own;
+    for(int path : shared->independent)
+        if(path < shape.numpaths)
+            own.append(path);
+    if(!own.isEmpty()){
+        TrackShape subset;
+        subset.id = shape.id;
+        subset.filename = shape.filename;
+        subset.numpaths = own.size();
+        subset.path = new TrackShape::SectionIdx[own.size()];
+        QVector<OrtsProfileRoll> subsetRolls;
+        QVector<QSharedPointer<const OrtsTrackProfile>> subsetProfiles;
+        for(int k = 0; k < own.size(); k++){
+            subset.path[k] = shape.path[own[k]];
+            subsetRolls.append(own[k] < rolls.size() ? rolls[own[k]] : OrtsProfileRoll());
+            if(pathProfiles != NULL)
+                subsetProfiles.append(own[k] < pathProfiles->size() ? pathProfiles->at(own[k])
+                                                                    : QSharedPointer<const OrtsTrackProfile>());
+        }
+        QStringList diagnostics;
+        OrtsTrackProfileRenderer::generate(profile, subset, subsetRolls, procShape, routePath,
+                &diagnostics, OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0, &transform,
+                pathProfiles != NULL ? &subsetProfiles : nullptr, UiD);
+        delete[] subset.path;
+        subset.path = NULL;
+        procShapeOwned = true;
+    }
+    proceduralShapeUsesBakedPath = true;
+    proceduralFallback = false;
+    return true;
 }
 
 namespace {
@@ -315,6 +368,15 @@ bool TrackObj::useProceduralShape(){
                         ProceduralPath::bakedObjectTransform(
                             qDirection,
                             Flex::TdbYawFromTrackQuaternion(qDirection));
+                // Tracks task 17: frog pieces and other plain shapes whose
+                // paths share ties, from the family's COMPLEX member (Forced).
+                if(Game::proceduralTracks == ProceduralTracksMode::Forced
+                        && useComplexShape(*profile, profileType, filter, *ownShape, rolls,
+                                pathProfiles.isEmpty() ? NULL : &pathProfiles, routePath, ownTransform)){
+                    proceduralSource = source;
+                    proceduralSourceDetail = filter != NULL ? filter->description() : profile->id;
+                    return true;
+                }
                 QStringList diagnostics;
                 if(OrtsTrackProfileRenderer::generate(
                         *profile, *ownShape, rolls, procShape, routePath, &diagnostics,
@@ -395,6 +457,15 @@ bool TrackObj::useProceduralShape(){
                 : QVector<OrtsProfileRoll>();
         if(!pathRolls.isEmpty())
             TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
+        // Tracks task 17: junctions, crossings and frog pieces from the
+        // family's COMPLEX member, with the filter's parts when a filter
+        // gave the family.
+        if(useComplexShape(*routeProfile, profileType, fromFilter ? filter : NULL, *tsh, pathRolls,
+                &pathProfiles, routePath, pathTransform)){
+            proceduralSource = resolvedSource;
+            proceduralSourceDetail = resolvedDetail;
+            return true;
+        }
         if(OrtsTrackProfileRenderer::generate(
                 *routeProfile, *tsh, pathRolls, procShape, routePath,
                 &diagnostics,
@@ -659,6 +730,16 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     if(procedural && proceduralShapeUsesBakedPath){
         fillYawOnlyTrackMatrix(qDirection, position, bakedMatrix);
         renderMatrix = bakedMatrix;
+    }
+    // Tracks task 17: the shape's complex groups, rigid in shape space, with
+    // the object's whole matrix as a static shape.
+    if(procedural && complexShared != nullptr && !complexShared->objects.isEmpty()){
+        queue.pushTransform();
+        Mat4::multiply(queue.transform(), queue.transform(), matrix);
+        for(OglObj *object : complexShared->objects)
+            object->pushRenderItem(queue, selectionId,
+                    OrtsTrackProfileRenderer::generatedPartLod(object, matrix, posx, posz));
+        queue.popTransform();
     }
     Mat4::multiply(queue.transform(),
             queue.transform(), renderMatrix);

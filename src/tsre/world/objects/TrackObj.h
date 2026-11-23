@@ -15,10 +15,17 @@
 #include <QString>
 #include <tsre/fileFunctions/FileBuffer.h>
 #include <tsre/world/Ref.h>
+#include <QSharedPointer>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/TrackProfileFilters.h>
 
 class RenderQueue;
 
 class OglObj;
+class TrackShape;
+struct ComplexTrackMeshes;
+struct OrtsProfileRoll;
+struct ProceduralPathTransform;
 
 class TrackObj : public WorldObj  {
 public:
@@ -81,6 +88,15 @@ private:
     bool getBoxPoints(QVector<float> &points);
     void clearProceduralShape();
     bool useProceduralShape();
+    // Tracks task 17: the shape's complex groups from the family's COMPLEX
+    // member (shared meshes, drawn with the object's matrix), its other
+    // paths as plain track; false without a member or a complex group.
+    bool useComplexShape(const OrtsTrackProfile &profile, OrtsTrackProfile::ObjectType type,
+            const TrackProfileFilters::Filter *filter, const TrackShape &shape,
+            const QVector<OrtsProfileRoll> &rolls,
+            const QVector<QSharedPointer<const OrtsTrackProfile>> *pathProfiles,
+            const QString &routePath, const ProceduralPathTransform &transform);
+    QSharedPointer<ComplexTrackMeshes> complexShared;
     bool proceduralShapeInit = false;
     QVector<OglObj*> procShape;
     bool procShapeOwned = false;

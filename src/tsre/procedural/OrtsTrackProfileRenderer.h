@@ -13,6 +13,7 @@
 #include <QSharedPointer>
 #include <QVector>
 #include <array>
+#include <tsre/procedural/ComplexTrackPlan.h>
 #include <tsre/procedural/ProceduralPath.h>
 #include <tsre/shape/MstsMaterials.h>
 #include <tsre/tdb/TSection.h>
@@ -182,6 +183,22 @@ public:
             const QString &routePath,
             QStringList *diagnostics = nullptr,
             int objectIndex = 0);
+    // Tracks task 17: a COMPLEX member's plan settings (its ComplexTrack
+    // values and gauge, the Tie mesh's length and width, the Rail part's
+    // offset).
+    static ComplexTrackPlan::Settings complexSettings(const OrtsTrackProfile &member,
+            QStringList *diagnostics = nullptr);
+    // A COMPLEX member's parts laid on a plan: the bed (its polylines), the
+    // rails, ties and bearers, fasteners, conductor and rack rails, each
+    // LOD's items; in shape space as a static shape is drawn (the object's
+    // whole matrix). Other Template3D modes are not drawn on junctions yet.
+    static bool buildComplexMeshes(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan,
+            QVector<OrtsGeneratedProfileMesh> &meshes,
+            QStringList *diagnostics = nullptr);
+    static bool generateComplex(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan, QVector<OglObj*> &objects,
+            const QString &routePath, QStringList *diagnostics = nullptr);
     // Each path rolled by its entry of pathRolls (none or empty: flat).
     static bool generate(const OrtsTrackProfile &profile,
             const TrackShape &trackShape,

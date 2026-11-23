@@ -131,6 +131,7 @@ TrackShapeAnalysis::Reference referenceOf(const QVector<Line> &paths,
         return key(left) < key(right);
     });
 
+    reference.order = order;
     QVector<int> straightPaths;
     for(int i : members)
         if(straight(paths[i]))
@@ -295,21 +296,42 @@ TrackShapeAnalysis::Point TrackShapeAnalysis::at(const QVector<Point> &line, flo
 TrackShapeAnalysis TrackShapeAnalysis::analyse(const TrackShape &shape,
         const std::unordered_map<int, TSection*> &sections,
         float groupDistance, float maxSharedAngle) {
-    TrackShapeAnalysis analysis;
-    if(shape.tunnelshape)
-        analysis.kinds |= Tunnel;
-    if(shape.roadshape)
-        analysis.kinds |= Road;
-    analysis.valid = true;
+    const int flags = (shape.tunnelshape ? Tunnel : 0) | (shape.roadshape ? Road : 0);
+    QVector<Line> lines;
     for(int i = 0; i < shape.numpaths; i++){
         Line line = samplePath(shape, i, sections);
         if(line.isEmpty()){
-            analysis.valid = false;
-            analysis.paths.clear();
+            TrackShapeAnalysis analysis;
+            analysis.kinds = flags;
             return analysis;
         }
-        analysis.paths.append(line);
+        lines.append(line);
     }
+    return analyseLines(lines, flags, groupDistance, maxSharedAngle);
+}
+
+QVector<TrackShapeAnalysis::Point> TrackShapeAnalysis::placed(const QVector<Point> &line,
+        float x, float z, float rotationDeg) {
+    const float r = rotationDeg * Pi / 180.0f;
+    const float c = std::cos(r);
+    const float s = std::sin(r);
+    Line result = line;
+    for(Point &point : result){
+        const float px = point.x;
+        const float pz = point.z;
+        point.x = x + px * c + pz * s;
+        point.z = z - px * s + pz * c;
+        point.heading += r;
+    }
+    return result;
+}
+
+TrackShapeAnalysis TrackShapeAnalysis::analyseLines(const QVector<QVector<Point>> &lines,
+        int flags, float groupDistance, float maxSharedAngle) {
+    TrackShapeAnalysis analysis;
+    analysis.kinds = flags & (Tunnel | Road);
+    analysis.valid = true;
+    analysis.paths = lines;
     const int n = analysis.paths.size();
     if(n == 0)
         return analysis;

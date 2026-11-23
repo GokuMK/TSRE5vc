@@ -1151,6 +1151,10 @@ QString OrtsTrackProfileCatalog::routePath() {
     return loadedRoutePath;
 }
 
+int OrtsTrackProfileCatalog::generation() {
+    return loadGeneration;
+}
+
 namespace {
 
 // A number as the built-in profile's text writes it.
