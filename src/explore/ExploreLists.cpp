@@ -125,7 +125,7 @@ QString engineFile(const ConsistRead &consist) {
     if (consist.engineName.isEmpty())
         return QString();
     const QString file = MaszynaVehicles::isRow(consist.engineName)
-            ? consist.engineName.section('#', 0, 0) + ".mmd" : consist.engineName + ".eng";
+            ? MaszynaVehicles::typeFile(consist.engineName) : consist.engineName + ".eng";
     return consist.engineFolder + "/" + file;
 }
 

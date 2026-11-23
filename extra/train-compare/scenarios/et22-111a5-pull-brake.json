@@ -4,7 +4,7 @@
   "lineVoltage": 3000,
   "track": { "length": 20000, "grade": 0 },
   "consist": [
-    { "folder": "pkp/et22_v3", "fiz": "201e.fiz", "tsre": "201e#201e-037.mmd" },
+    { "folder": "pkp/et22_v3", "fiz": "201e.fiz", "tsre": "201e|201e-037.mmd" },
     { "folder": "pkp/111arow_v1", "fiz": "111arow_i.fiz", "tsre": "111arow_i.mmd", "count": 5 }
   ],
   "commands": [

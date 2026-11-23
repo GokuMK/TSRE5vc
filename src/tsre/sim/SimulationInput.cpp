@@ -1601,7 +1601,7 @@ bool ConsistFileHasEngine(const QString &consistFile, const QString &trainsetDir
                                     const QString name = ParserX::GetString(data.get());
                                     const QString folder = ParserX::GetString(data.get());
                                     // A MaSzyna row: its type's .mmd is the file there.
-                                    const QString file = MaszynaVehicles::isRow(name) ? name.section('#', 0, 0) + ".mmd" : name + ".eng";
+                                    const QString file = MaszynaVehicles::isRow(name) ? MaszynaVehicles::typeFile(name) : name + ".eng";
                                     if (ContentPath::readable(trainsetDirectory + "/" + folder + "/" + file))
                                         return true;
                                 }
