@@ -207,5 +207,53 @@ heights, confirm selection outline and alpha appearance, and cover a terrain hol
 Repeat with legacy and paged terrain and both object renderers. The user acceptance
 above does not specify an exhaustive renderer-by-renderer test matrix.
 
+## Open
+
+### QRhi: terrain depth in front of a transfer on a slope (2026-11-21)
+
+Test location: CMK,
+`core.startup.camera=-5353,14855,1017.68,270.65,-956.86,-159.67,-32.69`.
+It looks at transfer UiD 1246 (`Terrain1.ace`, 45 x 100 m) on the embankment
+slope above the tracks; the field beyond is terrain material, not a transfer.
+
+- **Symptom:** in the QRhi renderer (Vulkan, the Deck) the terrain shows through
+  the transfer in triangular wedges along the slope. The native OpenGL renderer
+  draws the same transfer clean.
+- **Size:** lifting the transfer 0.15 m above the terrain removes every wedge.
+  With the decal bias off (depth written, no bias, the usual 5 cm lift), QRhi
+  hides the transfer under the terrain over almost the whole slope; native
+  OpenGL keeps it in front. So in QRhi the terrain's depth lands about 5-15 cm
+  in front of its vertices at about 90 m. The depth buffer resolves about
+  2.5 mm there, so this is not precision. The decal bias hides most of it.
+- **Angle:** viewed more steeply from 100-200 m higher, the wedges do not appear.
+- **Ruled out, each with a capture:**
+  - a LOD mismatch (terrain forced to full resolution);
+  - a stale transfer mesh (rebuilt every frame);
+  - the half built from the neighbouring tile (transfer from its own tile only);
+  - procedural terrain (switched off);
+  - a missing GPU index template (never hit);
+  - the transfer's geometry: it uses the same height samples, triangle
+    templates and patch origins as the paged terrain, heights in 32-bit floats.
+- **Next step:** read back QRhi's depth at a slope pixel and compare it with the
+  depth that pixel's terrain triangle should produce, then check the terrain
+  pipeline state pass by pass.
+- **Not this issue:** a tester's report of transfers covering track came from
+  build 15. There, track profile layers were still ordered items in the opaque
+  pass, interleaved with transfers by tile push order; fixed by 444a7f8d and
+  04d03666.
+
+### Ground objects lost from high above (2026-11-21)
+
+Test location: CMK,
+`core.startup.camera=-5353,14854,83.42,884.21,919.73,157.80,-67.55`
+(about 650 m up, looking down).
+
+Roads and track beds disappear or flicker with every camera move, in both
+renderers. With the 0.2 m near plane, the depth buffer resolves only about
+15 cm at about 700 m, and these objects lie within that of the terrain. Reversed
+depth in QRhi (near at 1, far at 0, 32-bit float) would give almost uniform
+precision. It touches every depth test, bias and depth readback (ambient
+occlusion, fog, clouds, shadow lookups).
+
 Related: [basic discrete terrain LOD](../terrain/terrain-basic-discrete-lod.md),
 [adjacent edges](../terrain/terrain-adjacent-edge-cache.md).

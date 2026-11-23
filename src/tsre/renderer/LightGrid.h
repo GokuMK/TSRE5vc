@@ -11,6 +11,7 @@
 #ifndef LIGHTGRID_H
 #define LIGHTGRID_H
 
+#include <cstdint>
 #include <vector>
 
 // The local lights of a frame binned into a world-space grid around the
@@ -43,6 +44,15 @@ public:
         // The car it is on (Eng, RenderQueue::setLampStatic), null for none:
         // a moving lamp's map is known by it and leaves it out.
         const void *owner = nullptr;
+        // Which light of its object it is (its place and way in its shape,
+        // its type): a car's own lamp's map is known by it and its car
+        // (task 46 C), whatever the car's place.
+        std::uint64_t source = 0;
+        // What shadows it (RenderItem::Light::Shadows: 0 its scene, 1 its
+        // own object, 2 nothing) and whether it is an ambient fill (task
+        // 46 C: lit whatever way a surface faces, no cone, no shadow).
+        unsigned char shadows = 0;
+        bool ambient = false;
         // Its static shadow map (task 46): the layer of the lamps' map array
         // (-1 none) and the matrix its depth was drawn with (OpenGL clip
         // space, column-major, submission space).

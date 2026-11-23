@@ -145,7 +145,9 @@ vec3 puffLamps(vec3 p, float radius) {
     ivec2 cell = localLightCell(p);
     for (int i = 0; i < cell.y; ++i) {
         vec3 l, radiance;
-        if (!localLight(cell.x + i, p, l, radiance))
+        bool fill;
+        // Ambient fills light their car's inside alone (task renderer 46 C).
+        if (!localLight(cell.x + i, p, l, radiance, fill) || fill)
             continue;
         int slot = cell.x + i;
         int light = int(texelFetch(localLightIndices, ivec2(slot % 4096, slot / 4096), 0).r);

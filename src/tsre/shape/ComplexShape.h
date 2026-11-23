@@ -159,6 +159,14 @@ public:
     // level: the space the shape's vertices are drawn in. False when the
     // shape is not loaded or has no such part.
     virtual bool partMatrix(unsigned int stateId, int part, float *out) const;
+    // Whether a part shows in a state: false when it or a parent is hidden
+    // (enableSubObjByName: a cab's view hiding the low-poly interior's cab);
+    // its .sd lights go dark with it (task renderer 46 C). True by default.
+    virtual bool partShown(unsigned int stateId, int part) const {
+        (void)stateId;
+        (void)part;
+        return true;
+    }
     // A state no longer used (a car gone): newState() may give it again.
     virtual void releaseState(unsigned int stateId);
 

@@ -765,6 +765,17 @@ QStringList SFileComplex::readImageNames(const QString &path) {
 int SFileComplex::partCount() const {
     return d->loaded ? int(d->matrices.size()) : 0;
 }
+bool SFileComplex::partShown(unsigned int stateId, int part) const {
+    if (stateId >= d->states.size())
+        return true;
+    const QMap<QString, bool> &names = d->states[stateId].names;
+    // Hidden by its own name or a parent's.
+    for (int at = part; at >= 0 && at < partCount(); at = partParent(at))
+        if (!names.value(partName(at).toLower(), true))
+            return false;
+    return true;
+}
+
 QString SFileComplex::partName(int part) const {
     return part >= 0 && part < partCount() ? d->matrices[part].name : QString();
 }

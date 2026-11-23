@@ -1416,6 +1416,22 @@ unsigned int Eng::poseCab(ComplexShape *cab) {
     cabClock = now;
     static const std::vector<double> none;
     cabPose->pose(*cab, posedCabState, cabValuesFor == controls ? cabValues : none, moment);
+    // Its worked controls where their parts show them (task renderer 46 C):
+    // the cab's lamps' maps take them at once (a lever dragged redrawn as it
+    // moves, a cube at most a frame); displays never.
+    if (cabValuesFor == controls) {
+        std::vector<double> worked;
+        for (size_t i = 0; i < cabValues.size(); ++i) {
+            if (!cabPose->interactive(int(i)))
+                continue;
+            double value = cabValues[i];
+            double shown = 0.0;
+            if (cabPose->shown(int(i), shown))
+                value = shown;
+            worked.push_back(std::isnan(value) ? -1.0e30 : std::round(value * 1000.0) / 1000.0);
+        }
+        cabControlsHash = quint64(qHashBits(worked.data(), worked.size() * sizeof(double), 0x51ed270bU)) + 1;
+    }
     // Its sounds hear the controls' values change (their clicks, task
     // maszyna 05).
     if (carSounds != nullptr && cabValuesFor == controls) {
@@ -1717,6 +1733,18 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     static const qint64 standingMs = qEnvironmentVariableIsSet("TSRE_TRAIN_STANDING_MS")
             ? qEnvironmentVariableIntValue("TSRE_TRAIN_STANDING_MS") : StandingMs;
     const bool standing = !staticOnTrack && cabViewpoint < 0 && now - placedSince >= standingMs;
+    // What it draws in its own frame, for its lamps' maps there (task
+    // renderer 46 C): not its place, bogies or wheels; its parts once they
+    // rest.
+    if (!partsMoving) {
+        const bool cabView = cabViewpoint >= 0;
+        const float content[4] = {float(shapeIds[shapeLibId]), cabView ? 1.0f : 0.0f,
+                                  shapesLoaded(cabView) ? 1.0f : 0.0f, partsRest};
+        contentHash = quint64(qHashBits(content, sizeof(content), 0x2545f491U)) * 0x9e3779b97f4a7c15ULL + 1;
+        // Seen from its cab, its worked controls where they are.
+        if (cabView)
+            contentHash ^= cabControlsHash * 0xc2b2ae3d27d4eb4fULL;
+    }
     if (staticOnTrack) {
         queue.addShadowSignature(hash);
         queue.addShadowObject(hash, model[12], model[13], model[14], radius);
@@ -1745,7 +1773,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         // All of it first, then its body and bogies within.
         const float all[3] = {0.0f, 0.5f * (0.15f + height), 0.0f};
         const float allHalf[3] = {0.5f * width, 0.5f * (height - 0.15f), 0.5f * length};
-        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1, lampDetail, standing);
+        queue.addCarBox(this, model, all, allHalf, bogies ? 3 : 1, lampDetail, standing, contentHash);
         queue.addCarBox(this, model, body, bodyHalf, 0, lampDetail, standing);
         if (bogies) {
             const float bogieHalf[3] = {std::min(1.3f, 0.5f * width), 0.5f * (bottom - 0.15f), std::min(1.5f, 0.5f * span)};
@@ -1768,6 +1796,9 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     queue.setLayer(RenderQueue::LAYER_SCENE);
     queue.setAnimated(!staticOnTrack);
     queue.setLampStatic(standing, this);
+    // The camera inside it (its cab view, the walking character in it): its
+    // lamps' ambient fills light (task renderer 46 C).
+    queue.setViewerInside(cabViewpoint >= 0 || viewerCar == this);
     // Its parts' last-frame matrices are its own (task renderer 38).
     queue.setMotionOwner(this);
     // A car in detail moving: its shape's shadow level for the lamps' tiles
@@ -1888,6 +1919,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     queue.setLayer(layer);
     queue.setAnimated(animated);
     queue.setLampStatic(false);
+    queue.setViewerInside(false);
     queue.setMotionOwner(motionOwner);
     if (drawing)
         emitExhaust(model);
@@ -1895,6 +1927,8 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
         pushDrawBorder3d(queue);
     queue.popTransform();
 }
+
+const Eng *Eng::viewerCar = nullptr;
 
 // Emitters farther from the camera give out nothing (m).
 static constexpr float ExhaustDistance = 2000.0f;

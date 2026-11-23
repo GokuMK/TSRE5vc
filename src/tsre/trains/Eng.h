@@ -120,6 +120,10 @@ public:
     // drawn in the lamps' tiles with its own shape, not as boxes (task
     // renderer 46 A).
     bool lampDetail = false;
+    // The car the camera is in with the walking character (set by the view
+    // each frame), null for none: with its cab view, the camera inside a
+    // car, whose lamps' ambient fills light (task renderer 46 C).
+    static const Eng *viewerCar;
 
     int flip = flip;
     int loaded = -1;
@@ -183,6 +187,16 @@ public:
     quint64 placedHash = 0;
     qint64 placedSince = 0;
     static constexpr qint64 StandingMs = 2000;
+    // What it draws in its own frame (RenderQueue::CarBox::content): its
+    // shapes loaded, its cab shown or not, its parts at rest; kept while a
+    // part is on its way (its lamps' maps in its frame, task renderer 46 C,
+    // drawn again once it rests).
+    quint64 contentHash = 0;
+    // Its cab's worked controls (levers, switches, handles) where their parts
+    // show them, which goes into contentHash (task renderer 46 C: a lever
+    // moved redraws the cab's lamps' maps as it moves; needles and clocks
+    // never do).
+    quint64 cabControlsHash = 0;
     // Its moving parts (task shapes 12): what they show (CarAnimation's
     // groups: doors, pantographs...), set by its consist or a viewer; and
     // how far its train has gone (metres, the simulation's distance
