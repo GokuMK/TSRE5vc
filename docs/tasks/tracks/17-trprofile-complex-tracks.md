@@ -856,7 +856,13 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
   rails show the meshes' open insides (dark squares: end faces later);
   wing and check rails reach past a shape's end into the next piece (as
   on real track) without the next piece knowing; three-way points' third
-  blade; blades from the junction's state; `Blade`/`Nose` meshes.
+  blade; blades from the junction's state (a task of its own, for static
+  and procedural junctions alike: MSTS junction shapes carry their blades
+  on animated matrices, which Open Rails' `SwitchTrackShape` poses by
+  the junction's route, key 0 on `MainRoute`, 1 off it, over half a
+  second; TSRE draws them at key 0. It needs the simulation's switch
+  positions sent to the views, static shapes posed by them, and the
+  procedural blades as a per-object piece); `Blade`/`Nose` meshes.
 
 ## Acceptance
 
