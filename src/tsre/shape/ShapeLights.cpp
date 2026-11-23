@@ -34,6 +34,31 @@
 
 namespace ShapeLights {
 
+bool readShadows(const QString &name, Light::Shadows &out) {
+    for (const auto &[text, value] : {std::pair<const char *, Light::Shadows>{"Scene", Light::Shadows::Scene},
+                                      {"Own", Light::Shadows::Own}, {"None", Light::Shadows::None}})
+        if (name.compare(QLatin1String(text), Qt::CaseInsensitive) == 0) {
+            out = value;
+            return true;
+        }
+    return false;
+}
+
+unsigned char shadowsOf(const Light &light) {
+    switch (light.shadows) {
+    case Light::Shadows::Scene:
+        return RenderItem::Light::SHADOWS_SCENE;
+    case Light::Shadows::Own:
+        return RenderItem::Light::SHADOWS_OWN;
+    case Light::Shadows::None:
+        return RenderItem::Light::SHADOWS_NONE;
+    case Light::Shadows::Default:
+        break;
+    }
+    // A spot casts as before; a point (its cube's six maps) only when asked.
+    return light.type == Light::Type::Spot ? RenderItem::Light::SHADOWS_SCENE : RenderItem::Light::SHADOWS_NONE;
+}
+
 namespace {
 
 constexpr float Degrees = float(M_PI / 180.0);
@@ -66,6 +91,8 @@ struct Read {
     // ColorRGBA's alpha, taken into the intensity at the end.
     float alpha = 1.0f;
     float cone[2] = {0.0f, 45.0f};
+    // A Shadows value not known (its default used).
+    QString badShadows;
 };
 
 void setDirection(Light &light, const QVector3D &direction) {
@@ -166,6 +193,17 @@ void field(Light &light, Read &read, const QString &name, Values &values) {
         const float radius = values.number();
         if (radius >= 0.0f)
             light.radius = radius;
+    } else if (name == "shadows") {
+        const QString shadows = values.string().trimmed();
+        if (!readShadows(shadows, light.shadows))
+            read.badShadows = shadows;
+    } else if (name == "ambient") {
+        light.ambient = std::max(0.0f, values.number());
+        light.ambientRange = std::max(0.0f, values.number());
+    } else if (name == "ambientcolor3f") {
+        for (float &c : light.ambientColor)
+            c = std::max(0.0f, values.number());
+        light.ambientColored = true;
     }
 }
 
@@ -190,6 +228,14 @@ bool finish(Light &light, Read &read, QStringList *problems) {
     light.innerCone = inner * Degrees;
     light.outerCone = outer * Degrees;
     light.intensity *= read.alpha;
+    if (!read.badShadows.isNull())
+        //% "Shadows %1 is not Scene, Own or None; its default is used"
+        found << qtTrId("shapelights.problem.shadows").arg(read.badShadows);
+    if (light.ambient > 0.0f && light.ambientRange <= 0.0f) {
+        //% "Ambient %1 without a range above 0: no fill"
+        found << qtTrId("shapelights.problem.ambient.range").arg(light.ambient);
+        light.ambient = 0.0f;
+    }
     bool kept = true;
     if (!read.unknownType.isEmpty()) {
         //% "left out: Type %1 is neither Point nor Spot"
@@ -221,6 +267,25 @@ RenderItem::Light itemLight(const Light &light) {
     out.innerCone = light.innerCone;
     out.outerCone = light.outerCone;
     out.type = light.type == Light::Type::Spot ? RenderItem::Light::SPOT : RenderItem::Light::POINT;
+    out.shadows = shadowsOf(light);
+    return out;
+}
+
+// Its ambient fill's (Ambient): a point at the light, its fraction of the
+// light's intensity, its colour, its range; lit whatever way a surface
+// faces, unshadowed, only from inside its car (task renderer 46 C).
+RenderItem::Light fillLight(const Light &light) {
+    RenderItem::Light out = itemLight(light);
+    out.type = RenderItem::Light::POINT;
+    out.intensity *= light.ambient;
+    if (light.ambientColored)
+        std::copy(light.ambientColor, light.ambientColor + 3, out.color);
+    out.range = light.ambientRange;
+    // As large as its reach: its light falls off gently over the room, not
+    // as its lamp's from a point.
+    out.radius = light.ambientRange;
+    out.shadows = RenderItem::Light::SHADOWS_NONE;
+    out.ambient = true;
     return out;
 }
 
@@ -436,8 +501,8 @@ void Drawn::resetState(unsigned int stateId) {
 
 void Drawn::shine(State &state) {
     for (Group &group : state.groups)
-        for (size_t k = 0; k < group.members.size(); ++k)
-            group.lights->lights[int(k)].intensity = group.intensity[k] * state.strength[group.members[k]];
+        for (size_t k = 0; k < group.follows.size(); ++k)
+            group.lights->lights[int(k)].intensity = group.intensity[k] * state.strength[group.follows[k]];
     state.changed = false;
 }
 
@@ -479,6 +544,12 @@ void Drawn::build(State &state, const ComplexShape &shape, bool discs) {
         for (int i : group.members) {
             r->lights.push_back(itemLight(built.at(i)));
             group.intensity.push_back(r->lights.back().intensity);
+            group.follows.push_back(i);
+            if (built.at(i).ambient > 0.0f) {
+                r->lights.push_back(fillLight(built.at(i)));
+                group.intensity.push_back(r->lights.back().intensity);
+                group.follows.push_back(i);
+            }
         }
         group.lights = r;
         if (!state.discs)
@@ -550,8 +621,11 @@ void Drawn::push(RenderQueue &queue, const ComplexShape &shape, unsigned int sta
     }
     if (state.changed)
         shine(state);
+    // Lights on a hidden part go dark with it (task renderer 46 C: the
+    // low-poly interior's cab hidden in the cab's view, its lamps with it).
     for (const Group &group : state.groups)
-        queue.submit(group.lights, selectionId);
+        if (group.part < 0 || shape.partShown(stateId, group.part))
+            queue.submit(group.lights, selectionId);
     if (!state.discs || what == What::Lights)
         return;
     // The lit lights' discs. Lamps cast no shadows.
@@ -559,7 +633,7 @@ void Drawn::push(RenderQueue &queue, const ComplexShape &shape, unsigned int sta
     queue.setShadowCasting(false);
     for (const Group &group : state.groups)
         for (size_t k = 0; k < group.discs.size(); ++k)
-            if (state.strength[group.members[k]] > 0.0f)
+            if (state.strength[group.members[k]] > 0.0f && (group.part < 0 || shape.partShown(stateId, group.part)))
                 queue.submit(group.discs[k], selectionId);
     queue.setShadowCasting(casting);
 }

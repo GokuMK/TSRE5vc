@@ -156,7 +156,8 @@ void LightGrid::build(const std::vector<Light> &lights, const float *eye) {
         float texels[LightTexels * 4] = {
             p[0], p[1], p[2], light.range,
             light.color[0], light.color[1], light.color[2], light.radius * light.radius,
-            light.direction[0], light.direction[1], light.direction[2], light.spot ? 1.0f : 0.0f,
+            // 0 a point, 1 a spot, 2 an ambient fill (task 46 C).
+            light.direction[0], light.direction[1], light.direction[2], light.ambient ? 2.0f : light.spot ? 1.0f : 0.0f,
             light.cosOuter, spread > 1e-4f ? 1.0f / spread : 1e4f, float(light.shadowLayer + 1), float(light.shadowSet)};
         std::copy(light.shadowMatrix, light.shadowMatrix + 16, texels + 16);
         lightTexels.insert(lightTexels.end(), texels, texels + LightTexels * 4);

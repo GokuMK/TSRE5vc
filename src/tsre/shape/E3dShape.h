@@ -95,6 +95,7 @@ public:
     // alpha (by slot), blended. Parsed from the file, not the shared model.
     static bool cpuTriangleParts(const QString &path, std::vector<TrianglePart> &parts);
     QString partName(int part) const override;
+    bool partShown(unsigned int stateId, int part) const override;
     int partParent(int part) const override;
     bool partRest(int part, float *out) const override;
     void setPartTransform(unsigned int stateId, int part, const float *local) override;

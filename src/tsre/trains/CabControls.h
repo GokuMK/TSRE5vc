@@ -65,6 +65,13 @@ class CabPose {
     // Dragged along its path (levers, switches of several states), not
     // clicked.
     virtual bool dragged(int control) const = 0;
+    // Worked by the driver (the mouse's parts: levers, switches, handles),
+    // not a display (needles, clocks, lamps): its parts at rest go into
+    // the car's lamps' maps in its frame (task renderer 46 C).
+    virtual bool interactive(int control) const {
+        (void)control;
+        return false;
+    }
     // A dragged control's stops along its travel, at most `samples` of
     // them, in order, and the one it shows now; false where it has none.
     virtual bool stops(const ComplexShape &cab, int control, int part, int samples, std::vector<float> &stops,

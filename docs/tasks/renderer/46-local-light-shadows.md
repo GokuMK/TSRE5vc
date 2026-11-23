@@ -1,6 +1,6 @@
 # Task 46 - Shadows from Local Lights
 
-Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps merged from `feature/fog-lamp-shadows` (2026-11-10), tested live by the user.
+Status: B merged from `feature/lamp-shadows` (2026-11-07), with the Lamp shadows setting and the light schedule. A (moving trains, trains' head lamps) and the cab part of C merged from `feature/train-lamp-shadows` (2026-11-09); moving trains tested live by the user, the cab not yet. The fog's lamps through the maps merged from `feature/fog-lamp-shadows` (2026-11-10), tested live by the user. C, a car's own lamps in its frame, in progress on `feature/car-lamp-shadows` (2026-11-22, design decided 2026-11-23: below).
 
 ## Objective
 
@@ -524,6 +524,210 @@ user's view.
 
 Open: the cab's next step (above); the copies' cost; the task's guide and
 the release notes.
+
+## C: a car's own lamps (2026-11-22 to 23, the user's design)
+
+A cab's or saloon's lamp and its car move together, so its shadows are
+fixed in the car's frame: one map drawn once with the car alone, moved
+with the car each frame, drawn again only when the car draws something
+else. Branch `feature/car-lamp-shadows`.
+
+**First version (built, measured).** A car's spot lamp inside its box,
+0.5 m or more from its ends, took such a map (`RhiRenderer::carLamp`,
+`drawLampShadow(..., own)`, `QueueRenderer::planOwnCasters`): the car's
+own parts as the view draws them (its cab's from the cab), back faces
+culled as everywhere (a modelled interior's walls face inward, so they
+cast; the body's outward faces do not, nor a lamp's own fixture around
+it). Its key: the car and the light's place and way in its shape
+(`LightGrid::Light::source`), whatever the car's place; its matrix kept
+times the car's box when drawn (`carLocal`), times the box's inverse now
+each frame. Drawn again when the car's content changes
+(`RenderQueue::CarBox::content`: its shape, the cab shown or not, its
+shapes loaded, its doors, windows, mirrors and pantographs at rest; not
+its place, bogies, wheels or level; kept while a part moves). The nearest
+8 (`TSRE_LAMP_SHADOWS_CAR`) in the moving lamps' set, drawn at once (not
+2 a frame). Car lamps no longer take the moving lamps' maps (2 at Low):
+the head lamps got both back. `TSRE_CAR_LAMP_SHADOWS=0`: none, as
+before; `TSRE_CAR_LAMP_REDRAW=1`: each frame, to measure.
+
+Test asset: the ET22's 3D cab (bbb `file1.act`, `pkp/et22_v3`), a spot
+2 cm under its left round ceiling lamp in `201e/kabina_a.sd`. The
+activity starts at 04:00, summer dawn: captures run on to the next day's
+03:00. Seen:
+- From the cab: the window pillar, the gauge box's side and the
+  windscreen's top frame (behind the ceiling panel from the lamp) dark,
+  lit through the cab before.
+- From outside (the same spot in the low-poly interior's `.sd`): without
+  shadows the lamp lit the ballast, grass, buffers and bogies all round
+  the cab end through the body; with the car's map only through the
+  windows, the pillars' shadows across the ground, matching a ray cast
+  of the model's triangles. Range alone cannot stop the leak (the user).
+- Cost (842 x 755, the map drawn each frame to measure): 1.15 ms of the
+  GPU at 1024 texels, 0.41 at 512, 0.68 ms of the CPU (230 cab parts),
+  once a map; the view's pass with the map against no map +0.25 ms,
+  within run-to-run spread; the same at 1024 and 512. 2 MB a map at 1024.
+- The map is as wide as its cone, 150 degrees at most (75 from the axis,
+  the shadow fading out over the map's outer fifth, from about 71.5):
+  `Cone ( 50 90 )` lit the upper cab, its band past 75 degrees
+  unshadowed; `TSRE_LAMP_SHADOW_FOV=170` shadowed it to 85 at a third of
+  the sharpness at the centre.
+- A spot pointing down leaves the ceiling dark; a point light 4 to 20 cm
+  under this cab's (curved) ceiling lights it, the panel above the
+  windscreen and the upper walls (no shadow, a test).
+- A spot map is right for world lamps over flat ground (each ground texel
+  the same size: 6.5 cm at 1024 for a lamp 8.9 m up); a cube's side faces
+  would be far coarser at the pool's edge.
+
+**Decided (the user, 2026-11-23):**
+- No hidden rules: the box test goes. An `.sd` light says what shadows
+  it; the engine picks the frame from where its object is.
+  - `Shadows ( Scene )`: everything around (head lamps, street lamps);
+    `Shadows ( Own )`: its own object alone (cab, saloon lamps);
+    `Shadows ( None )`: no map. glTF: `TSRE_shadows`. Defaults as today:
+    spots `Scene`, points `None`.
+  - On a world object: the cached world map for `Scene` and `Own` alike.
+    On a car: `Scene` the world's frame (moving maps for the nearest,
+    cached while it stands); `Own` the car's frame, holding that car
+    alone: a spot one map, a point a cube. A point with `Scene` on a car
+    stays unshadowed (a cube redrawn each frame), told in the log.
+  - ENG lights' own lamps (ENG cones, MaSzyna lamp cones) keep the
+    world's frame. An ENG binding says what switches a light, not what
+    shadows it (an interior lamp has to be bound to be switched today).
+- Point lights with `Own`: cube maps in the car's frame, 6 layers of the
+  coarse set (512 at High, 256 below), the face picked by arithmetic in
+  the shader (no branch), the spot's lookup after it; one matrix (the
+  cube's frame, the car's axes) in the light's data; the fog's lamp
+  light through the cube too (else a point lamp lights the fog round the
+  train through its walls). Drawn once, spread over frames when several
+  come.
+- Ambient fill on a lamp, not a second block: `Ambient ( fraction range )`
+  (of its lamp's intensity) and `AmbientColor3F ( r g b )` (the lamp's
+  colour when left out). It follows its lamp (on, off, its ENG binding);
+  shaded without the surface's angle (a point lighting what faces the
+  room's middle is not ambient); never shadowed, lit only while the
+  camera is inside its car (its cab view, riding or walking in it), so
+  nothing bleeds from outside views. Fills sum as lamps do: the designer
+  balances both. On world objects (a waiting room) later, with a volume
+  for "inside". A standalone `Type ( Ambient )` later if wanted.
+- A cab's controls: a control the driver moves (the cab picker's parts:
+  levers, switches, handles) redraws the cab's maps once it rests at a
+  new position; display parts (needles, clocks, indicator lamps) never.
+- The `.sd` lights of a shape whose parts are all hidden still shine (the
+  low-poly interior in the cab view doubled the cab's lamp): their own
+  fix.
+- Later: an irradiance volume per car shape (probes baked on a worker,
+  one bounce against the car's own geometry); its risks: leaks across
+  walls, surface colours from textures on the CPU, re-bakes, people
+  inside.
+
+Order: the controls' redraws; `Shadows`, `Ambient`, `AmbientColor3F`
+(`.sd`, glTF, guide) with the frame chosen by the engine; the fill's
+shading; cubes for `Own` points; the hidden shapes' lights.
+
+**Built (2026-11-23), in that order:**
+- The controls: `CabPose::interactive` (MaSzyna: the cab's pickable
+  parts; a .cvf: `CabPicker::interactive`'s kinds); `Eng::poseCab` hashes
+  the worked controls' values as their parts show them (`CabPose::shown`,
+  to a thousandth) into the car's content from its cab
+  (`cabControlsHash`): its maps drawn again as a lever moves. First held
+  back 250 ms (drawn once it stopped); the user found that too slow, and
+  at about 1.5 ms a cube and one cube a frame none is needed.
+- `Shadows`, `Ambient`, `AmbientColor3F` (`ShapeLights::Light`,
+  `readShadows`, `shadowsOf`; glTF `TSRE_shadows`, `TSRE_ambient`,
+  `TSRE_ambientColor`), messages for an unknown `Shadows` and an `Ambient`
+  without a range. `RenderItem::Light::shadows` and `ambient`, carried to
+  `LightGrid::Light`. The box test is gone: `RhiRenderer::carLamp` takes a
+  light with `Own` on a car with boxes; `None` takes no map anywhere.
+- The fill: a second light in its lamp's packet (`fillLight`: a point, a
+  fraction of the lamp's intensity, its colour, its range, a softening
+  radius as large as the range so it falls off gently over the room;
+  `Drawn::Group::follows` makes it follow its lamp's strength). Gathered
+  only from an instance with `viewerInside` (`RenderQueue::setViewerInside`,
+  set by `Eng` for its cab view or `Eng::viewerCar`, the car the walking
+  character stands in with the camera following it, set by the view each
+  frame). The light data's spot flag 2; `localLight`'s `fill`: lit whatever
+  way a surface faces, no cone, no shadow, no specular; the exhaust puffs
+  and the fog leave fills out.
+- Cubes: a point with `Own` on a car takes six layers of the coarse set
+  (`LampShadowSet::cubeBase`, between the maps and the tiles; slots by
+  `cubeOwners`), the nearest 4 (`TSRE_LAMP_SHADOWS_CUBES`), one cube drawn
+  a frame, again when the car's content changes. Its frame
+  (`RhiRenderer::cubeFrame`: the car box's axes, the lamp at the origin,
+  near and far in the spare bottom row) goes into the light's matrix each
+  frame; the shader picks the face by the point's major axis there
+  (`localLightCubeClip`, the fog's `lampCubeClip`) and projects it as
+  `cubeFaceMatrix` drew it (a 90 degree view, up +y, +z looking along y);
+  the face's layer after the cube's first; no edge fade (the faces meet).
+- A shape's lights on a hidden part are dark (`ComplexShape::partShown`:
+  `E3dShape` by its resolved `showing`, `SFileComplex` by its hidden
+  names and its parents'): a low-poly interior's lamp hung on its `cab1`
+  goes with the part when the cab's view hides it. A light on no part
+  (a MaSzyna model's root) cannot know.
+
+Seen at the ET22's cab (bbb, the next day's 03:00, its head lights off):
+the fill lights the ceiling, the panel above the windscreen and the upper
+walls, evenly, the spot's direct light and shadows over it; a point with
+a cube lights them as an unshadowed point did, with the ceiling lever's
+and the frames' shadows on them; from outside the point's light leaves
+only through the windscreen and the side windows (without lamp shadows it
+lit the ground all round the cab end). A cube is drawn two to four times
+as the shapes load and the cab's controls first rest, then kept.
+
+Costs (842 x 755, the cab's lamp a point with its cube and fill, the
+user's profile at High): the lookup +0.47 ms of the view's pass against
+the same lamp without its cube (8.12 and 8.16 against 7.67 and 7.65 ms,
+two runs each; a spot's map +0.25), the environment's pass +0.2; drawing
+a cube (six faces of 512, `TSRE_CAR_LAMP_REDRAW=1`) 1.42 ms of the GPU,
+about 1.6 ms of the CPU, once a lamp.
+
+Checks: Prudnik's yard by night (step 0's camera, 148 lamps) pixel for
+pixel as main's; the low-poly interior's lamp on `cab1` dark in the cab's
+views (pixel for pixel as the cab's lamp alone), lit from outside (a
+position on a part is in that part's space: `cab1` turns its axes, so the
+cab's own position put the lamp over the roof). Suites: local-lights 17,
+cab3d 29, orts-profile 73, shape-lights 52, shape-axes 19, eng-lights 47,
+e3d-file 71, mmd-cab 23, shape-complex 69 passed; shape-animation (1 of
+1784), e3d-shape (2 of 81, file names' case) and displays (an OpenGL
+context offscreen) fail as on main's build. ctest 11/11.
+
+**Follow-up (2026-11-23, the user's review):**
+- Two lamps, as the cab has two fixtures: the example's `kabina_a.sd`
+  holds both (points, `Own`, a fill each, intensity 6, fill 0.2 within
+  3 m), `lowpoly.sd` the same on its `cab1` part (positions in `cab1`'s
+  space: x mirrored, y and z swapped), dark in the cab's view, lit from
+  outside or walking in the car.
+- The fixture: with the lamp 2 cm under it the diffuser burnt white in
+  patches; in its middle (3.85 m) the fixture's inner faces shadowed it
+  and the ceiling beyond curved away from it (a dark band: shading, the
+  same without a cube); just inside the diffuser's bottom (3.80 m) the
+  ceiling and the panel over the windscreen are lit and the diffuser
+  faces away from it. A car's own lamp's maps (spot or cube) start at
+  its `Radius` (at least 10 cm, `RhiRenderer::ownLampNear`): what lies
+  within it, its fixture, does not shadow it; the example's 0.2 m.
+- The harness: a cab view's `"cabLook": [yaw, pitch]` (degrees, as
+  core.startup.camera gives them; `RouteEditorGLWidget::diagnosticLook`
+  over what the camera rides), and each train view's camera logged in
+  core.startup.camera's form. The user's two ceiling cameras: `cabPlace`
+  1 (0 also shows the left fixture); the activity's train stands
+  elsewhere at the next day's 03:00 than in the user's run.
+- The suites failing on main too, reviewed: displays passes (37) on the
+  real platform (it needs an OpenGL context: offscreen was the wrong
+  setup); shape-animation passes (8) without content, and with
+  C:/trainsim fails one statistic, keyed parts at rest at frame 0 at
+  least 95 % (9,187 of 9,994, 91.9 %: add-on content), while both
+  backends pose all 39,976 alike; e3d-shape fails two checks with or
+  without content: they expect `Case` not to find `case.dds` and `skin`
+  not `Skin.dds`, true only on a case-sensitive file system (they never
+  passed on Windows): the test to fix (to skip them where the file system
+  ignores case), not TSRE.
+- Cubes flashed while the cab animated (the user): a change marked a
+  cube not drawn, the lamp unshadowed until its turn (one cube a frame;
+  the nearest always first, so with a lever moving the other lamp stayed
+  unshadowed). A changed cube is now stale, still shown, and the frame's
+  cube is one never drawn, else the stale one drawn longest ago, each
+  lamp in turn. Checked with `TSRE_CAR_LAMP_REDRAW=1` (both cubes changed
+  each frame): six frames as the still capture's, where before one
+  lamp's shadows were gone.
 
 ## Today
 
