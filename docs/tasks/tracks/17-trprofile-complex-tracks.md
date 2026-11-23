@@ -703,7 +703,7 @@ Each step stops for the user's visual check before the next.
 | 1 filter file | checked by the user (2026-11-23) | `0e36300f` |
 | 2 shape analysis | checked by the user (2026-11-23) | `0e36300f` |
 | 3 `COMPLEX` parsing, first profiles | checked by the user (2026-11-23) | `0e36300f`, `eee62168`; assets-gen `b0ab7e5` |
-| 4 phase 1: ties, bearers, fasteners, bed, rails | built, waiting for the user's check | `86274020` and after |
+| 4 phase 1: ties, bearers, fasteners, bed, rails | built, waiting for the user's check | `86274020`, `82a68097`; assets-gen `d8294f8` |
 
 Steps 1-3 (2026-11-23):
 
@@ -773,6 +773,13 @@ Step 4 (2026-11-23, the user's go the same day):
   negative pitch at yaw 0) and, new, any tsection shape: `"track":
   "tsection"`, `"shape"`, `"filter"` (a filter's values). assets-gen
   `checks/complex-tracks.json`.
+- Checked (assets-gen `reports/complex-tracks/step4/`): the viewer's
+  junctions from above and close; PRUDNIK in `Forced` with
+  `trackprofiles-prudnik-step4.dat` (the families, the slip filters of
+  section 5a): bearers through the points, frog pieces shared then own
+  ties, one bed across the piece joins (a 0.5 m wedge before the bed fix),
+  its double slips tied by the diamond. Not yet: switch blades, noses,
+  check rails (phase 2, step 6), the far LOD's sleeper look, instancing.
 - Timing (Release, `TSRE_COMPLEX_PROFILE` with the suite's PSK run): the
   72 complex shapes PRUDNIK uses (7,797 objects) with `PL_49E1_Wood_3D`:
   plans 683 ms, meshes 515 ms in all, once per shape; vertex data 210 MB
