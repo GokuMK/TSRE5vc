@@ -91,7 +91,7 @@ struct VehicleDefinition {
     // An empty definition: a car's before its file is read.
     static const std::shared_ptr<const VehicleDefinition> &empty();
 
-    // A MaSzyna vehicle's (task maszyna 02; `name` is <type>#<skin>.mmd):
+    // A MaSzyna vehicle's (task maszyna 02; `name` is <type>|<skin>.mmd):
     // what its files say, null for MSTS content, and its livery. Such a
     // definition has no document.
     std::shared_ptr<const MaszynaVehicle> maszyna;

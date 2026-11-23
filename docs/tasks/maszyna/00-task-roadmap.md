@@ -38,6 +38,9 @@ cars proper.
   shared with Open Rails stays free of custom ENG files that would confuse it.
 - **One Consist Editor row per livery**, as today. Open Rails' unstable
   versions also allow one ENG per livery sharing shapes, so it is consistent.
+  A row is named `<type>|<skin>` (2026-11-23, the user: `#` at first, which
+  broke ENG files named with a `#`; see
+  [task 02](02-vehicles-as-eng.md#consists), with the options for later).
 - **Shared files by where they are in MaSzyna.** `dynamic/` is `[[Trainset]]`,
   `sounds/` goes in the game root's `SOUND/MASZYNA`, `textures/` in a new
   `TEXTURES/MASZYNA` beside it. `GLOBAL` stays Open Rails' shared folder. The

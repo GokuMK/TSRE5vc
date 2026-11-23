@@ -165,14 +165,14 @@ them, never per placed car.
 
 ### Filling `VehicleDefinition`
 
-`Eng::load` sees the `#` in its name (below) and calls `MaszynaVehicle::read`
+`Eng::load` sees the `|` in its name (below) and calls `MaszynaVehicle::read`
 instead of `VehicleDefinition::read`. The result is a `VehicleDefinition`
 per livery row, sharing the type's data. New members: `maszyna`
 (`shared_ptr<const MaszynaVehicle>`, null for MSTS content) and `skin`.
 
 | Field | From |
 |---|---|
-| `engName` | `<type>#<skin>`, the consist's name for it (`ConListWidget` compares the two) |
+| `engName` | `<type>\|<skin>`, the consist's name for it (`ConListWidget` compares the two) |
 | `displayName` | The catalogue's name for the livery, with the folder; else type and skin |
 | `searchKeywords` | Catalogue metadata: series, depot, overhaul |
 | `type`, `engType`, `wagonTypeId` | `EngineType`: series and induction 4; diesel, diesel-electric and `DumbDE` 5; `Dumb` and `WheelsDriven` by the catalogue's kind letter (`p` gives 6). None: 1 if `LoadAccepted` has passengers, else 2 |
@@ -198,19 +198,67 @@ MaSzyna vehicle each gets a state too, made and released as `posedState` is.
 
 ### Consists
 
-`.con` gains no block. A MaSzyna item's name is `<type>#<skin>`:
+`.con` gains no block. A MaSzyna item's name is `<type>|<skin>`:
 
 ```
-Engine ( UiD ( 0 ) EngineData ( "201e#201e-037" "pkp/et22_v3" ) )
+Engine ( UiD ( 0 ) EngineData ( "201e|201e-037" "pkp/et22_v3" ) )
 ```
 
-`#` marks it (`<type>#` with no skin), so no file check is needed; `#` occurs
-in no type or livery name in the pack. The places that add `.eng` or `.wag`
-add `.mmd` for such a name: `Consist` (three), `VehiclePreload`,
-`ConsistFileHasEngine`, `ContentCase`. A powered vehicle is written as
-`Engine`, the rest as `Wagon`.
+`|` marks it (`<type>|` with no skin, `MaszynaVehicles::RowSeparator`); a
+name without one is an ENG or WAG, as in MSTS. The places that add `.eng`
+or `.wag` add `.mmd` for such a name: `Consist` (three), `VehiclePreload`,
+`ConsistFileHasEngine`, the Explore lists, `ContentCase`. A powered vehicle
+is written as `Engine`, the rest as `Wagon`.
 
-`Eng::name` is `<type>#<skin>.mmd`, so `Consist`'s
+**Why `|`** (the user, 2026-11-23). The sign was `#` at first, MaSzyna's
+own (a `#` after a model name in `.mmd`), checked only against the type
+and livery names of MaSzyna's pack. MSTS and Open Rails allow `#` in a
+vehicle's file name, and a user's ENG named with one was taken for a
+MaSzyna row: never read, its only message "not exist" (reported
+2026-11-23). Windows forbids `|` in a file name, so no MSTS or Open Rails
+vehicle can have it, nor a MaSzyna type (its `.mmd`'s name). MaSzyna
+writes `|` only in its scenery files, between the skins of a vehicle's
+slots (`a|b|c`, `vehicle/DynObj.cpp:243`), which TSRE does not read; no
+livery catalogue in the pack (229 `textures.txt`) has one in a skin's
+name, and the first `|` would still end the type. Open Rails' tokenizer
+gives `|` no meaning (only parentheses, quotes, and a `#` or `_` starting
+an unquoted token), and TSRE writes and reads such a name unquoted, whole.
+Where a vehicle's name becomes a file name, `|` is written `_`: the
+Vehicle files archive, and Save as engine set's `<engine>#<name>.con`.
+The consists written with `#` rows were rewritten with `|`.
+
+**Later options, not built** (the user, 2026-11-23: `|` first, the rest
+decided later):
+
+- The extension in the name, `EngineData ( "201e|201e-037.mmd" ... )`, and a
+  name without one given its extension by a file check when the consist
+  is read (`.eng` for `Engine`, `.wag` for `Wagon`; Open Rails' AI tries
+  `.wag`, then `.eng`, `AI.cs:869-872`). The name then needs no mark, and
+  another format (a glTF vehicle) only its extension; a `|` without an
+  extension could then be checked by the files, if more formats take it.
+  What `.eng`/`.wag` in `EngItem::ename` touches (reviewed 2026-11-23):
+  - must change: the writer (`Consist::save`'s `EngineData` and
+    `WagonData`) drops `.eng`/`.wag` and keeps `.mmd`, or Open Rails looks
+    for `Dash9.eng.eng`; the engine sets (`ConListWidget::getEngSets`
+    compares the name with the ENG's own `Engine ( name )`) and Save as
+    engine set (`ConEditorWindow::cSaveAsEngSetSelected` names the file
+    after the first engine) take the name without it;
+  - only shown: the consist's units (`ConUnitsWidget`), the activity's main
+    engine (`ActivityTimetableProperties`);
+  - already fine: `Consist::refreshEngData`, `Activity`'s standing copies,
+    and the simulation's refitted consists (`SimulationController::refit`
+    already sets `ename = eng->name`, with its extension).
+- A file check with `#` kept: `<name>.eng` or `.wag` first, the `.mmd` row
+  only when there is none. The consist would not say what the vehicle is.
+- A TSRE block, `TSREMaszyna ( "201e-037" )` as `TSREControl`: the cleanest
+  data, but a vehicle named by one string today would be two everywhere.
+- One reader of consist files' vehicle names. `VehiclePreload` (worker
+  threads), `ConsistFileHasEngine`, the Explore lists, the Timetable
+  window's cars and `--contentcase` each read the `.con` themselves,
+  because `Consist` reads every vehicle through the shared `EngLib` on the
+  main thread; each has the rule turning a name into a file.
+
+`Eng::name` is `<type>|<skin>.mmd`, so `Consist`'s
 `eng->name.section(".", 0, -2)` gives the consist's name unchanged, and
 `Eng::pathid` carries the skin, so `EngLib` keeps one `Eng` per row.
 
