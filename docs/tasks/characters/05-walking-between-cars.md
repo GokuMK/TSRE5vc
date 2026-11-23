@@ -1,7 +1,7 @@
 # 05 - Walking between cars
 
 Status: brief, 2026-11-23 (the user's go for the brief: "Ok, let's write
-it"). Building waits for a go. It takes task [03](03-trains.md)'s Left item
+it"); the user's answers the same day. Building waits for a go. It takes task [03](03-trains.md)'s Left item
 "Gangways between cars"; the walking character is task
 [02](02-walking.md)'s.
 
@@ -153,7 +153,8 @@ centred on its own passage's x.
   ear): the listener takes its car only from a `Consist` camera
   (`RouteEditorGLWidget.cpp`, the listener's `attachedTo`). A walking
   character's camera is not one, so in a car it probably hears as from
-  outside. This is its own item.
+  outside. This is its own item, for later (the user, 2026-11-23: fine as
+  it is for now).
 
 ## Steps
 1. `ShapeSeats`: `EndPassage` read from the line and from glTF extras,
@@ -192,9 +193,12 @@ centred on its own passage's x.
   interiors have end doors (to find).
 - Build all, ctest, the app suites, `character-body`, `station-people`.
 
-## Questions for the user
-1. The plate's side walls: in, so nobody falls between the cars? Your
-   design names only the floor.
-2. The margins: height `OneStep` 0.25 m (the aisles' step), `MaxReach`
-   1.5 m, `Overlap` 0.5 m, `Handover` 0.15 m.
-3. The line's name: `EndPassage` (your word) or `Gangway`?
+## The user's answers (2026-11-23)
+1. The plate's side walls: yes.
+2. The margins (`OneStep` 0.25 m, `MaxReach` 1.5 m, `Overlap` 0.5 m,
+   `Handover` 0.15 m): fine if they work. The suite decides; any value
+   changed while building is reported with the reason.
+3. The line's name: `EndPassage`, which fits the existing `Passage`.
+4. Sound: later; fine as it is for now.
+
+No questions open. Building waits for a go.
