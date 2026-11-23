@@ -252,7 +252,8 @@ int TrackProfileFilters::kindsOf(const TrackShape &shape,
 unsigned TrackProfileFilters::partFromName(const QString &name) {
     static const struct { const char *name; Part part; } names[] = {
         {"Rail", Rail}, {"Tie", Tie}, {"Fastener", Fastener}, {"Bed", Bed},
-        {"ConductorRail", ConductorRail}, {"RackRail", RackRail}, {"Other", Other}
+        {"ConductorRail", ConductorRail}, {"RackRail", RackRail}, {"Other", Other},
+        {"CheckRail", CheckRail}
     };
     const QString value = name.trimmed();
     for(const auto &entry : names)
@@ -264,7 +265,8 @@ unsigned TrackProfileFilters::partFromName(const QString &name) {
 QString TrackProfileFilters::partNames(unsigned parts) {
     static const struct { const char *name; Part part; } names[] = {
         {"Rail", Rail}, {"Tie", Tie}, {"Fastener", Fastener}, {"Bed", Bed},
-        {"ConductorRail", ConductorRail}, {"RackRail", RackRail}, {"Other", Other}
+        {"ConductorRail", ConductorRail}, {"RackRail", RackRail}, {"Other", Other},
+        {"CheckRail", CheckRail}
     };
     QStringList result;
     for(const auto &entry : names)

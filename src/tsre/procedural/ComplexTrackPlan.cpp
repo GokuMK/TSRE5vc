@@ -443,6 +443,318 @@ void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
     }
 }
 
+using RailPiece = ComplexTrackPlan::RailPiece;
+using RailLine = ComplexTrackPlan::RailLine;
+
+// Distance ranges less the cut ones (both sorted, cut ones may overlap).
+QVector<Range> without(const QVector<Range> &ranges, QVector<Range> cuts, float least) {
+    std::sort(cuts.begin(), cuts.end());
+    QVector<Range> result;
+    for(Range range : ranges){
+        float from = range.first;
+        for(const Range &cut : cuts){
+            if(cut.second <= from || cut.first >= range.second)
+                continue;
+            if(cut.first - from >= least)
+                result.append(Range(from, cut.first));
+            from = std::max(from, cut.second);
+        }
+        if(range.second - from >= least)
+            result.append(Range(from, range.second));
+    }
+    return result;
+}
+
+// A line through points (headings and distances from its segments).
+Line polyline(const QVector<QPair<float, float>> &points) {
+    Line line;
+    float distance = 0;
+    for(int i = 0; i < points.size(); i++){
+        Point p;
+        p.x = points[i].first;
+        p.z = points[i].second;
+        if(i > 0)
+            distance += std::hypot(p.x - line.last().x, p.z - line.last().z);
+        p.distance = distance;
+        const int a = std::min(i, int(points.size()) - 2);
+        p.heading = std::atan2(points[a + 1].first - points[a].first, points[a + 1].second - points[a].second);
+        line.append(p);
+    }
+    return line;
+}
+
+// The stretch of a line between two distances, its distances from 0.
+Line stretchOf(const Line &line, float from, float to) {
+    Line result;
+    if(line.isEmpty() || to <= from)
+        return result;
+    result.append(TrackShapeAnalysis::at(line, from));
+    for(const Point &p : line)
+        if(p.distance > from && p.distance < to)
+            result.append(p);
+    result.append(TrackShapeAnalysis::at(line, to));
+    for(Point &p : result)
+        p.distance -= from;
+    return result;
+}
+
+// Phase 2 (design section 7) for one group's rail lines (rails firstRail
+// to the end): switch blades against their stock rails, crossings into
+// frogs (noses, wing rails, check rails) and obtuse crossings, then the
+// pieces to sweep.
+void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int firstRail,
+        float headWidth) {
+    const ComplexTrackPlan::Settings &st = plan.settings;
+    const float w = headWidth;
+    const float f = st.flangeway;
+    const int lastRail = plan.rails.size();
+    auto laysPart = [&](int r, unsigned part) { return lays(plan.paths[plan.rails[r].path], part); };
+    auto railOf = [&](int path, int side) {
+        for(int r = firstRail; r < lastRail; r++)
+            if(plan.rails[r].path == path && plan.rails[r].side == side)
+                return r;
+        return -1;
+    };
+    const QVector<int> &order = group.reference.order;
+
+    // Switches: two paths starting together. Of each pair of rails lying
+    // on each other at the toe, the one that ends between the two tracks'
+    // centres is the blade, the other the stock rail; the main route's
+    // blades lie closed.
+    struct Blade {
+        int stock = -1;
+        bool closed = false;
+    };
+    QHash<int, Blade> blades;
+    for(int a = 0; a < order.size(); a++)
+        for(int b = a + 1; b < order.size(); b++){
+            const int i = order[a], j = order[b];
+            const Line &li = plan.paths[i].line, &lj = plan.paths[j].line;
+            if(std::hypot(li[0].x - lj[0].x, li[0].z - lj[0].z) > 0.05f
+                    || std::abs(std::remainder(li[0].heading - lj[0].heading, 2 * Pi)) > 1e-3f)
+                continue;
+            const float end = std::min(li.last().distance, lj.last().distance);
+            const Point ci = TrackShapeAnalysis::at(li, end), cj = TrackShapeAnalysis::at(lj, end);
+            const float span2 = (cj.x - ci.x) * (cj.x - ci.x) + (cj.z - ci.z) * (cj.z - ci.z);
+            if(span2 < 0.04f)
+                continue;
+            const int main = plan.paths[i].main ? i : plan.paths[j].main ? j : i;
+            for(int side : {-1, 1}){
+                const int ri = railOf(i, side), rj = railOf(j, side);
+                if(ri < 0 || rj < 0 || !laysPart(ri, TrackProfileFilters::Rail) || !laysPart(rj, TrackProfileFilters::Rail))
+                    continue;
+                auto between = [&](int r) {
+                    const Line &line = plan.rails[r].line;
+                    const float length = plan.paths[plan.rails[r].path].line.last().distance;
+                    const Point x = TrackShapeAnalysis::at(line, end * line.last().distance / std::max(1e-3f, length));
+                    const float t = ((x.x - ci.x) * (cj.x - ci.x) + (x.z - ci.z) * (cj.z - ci.z)) / span2;
+                    return t > 0 && t < 1;
+                };
+                const int blade = between(ri) ? ri : between(rj) ? rj : -1;
+                if(blade < 0 || blades.contains(blade))
+                    continue;
+                blades.insert(blade, Blade{blade == ri ? rj : ri, plan.rails[blade].path == main});
+            }
+        }
+
+    // Lying on an earlier drawn line (dual gauge's common rail): drawn
+    // once; a blade and its stock rail both drawn.
+    QHash<int, QVector<Range>> drawn;
+    QVector<int> earlier;
+    for(int r = firstRail; r < lastRail; r++){
+        if(!laysPart(r, TrackProfileFilters::Rail))
+            continue;
+        QVector<const Line*> lines;
+        for(int e : earlier){
+            const bool partners = (blades.contains(r) && blades[r].stock == e)
+                    || (blades.contains(e) && blades[e].stock == r);
+            if(!partners)
+                lines.append(&plan.rails[e].line);
+        }
+        drawn.insert(r, runs(plan.rails[r].line, lyingOn(plan.rails[r].line, lines, w), 0.05f));
+        earlier.append(r);
+    }
+
+    // Crossings between drawn rails of different paths.
+    QHash<int, QVector<Range>> cuts;
+    auto addPiece = [&](RailPiece::Kind kind, int path, int side, const Line &line) {
+        if(line.size() < 2 || line.last().distance < 0.05f)
+            return;
+        RailPiece piece;
+        piece.kind = kind;
+        piece.path = path;
+        piece.side = side;
+        piece.line = line;
+        piece.from = 0;
+        piece.to = line.last().distance;
+        plan.railPieces.append(piece);
+    };
+    // The inward normal of a rail at a heading (towards its track's centre).
+    auto inward = [](int side, float heading) {
+        return QPair<float, float>(-side * std::cos(heading), side * std::sin(heading));
+    };
+    // A check rail opposite a nose: the other rail of the nose's track,
+    // inside the gauge by the flangeway, flared at both ends.
+    auto checkRail = [&](int rail, float noseDistance) {
+        const int path = plan.rails[rail].path;
+        const int other = railOf(path, -plan.rails[rail].side);
+        if(other < 0 || !laysPart(other, TrackProfileFilters::CheckRail))
+            return;
+        const Line &line = plan.rails[other].line;
+        const float ratio = line.last().distance / std::max(1e-3f, plan.rails[rail].line.last().distance);
+        const float centre = noseDistance * ratio;
+        const float from = std::max(0.0f, centre - st.checkRailLength / 2);
+        const float to = std::min(line.last().distance, centre + st.checkRailLength / 2);
+        if(to - from < 1.0f)
+            return;
+        const int side = plan.rails[other].side;
+        Line check = stretchOf(line, from, to);
+        // Inward by the flangeway and a head; the ends 6 cm more over 0.6 m.
+        constexpr float Flare = 0.06f, FlareLength = 0.6f;
+        for(Point &p : check){
+            const float d = std::min(p.distance, check.last().distance - p.distance);
+            const float shift = w + f + (d < FlareLength ? Flare * (1 - d / FlareLength) : 0.0f);
+            const auto n = inward(side, p.heading);
+            p.x += n.first * shift;
+            p.z += n.second * shift;
+        }
+        addPiece(RailPiece::Kind::CheckRail, path, side, check);
+    };
+    for(int ra = firstRail; ra < lastRail; ra++)
+        for(int rb = ra + 1; rb < lastRail; rb++){
+            const RailLine &A = plan.rails[ra];
+            const RailLine &B = plan.rails[rb];
+            if(A.path == B.path || !drawn.contains(ra) || !drawn.contains(rb))
+                continue;
+            for(int k = 0; k + 1 < A.line.size(); k++)
+                for(int m = 0; m + 1 < B.line.size(); m++){
+                    const Point &a0 = A.line[k], &a1 = A.line[k + 1];
+                    const Point &b0 = B.line[m], &b1 = B.line[m + 1];
+                    const float rx = a1.x - a0.x, rz = a1.z - a0.z;
+                    const float sx = b1.x - b0.x, sz = b1.z - b0.z;
+                    const float den = rx * sz - rz * sx;
+                    if(std::abs(den) < 1e-9f)
+                        continue;
+                    const float qx = b0.x - a0.x, qz = b0.z - a0.z;
+                    const float t = (qx * sz - qz * sx) / den;
+                    const float u = (qx * rz - qz * rx) / den;
+                    if(t < 0 || t >= 1 || u < 0 || u >= 1)
+                        continue;
+                    const float hA = a0.heading + t * (a1.heading - a0.heading);
+                    const float hB = b0.heading + u * (b1.heading - b0.heading);
+                    const float alpha = undirected(hA, hB);
+                    if(alpha < ParallelRadians)
+                        continue;
+                    const float sA = a0.distance + t * (a1.distance - a0.distance);
+                    const float sB = b0.distance + u * (b1.distance - b0.distance);
+                    ComplexTrackPlan::Crossing crossing;
+                    crossing.position[0] = a0.x + t * rx;
+                    crossing.position[1] = a0.z + t * rz;
+                    crossing.angle = alpha * 180.0f / Pi;
+                    crossing.railA = ra;
+                    crossing.railB = rb;
+                    // The acute pair of half-lines (A+, B+) and the sector
+                    // between them: a nose where both gauge faces look out of
+                    // it, a throat where both look in, else obtuse.
+                    const float dAx = std::sin(hA), dAz = std::cos(hA);
+                    float dBx = std::sin(hB), dBz = std::cos(hB);
+                    const int signB = dAx * dBx + dAz * dBz >= 0 ? 1 : -1;
+                    dBx *= signB;
+                    dBz *= signB;
+                    const float mx = dAx + dBx, mz = dAz + dBz;
+                    auto cross = [](float ax, float az, float bx, float bz) { return ax * bz - az * bx; };
+                    const auto nA = inward(A.side, hA);
+                    const auto nB = inward(B.side, hB);
+                    const bool awayA = (cross(dAx, dAz, mx, mz) > 0) != (cross(dAx, dAz, nA.first, nA.second) > 0);
+                    const bool awayB = (cross(dBx, dBz, mx, mz) > 0) != (cross(dBx, dBz, nB.first, nB.second) > 0);
+                    if(awayA != awayB){
+                        crossing.obtuse = true;
+                        const float c = (w / 2 + f) / std::sin(alpha);
+                        cuts[ra].append(Range(sA - c, sA + c));
+                        cuts[rb].append(Range(sB - c, sB + c));
+                        plan.crossings.append(crossing);
+                        continue;
+                    }
+                    const int noseA = awayA ? 1 : -1;
+                    const int noseB = awayA ? signB : -signB;
+                    // The nose starts where its legs' heads touch; the rails
+                    // from the throat stop at the knuckle, a flangeway and a
+                    // head from the other leg, and go on as wing rails.
+                    const float dn = w / (2 * std::sin(alpha / 2));
+                    const float dk = (w + f) / std::sin(alpha);
+                    cuts[ra].append(Range(std::min(sA - noseA * dk, sA + noseA * dn), std::max(sA - noseA * dk, sA + noseA * dn)));
+                    cuts[rb].append(Range(std::min(sB - noseB * dk, sB + noseB * dn), std::max(sB - noseB * dk, sB + noseB * dn)));
+                    auto wing = [&](const RailLine &from, float sFrom, int noseFrom, float hOther, int noseOther,
+                            QPair<float, float> nOther) {
+                        const Point k0 = TrackShapeAnalysis::at(from.line, sFrom - noseFrom * dk);
+                        const float ox = noseOther * std::sin(hOther), oz = noseOther * std::cos(hOther);
+                        constexpr float WingLength = 1.5f, Flare = 0.08f, FlareLength = 0.8f;
+                        const float px = crossing.position[0] + nOther.first * (w + f);
+                        const float pz = crossing.position[1] + nOther.second * (w + f);
+                        const float ex = px + ox * (dn + WingLength), ez = pz + oz * (dn + WingLength);
+                        addPiece(RailPiece::Kind::Wing, from.path, from.side, polyline({
+                            {k0.x, k0.z}, {ex, ez},
+                            {ex + ox * FlareLength + nOther.first * Flare, ez + oz * FlareLength + nOther.second * Flare}}));
+                    };
+                    wing(A, sA, noseA, hB, noseB, nB);
+                    wing(B, sB, noseB, hA, noseA, nA);
+                    checkRail(ra, sA + noseA * dn / 2);
+                    checkRail(rb, sB + noseB * dn / 2);
+                    plan.crossings.append(crossing);
+                }
+        }
+
+    // The pieces: each drawn rail less its cuts; a blade near its toe beside
+    // its stock rail, narrowed to its tip (closed) or opened.
+    for(int r = firstRail; r < lastRail; r++){
+        if(!drawn.contains(r))
+            continue;
+        RailLine &rail = plan.rails[r];
+        rail.drawn = without(drawn[r], cuts.value(r), 0.05f);
+        Line line = rail.line;
+        QVector<float> scale;
+        RailPiece::Kind kind = RailPiece::Kind::Plain;
+        if(blades.contains(r)){
+            kind = RailPiece::Kind::Blade;
+            const Line &stock = plan.rails[blades[r].stock].line;
+            float heel = line.last().distance;
+            for(const Point &p : line)
+                if(distanceTo(p, stock) >= w){
+                    heel = p.distance;
+                    break;
+                }
+            const float tip = 0.2f * w;
+            scale.resize(line.size());
+            for(int k = 0; k < line.size(); k++){
+                Point &p = line[k];
+                scale[k] = 1.0f;
+                if(p.distance >= heel)
+                    continue;
+                const float sep = std::min(w, distanceTo(p, stock));
+                const float width = tip + (w - tip) * sep / w;
+                float shift = w / 2 + width / 2 - sep;
+                if(!blades[r].closed)
+                    shift += st.bladeOpening * (1 - p.distance / std::max(1e-3f, heel));
+                const auto n = inward(rail.side, p.heading);
+                p.x += n.first * shift;
+                p.z += n.second * shift;
+                scale[k] = width / w;
+            }
+        }
+        for(const Range &range : rail.drawn){
+            RailPiece piece;
+            piece.kind = kind;
+            piece.path = rail.path;
+            piece.side = rail.side;
+            piece.line = line;
+            piece.scale = scale;
+            piece.from = range.first;
+            piece.to = range.second;
+            plan.railPieces.append(piece);
+        }
+    }
+}
+
 }
 
 ComplexTrackPlan::Line ComplexTrackPlan::offsetLine(const Line &line, float offset) {
@@ -538,9 +850,7 @@ ComplexTrackPlan ComplexTrackPlan::make(const QVector<Path> &paths, const Settin
         planTies(plan, group);
         planBed(plan, group);
 
-        // The rail lines in the paths' order: where one lies on an earlier
-        // drawn one, it is left out (decision 22).
-        QVector<const Line*> drawnLines;
+        // The rail lines in the paths' order.
         const int firstRail = plan.rails.size();
         for(int i : group.reference.order)
             for(int side : {-1, 1}){
@@ -551,13 +861,8 @@ ComplexTrackPlan ComplexTrackPlan::make(const QVector<Path> &paths, const Settin
                 rail.line = offsetLine(paths[i].line, rail.offset);
                 plan.rails.append(rail);
             }
-        for(int r = firstRail; r < plan.rails.size(); r++){
-            RailLine &rail = plan.rails[r];
-            if(!lays(paths[rail.path], TrackProfileFilters::Rail))
-                continue;
-            rail.drawn = runs(rail.line, lyingOn(rail.line, drawnLines, headWidth), 0.05f);
-            drawnLines.append(&plan.rails[r].line);
-        }
+        // Phase 2: switches, frogs, check rails; the pieces to sweep.
+        planRails(plan, group, firstRail, headWidth);
 
         // Fasteners where a rail crosses a tie (one where two rails meet).
         for(int t = 0; t < group.ties.size(); t++){

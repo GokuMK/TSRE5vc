@@ -1387,6 +1387,11 @@ void ShapeViewerGLWidget::showGenerated(const QVector<OglObj*> &objects){
     eng = NULL;
 }
 
+void ShapeViewerGLWidget::setFrameBound(const float *bound){
+    std::copy(bound, bound + 6, generatedBound);
+    cameraInit = true;
+}
+
 void ShapeViewerGLWidget::showShape(ComplexShape *currentShape){
     if(currentShape == NULL)
         return;

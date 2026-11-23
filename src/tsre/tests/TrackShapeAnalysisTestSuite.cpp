@@ -581,25 +581,46 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                 "points: one group, four rail lines");
         if(plan.groups.size() == 1 && plan.rails.size() == 4){
             const ComplexTrackPlan::Group &group = plan.groups.first();
-            // The straight (the reference) keeps its rails whole; the
-            // diverging track's start where they are a rail head apart.
-            const ComplexTrackPlan::RailLine *straightLeft = nullptr, *divergingLeft = nullptr, *divergingRight = nullptr;
-            for(const ComplexTrackPlan::RailLine &rail : plan.rails){
-                if(rail.path == 1 && rail.side < 0)
-                    straightLeft = &rail;
-                if(rail.path == 0)
-                    (rail.side < 0 ? divergingLeft : divergingRight) = &rail;
+            // Phase 2: the outer rails are stock rails, drawn whole; the inner
+            // ones blades from the toe, the straight's closed against its stock
+            // rail (the main route: the reference here), the diverging one
+            // open; one 7 degree frog where the inner rails cross, its wing and
+            // check rails.
+            auto railOf = [&](int path, int side) {
+                for(int r = 0; r < plan.rails.size(); r++)
+                    if(plan.rails[r].path == path && plan.rails[r].side == side)
+                        return r;
+                return -1;
+            };
+            const int straightLeft = railOf(1, -1), straightRight = railOf(1, 1);
+            const int divergingLeft = railOf(0, -1), divergingRight = railOf(0, 1);
+            check(plan.rails[straightRight].drawn.size() == 1 && plan.rails[divergingLeft].drawn.size() == 1
+                    && near(plan.rails[divergingLeft].drawn.first().first, 0)
+                    && plan.rails[straightRight].drawn.first().second > 24.9f,
+                    "stock rails drawn whole");
+            check(plan.crossings.size() == 1 && !plan.crossings.first().obtuse
+                    && plan.crossings.first().angle > 6.5f && plan.crossings.first().angle < 7.5f,
+                    QString("one frog, 7 degrees (%1 crossings)").arg(plan.crossings.size()));
+            check(plan.rails[straightLeft].drawn.size() == 2 && plan.rails[divergingRight].drawn.size() == 2,
+                    "the inner rails cut at the frog: closure rail, then nose");
+            int wings = 0, checks = 0;
+            const ComplexTrackPlan::RailPiece *closed = nullptr, *open = nullptr;
+            for(const ComplexTrackPlan::RailPiece &piece : plan.railPieces){
+                wings += piece.kind == ComplexTrackPlan::RailPiece::Kind::Wing;
+                checks += piece.kind == ComplexTrackPlan::RailPiece::Kind::CheckRail;
+                if(piece.kind == ComplexTrackPlan::RailPiece::Kind::Blade && piece.from < 0.01f)
+                    (piece.path == 1 ? closed : open) = &piece;
             }
-            check(straightLeft != nullptr && straightLeft->drawn.size() == 1
-                    && near(straightLeft->drawn.first().first, 0) && straightLeft->drawn.first().second > 24.9f,
-                    "the straight's rails drawn whole");
-            check(divergingLeft != nullptr && divergingRight != nullptr
-                    && divergingLeft->drawn.size() == 1 && divergingRight->drawn.size() == 1
-                    && divergingLeft->drawn.first().first > 4.5f && divergingLeft->drawn.first().first < 6.0f
-                    && divergingRight->drawn.first().first > 4.5f && divergingRight->drawn.first().first < 6.0f,
-                    QString("the diverging rails left out where they lie on the straight's (from %1 and %2 m)")
-                        .arg(divergingLeft ? divergingLeft->drawn.value(0).first : -1)
-                        .arg(divergingRight ? divergingRight->drawn.value(0).first : -1));
+            check(wings == 2 && checks == 2, QString("two wing rails, two check rails (%1, %2)").arg(wings).arg(checks));
+            auto gap = [&](const ComplexTrackPlan::RailPiece *piece, int stock) {
+                const TrackShapeAnalysis::Point &a = piece->line.first();
+                const TrackShapeAnalysis::Point &b = plan.rails[stock].line.first();
+                return std::hypot(a.x - b.x, a.z - b.z);
+            };
+            check(closed != nullptr && open != nullptr && near(gap(closed, divergingLeft), 0.0432f, 0.002f)
+                    && near(gap(open, straightRight), 0.2032f, 0.002f) && near(closed->scale.first(), 0.2f, 0.01f),
+                    QString("blade tips: closed beside its stock rail, open 0.16 m off (%1, %2 m)")
+                        .arg(closed ? gap(closed, divergingLeft) : -1).arg(open ? gap(open, straightRight) : -1));
             int onFirst = 0;
             for(const ComplexTrackPlan::Fastener &fastener : group.fasteners)
                 onFirst += fastener.tie == 0;
@@ -781,7 +802,8 @@ int TsreTests::runTrackProfileFiltersSuite(bool verbose) {
                 "Profile ( DISABLED )");
         check(filters[1].profile == "PL_60E1_Tunnel" && filters[1].parts == Filters::AllParts
                 && filters[1].kinds == 0, "a plain filter: every part, any kind");
-        check(filters[3].parts == (Filters::Rail | Filters::ConductorRail | Filters::RackRail | Filters::Other),
+        check(filters[3].parts == (Filters::Rail | Filters::ConductorRail | Filters::RackRail | Filters::Other
+                                   | Filters::CheckRail),
                 "ExcludedParts ( Tie Fastener Bed )");
         const QVector<Filters::IncludedTrackShape> &included = filters[4].includedTrackShapes;
         check(included.size() == 4 && included[1].shape == "A1tPnt7_5dRgtSlip.s"

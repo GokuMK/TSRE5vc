@@ -42,6 +42,12 @@ public:
         float maxBearerLength = 4.8f;
         float maxSharedAngle = 60.0f;
         float conductorClearance = 0.2f;
+        // Phase 2 (design section 7): the flangeway beside noses, wing and
+        // check rails; an open blade's tip from its stock rail; a check
+        // rail's length.
+        float flangeway = 0.045f;
+        float bladeOpening = 0.16f;
+        float checkRailLength = 4.8f;
         // Where tracks part, each its own ties where they fit (decision 4).
         bool ownTies = true;
         // Steep crossings: the first track's ties lengthened under the
@@ -55,6 +61,8 @@ public:
     struct Path {
         Line line;
         unsigned parts = ~0u;
+        // The shape's MainRoute: its switch blades lie closed.
+        bool main = false;
     };
 
     struct Tie {
@@ -98,6 +106,43 @@ public:
         QVector<Range> drawn;
     };
 
+    // A stretch of rail to sweep (phase 2, design section 7): along its own
+    // line from `from` to `to`.
+    struct RailPiece {
+        enum class Kind {
+            // A running rail, a stock rail, a nose's leg.
+            Plain,
+            // A switch blade: near the toe beside its stock rail (closed,
+            // or open by bladeOpening), its section narrowed to the tip.
+            Blade,
+            // A frog's wing rail: from the knuckle beside the nose, flared.
+            Wing,
+            // Opposite a nose, inside the gauge by the flangeway, flared.
+            CheckRail
+        };
+        Kind kind = Kind::Plain;
+        int path = -1;
+        int side = 0;
+        Line line;
+        // The section's width factor at each point of line (blades); empty:
+        // the whole section.
+        QVector<float> scale;
+        float from = 0;
+        float to = 0;
+    };
+
+    // Where two paths' rails cross (phase 2): a common crossing (a frog:
+    // nose, wing rails, check rails) or an obtuse one (a diamond's middle:
+    // a flangeway gap in each rail for now).
+    struct Crossing {
+        float position[2] = {0, 0};
+        // Degrees between the rails.
+        float angle = 0;
+        bool obtuse = false;
+        int railA = -1;
+        int railB = -1;
+    };
+
     // One cross-section of a bed: at a point of its line, across to the
     // right of heading; the outermost tracks' centres at left and right
     // (signed distances along the cross-section).
@@ -127,8 +172,12 @@ public:
     // Paths in no group (drawn as plain track).
     QVector<int> independent;
     QVector<Group> groups;
-    // The running rails (both of every path in a group that lays Rail).
+    // The running rails' lines (both of every path in a group); drawn: the
+    // stretches without a crossing's cuts.
     QVector<RailLine> rails;
+    // What is swept: running and stock rails, blades, wing and check rails.
+    QVector<RailPiece> railPieces;
+    QVector<Crossing> crossings;
     QStringList notes;
 
     // The plan of paths (a shape's, with included shapes' after them).

@@ -2187,6 +2187,9 @@ struct ViewerItem {
     QVector<QPair<double, double>> sections;
     QString shape;
     QString filter;
+    // "focus": [x, z, radius]: frame that circle of the shape (shape space,
+    // metres) in place of the whole.
+    QVector<float> focus;
     // A shape's repaint and distance level (-1: as it comes).
     QString repaint;
     int level = -1;
@@ -2310,6 +2313,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         }
         item.shape = object.value("shape").toString();
         item.filter = object.value("filter").toString();
+        for (const QJsonValue &value : object.value("focus").toArray())
+            item.focus.push_back(float(value.toDouble()));
         item.repaint = object.value("repaint").toString();
         item.level = object.value("level").toInt(-1);
         item.fov = object.value("fov").toDouble(0.0);
@@ -2650,6 +2655,12 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             widget.setCamera(&shapeCamera);
             widget.setMode("rot");
             widget.showGenerated(objects);
+            if (item.focus.size() == 3) {
+                // Generated objects are in the renderer's space: x mirrored.
+                const float x = -item.focus[0], z = item.focus[1], r = item.focus[2];
+                const float bound[6] = {x + r, x - r, 0.5f, 0.0f, z + r, z - r};
+                widget.setFrameBound(bound);
+            }
             widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
             shown = !objects.isEmpty();
         } else if (item.type == "consist") {

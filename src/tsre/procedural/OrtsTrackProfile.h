@@ -55,7 +55,10 @@ struct OrtsProfileTemplate3D {
         // another track.
         ConductorRail,
         // The rack in the middle of the track, cut the same way.
-        RackRail
+        RackRail,
+        // Phase 2: a check rail opposite every crossing nose (a bridge's
+        // guard rails are ordinary profile items).
+        CheckRail
     };
     enum class ShapeSelectionMode {
         First,
@@ -99,14 +102,15 @@ struct OrtsProfileTemplate3D {
     float stretchZone[2] = {0, 0};
     bool valid = true;
 
-    // One of the COMPLEX member's parts (Rail to RackRail).
+    // One of the COMPLEX member's parts (Rail to CheckRail).
     bool complexPart() const {
         return generationMode == GenerationMode::Rail
                 || generationMode == GenerationMode::Tie
                 || generationMode == GenerationMode::Bearer
                 || generationMode == GenerationMode::Fastener
                 || generationMode == GenerationMode::ConductorRail
-                || generationMode == GenerationMode::RackRail;
+                || generationMode == GenerationMode::RackRail
+                || generationMode == GenerationMode::CheckRail;
     }
 };
 
@@ -171,6 +175,11 @@ struct OrtsProfileComplexTrack {
     // The least distance kept between a conductor or rack rail and another
     // track's running rails (decision 24).
     float conductorClearance = 0.2f;
+    // Phase 2: the flangeway beside noses, wing and check rails; an open
+    // switch blade's tip from its stock rail; a check rail's length.
+    float flangeway = 0.045f;
+    float bladeOpening = 0.16f;
+    float checkRailLength = 4.8f;
 };
 
 struct OrtsTrackProfile {

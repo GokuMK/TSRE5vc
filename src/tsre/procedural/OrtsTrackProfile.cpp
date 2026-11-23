@@ -137,6 +137,9 @@ void readComplexTrack(const StfNode &node, OrtsProfileComplexTrack &complexTrack
     complexTrack.maxBearerLength = floatValue(node, "MaxBearerLength", defaults.maxBearerLength);
     complexTrack.maxSharedAngle = degreesValue(node, "MaxSharedAngle", defaults.maxSharedAngle);
     complexTrack.conductorClearance = floatValue(node, "ConductorClearance", defaults.conductorClearance);
+    complexTrack.flangeway = floatValue(node, "Flangeway", defaults.flangeway);
+    complexTrack.bladeOpening = floatValue(node, "BladeOpening", defaults.bladeOpening);
+    complexTrack.checkRailLength = floatValue(node, "CheckRailLength", defaults.checkRailLength);
     auto keep = [&](float &value, float fallback, bool ok, const char *name) {
         if(ok)
             return;
@@ -151,9 +154,14 @@ void readComplexTrack(const StfNode &node, OrtsProfileComplexTrack &complexTrack
             complexTrack.maxSharedAngle > 0 && complexTrack.maxSharedAngle <= 90, "MaxSharedAngle");
     keep(complexTrack.conductorClearance, defaults.conductorClearance,
             complexTrack.conductorClearance >= 0, "ConductorClearance");
+    keep(complexTrack.flangeway, defaults.flangeway, complexTrack.flangeway > 0, "Flangeway");
+    keep(complexTrack.bladeOpening, defaults.bladeOpening, complexTrack.bladeOpening >= 0, "BladeOpening");
+    keep(complexTrack.checkRailLength, defaults.checkRailLength,
+            complexTrack.checkRailLength > 0, "CheckRailLength");
     for(const StfNode &item : node.children){
         static const QStringList known = {"TieSpacing", "TiePhase", "TieGap",
-            "MaxBearerLength", "MaxSharedAngle", "ConductorClearance"};
+            "MaxBearerLength", "MaxSharedAngle", "ConductorClearance",
+            "Flangeway", "BladeOpening", "CheckRailLength"};
         if(!known.contains(item.name, Qt::CaseInsensitive))
             diagnostics.append("ComplexTrack: unknown value " + item.name + " ignored");
     }
@@ -328,6 +336,8 @@ OrtsProfileTemplate3D::GenerationMode generationMode(const QString &value,
         return OrtsProfileTemplate3D::GenerationMode::ConductorRail;
     if(value.compare("RackRail", Qt::CaseInsensitive) == 0)
         return OrtsProfileTemplate3D::GenerationMode::RackRail;
+    if(value.compare("CheckRail", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::CheckRail;
     valid = false;
     return OrtsProfileTemplate3D::GenerationMode::Sweep;
 }

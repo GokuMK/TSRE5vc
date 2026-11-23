@@ -214,8 +214,8 @@ TrackProfileFilters (
   neither is given. Values, any case: `Rail`, `Tie` (a track's own ties and
   the shared bearers, whichever mesh), `Fastener`, `Bed` (the member's
   polylines), `ConductorRail`, `RackRail` (decision 24), `Other`
-  (anything else, such as a plain `Sweep` per path); later `GuardRail`,
-  `Blade`, `Nose`, `Buffer`. Unknown values are warned
+  (anything else, such as a plain `Sweep` per path), `CheckRail` (phase 2,
+  decision 33); later `Blade`, `Nose`, `Buffer`. Unknown values are warned
   about and ignored. Shapes drawn from `MAIN` or the side roles have no part
   names; there both are ignored with a warning. `ExcludedParts` suits pieces
   whose sleepers another shape lays: parts added later (blades, check
@@ -338,8 +338,10 @@ New `Template3D` generation modes, read only in `COMPLEX` members
   (section 7).
 - `RackRail` (decision 24): the rack in the middle of the track, swept or
   repeated along every path at `Offset`'s x (0), cut the same way.
-- Later (phase 2): `GuardRail` (check rail section), and optional `Blade`
-  and `Nose` meshes; without them both come from the rail section.
+- `CheckRail` (phase 2, decision 33): the check rail section, swept
+  opposite every crossing nose; without one the rail section. Later:
+  optional `Blade` and `Nose` meshes; without them both come from the rail
+  section (as now).
 - Later: `Buffer`, a buffer stop mesh placed at a path end that is a track
   database end node (the user: the profile names it). First steps draw
   buffer shapes as track only.
@@ -555,7 +557,7 @@ Phase 2, rails from the geometry (all of it name-free):
   the gauge by the flangeway, flared ends.
 
 The rail lines are split at these events and every piece is swept with the
-rail section (tapered or cut where needed), or with `GuardRail`, `Blade`,
+rail section (tapered or cut where needed), or with `CheckRail`, `Blade`,
 `Nose` meshes when the profile has them.
 
 Conductor and rack rails (phase 1, decision 24): each path's
@@ -705,7 +707,8 @@ Each step stops for the user's visual check before the next.
 | 2 shape analysis | checked by the user (2026-11-23) | `0e36300f` |
 | 3 `COMPLEX` parsing, first profiles | checked by the user (2026-11-23) | `0e36300f`, `eee62168`; assets-gen `b0ab7e5` |
 | 4 phase 1: ties, bearers, fasteners, bed, rails | checked by the user (2026-11-23) | `86274020`, `82a68097`; assets-gen `d8294f8` |
-| 5 one example per feature | built, waiting for the user's check | see step 5 below |
+| 5 one example per feature | built (2026-11-23) | `0c4400bc`; assets-gen `21a9e84` |
+| 6 phase 2: blades, frogs, check rails | built, waiting for the user's check | see step 6 below |
 
 Steps 1-3 (2026-11-23):
 
@@ -807,6 +810,43 @@ Step 5 (2026-11-23):
 - Checked in the Shape Viewer capture (assets-gen
   `checks/complex-examples.json`, `reports/complex-tracks/step5/`).
 
+Step 6, phase 2 (2026-11-23, the user's go the same day):
+
+- `ComplexTrackPlan` makes rail pieces (`RailPiece`: plain, blade, wing,
+  check rail) from the rail lines:
+  - Switches (two paths of a group starting together): of each pair of
+    rails lying on each other at the toe, the one that ends between the
+    tracks' centres is the blade, the other the stock rail, drawn whole.
+    A blade lies beside its stock rail up to where they are a head apart,
+    its section narrowed from 20 % at the tip; the main route's blades
+    (the shape's `MainRoute`, else the first path) closed, the others
+    open by `BladeOpening` (0.16 m) at the tip.
+  - Crossings of two paths' drawn rails, 3° or more: a common crossing
+    when the acute sector's gauge faces both look out (the nose) or both
+    in (the throat). The nose's legs start where their heads touch; the
+    rails from the throat stop at the knuckle, a head and `Flangeway`
+    (0.045 m) from the other leg, and go on as wing rails beside it to
+    1.5 m past the nose tip, flared 8 cm. A check rail opposite the nose
+    on the other rail of each track, inside by a head and the flangeway,
+    `CheckRailLength` (4.8 m) centred on the nose's first half, flared at
+    both ends. Otherwise an obtuse crossing (a diamond's middle): a gap of
+    a head and the flangeway each side in both rails.
+  - Rails lying on each other elsewhere (dual gauge) still drawn once.
+- `ComplexTrack` takes `Flangeway`, `BladeOpening`, `CheckRailLength`;
+  the `CheckRail` part and filter part name. assets-gen: the concrete
+  family's `COMPLEX` member has a UIC33-like check rail on chairs 3 cm
+  above the running rails (the one example; the wood family sweeps its
+  rail section).
+- Shape Viewer capture: `"focus": [x, z, radius]` frames part of a shape.
+  Checked (assets-gen `checks/complex-phase2.json`): 7.5° points (blades,
+  the frog, check rails), the 7.5° diamond (frogs at its ends, the middle
+  gaps), the scissors, 10° points.
+- Not yet: point rails and check rails at obtuse crossings; ends of cut
+  rails show the meshes' open insides (dark squares: end faces later);
+  wing and check rails reach past a shape's end into the next piece (as
+  on real track) without the next piece knowing; three-way points' third
+  blade; blades from the junction's state; `Blade`/`Nose` meshes.
+
 ## Acceptance
 
 - PRUDNIK in `Forced` with a filter file: its DB track procedural apart
@@ -830,7 +870,7 @@ Step 5 (2026-11-23):
    cannot be skipped). A route that wants the guess leaves those shapes out
    of its filters; a catch-all filter turns the guess off.
 3. New `GenerationMode` values (`Rail`, `Tie`, `Bearer`, `Fastener`, later
-   `GuardRail`).
+   `GuardRail`; named `CheckRail` by decision 33).
 4. Where tracks diverge: shared bearers while they are close, then each
    track its own ties square to itself (the prototype's rule, way a of
    three shown). Later perhaps a choice in `trackprofiles.dat`: ties never
@@ -917,6 +957,14 @@ Step 5 (2026-11-23):
     only after phase 2, which may still find the format lacking. The test
     route was dropped as well (the Shape Viewer capture draws any tsection
     shape; PRUDNIK covers placed objects); say if one is wanted.
+
+33. The phase-2 part is `CheckRail` (opposite crossing noses, placed by the
+    crossing's geometry); `GuardRail` stays the name for bridge guard
+    rails, which run the whole path (ordinary profile items on plain
+    track; a `COMPLEX` part, cut like conductor rails, only if a bridge
+    family ever needs one). The user: one name if they were the same,
+    two as they differ (2026-11-23). One example asset: the concrete
+    family's check rail.
 
 ## Open questions
 

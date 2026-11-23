@@ -84,6 +84,9 @@ public:
     // and the profile captures) in place of a shape: the view owns them,
     // each part at its distance-based level of detail, framed as a shape.
     void showGenerated(const QVector<OglObj*> &objects);
+    // Frames these bounds (maxX, minX, maxY, minY, maxZ, minZ) in place of
+    // the generated objects' (a part of them close up).
+    void setFrameBound(const float *bound);
     void setBackgroundGlColor(float r, float g, float b);
     // Smoke and steam in its view (task shapes 15): the standalone Shape
     // Viewer's main view only (the particles are one system, the main

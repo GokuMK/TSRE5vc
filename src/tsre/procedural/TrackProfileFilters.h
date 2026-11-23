@@ -44,10 +44,12 @@ public:
         Bed = 8,
         ConductorRail = 16,
         RackRail = 32,
-        Other = 64
+        Other = 64,
+        // Phase 2: opposite every crossing nose.
+        CheckRail = 128
     };
     static constexpr unsigned AllParts = Rail | Tie | Fastener | Bed
-            | ConductorRail | RackRail | Other;
+            | ConductorRail | RackRail | Other | CheckRail;
     // What an included track shape gives by default: no rails of any kind,
     // which stay with the junction object that owns them (decision 12).
     static constexpr unsigned DefaultIncludedTrackShapeParts = Tie | Fastener | Bed | Other;

@@ -1388,10 +1388,25 @@ void appendTie(QVector<float> &target, const ObjFile &mesh, const OrtsProfileTem
     }
 }
 
+// A width factor along a line, from its points' values (none: 1).
+float scaleAt(const ComplexTrackPlan::Line &line, const QVector<float> &scale, float distance) {
+    if(scale.size() != line.size() || scale.isEmpty())
+        return 1.0f;
+    for(int i = 1; i < line.size(); i++)
+        if(line[i].distance >= distance){
+            const float span = std::max(1e-6f, line[i].distance - line[i - 1].distance);
+            const float t = std::clamp((distance - line[i - 1].distance) / span, 0.0f, 1.0f);
+            return scale[i - 1] + t * (scale[i] - scale[i - 1]);
+        }
+    return scale.last();
+}
+
 // A swept mesh (the Rail part, a conductor or rack rail) along a line
-// between two distances, one mesh's depth at a time, as Sweep does.
+// between two distances, one mesh's depth at a time, as Sweep does; its
+// x narrowed by `scale` (a switch blade's).
 void appendSwept(QVector<float> &target, const ObjFile &mesh, const ComplexTrackPlan::Line &line,
-        float from, float to, const float *sourceOffset, float alpha) {
+        float from, float to, const float *sourceOffset, float alpha,
+        const QVector<float> &scale = QVector<float>()) {
     const MeshExtent extent = meshExtent(mesh);
     const float depth = extent.maxZ - extent.minZ;
     if(depth <= 1e-6f || to - from <= 1e-6f)
@@ -1404,7 +1419,10 @@ void appendSwept(QVector<float> &target, const ObjFile &mesh, const ComplexTrack
             const float fraction = (extent.maxZ - vertex[2]) / depth;
             const float distance = start + fraction * (end - start);
             const TrackShapeAnalysis::Point p = TrackShapeAnalysis::at(line, distance);
-            GeneratedVertex placed = transformTemplateVertex(vertex,
+            float narrowed[8];
+            std::copy(vertex, vertex + 8, narrowed);
+            narrowed[0] *= scaleAt(line, scale, distance);
+            GeneratedVertex placed = transformTemplateVertex(narrowed,
                     complexFrame(p.x, p.z, p.heading, distance), offset, alpha, false, true);
             placed.values[7] = mesh.texYmin + (mesh.texYmax - mesh.texYmin) * distance;
             appendVertex(target, placed);
@@ -1473,6 +1491,9 @@ ComplexTrackPlan::Settings OrtsTrackProfileRenderer::complexSettings(
     settings.maxBearerLength = member.complexTrack.maxBearerLength;
     settings.maxSharedAngle = member.complexTrack.maxSharedAngle;
     settings.conductorClearance = member.complexTrack.conductorClearance;
+    settings.flangeway = member.complexTrack.flangeway;
+    settings.bladeOpening = member.complexTrack.bladeOpening;
+    settings.checkRailLength = member.complexTrack.checkRailLength;
     if(const OrtsProfileTemplate3D *rail = firstTemplate(member, OrtsProfileTemplate3D::GenerationMode::Rail))
         settings.railOffset = rail->offset[0];
     if(const OrtsProfileTemplate3D *tie = firstTemplate(member, OrtsProfileTemplate3D::GenerationMode::Tie)){
@@ -1498,9 +1519,14 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
         // Bearers by the Bearer mesh where this LOD has one, else the Tie
         // mesh stretched (decision 5).
         bool bearerMesh = false;
+        // Check rails by the CheckRail mesh where this LOD has one, else
+        // the rail section.
+        bool checkRailMesh = false;
         for(const OrtsProfileLodItem &item : lod.items)
-            for(const OrtsProfileTemplate3D &source : item.templates3D)
+            for(const OrtsProfileTemplate3D &source : item.templates3D){
                 bearerMesh = bearerMesh || source.generationMode == Mode::Bearer;
+                checkRailMesh = checkRailMesh || source.generationMode == Mode::CheckRail;
+            }
         for(const OrtsProfileLodItem &item : lod.items){
             OrtsGeneratedProfileMesh mesh;
             mesh.textureName = item.textureName;
@@ -1528,10 +1554,16 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
                     continue;
                 switch(source.generationMode){
                 case Mode::Rail:
-                    for(const ComplexTrackPlan::RailLine &rail : plan.rails)
-                        for(const ComplexTrackPlan::Range &range : rail.drawn)
-                            appendSwept(mesh.vertices, *part, rail.line, range.first, range.second,
-                                    source.offset, alpha);
+                case Mode::CheckRail:
+                    // Running and stock rails, blades, wing rails; check
+                    // rails here without a CheckRail mesh.
+                    for(const ComplexTrackPlan::RailPiece &piece : plan.railPieces){
+                        const bool check = piece.kind == ComplexTrackPlan::RailPiece::Kind::CheckRail;
+                        if(source.generationMode == Mode::CheckRail ? !check : (check && checkRailMesh))
+                            continue;
+                        appendSwept(mesh.vertices, *part, piece.line, piece.from, piece.to,
+                                source.offset, alpha, piece.scale);
+                    }
                     break;
                 case Mode::ConductorRail:
                 case Mode::RackRail: {

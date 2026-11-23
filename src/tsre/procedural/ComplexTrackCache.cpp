@@ -69,6 +69,7 @@ QVector<ComplexTrackPlan::Path> ComplexTrackCache::paths(const TrackShape &shape
         if(path.line.size() < 2)
             return {};
         path.parts = filter != nullptr ? filter->parts : TrackProfileFilters::AllParts;
+        path.main = i == shape.mainroute;
         result.append(path);
     }
     if(filter == nullptr)
