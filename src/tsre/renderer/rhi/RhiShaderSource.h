@@ -60,6 +60,9 @@ constexpr int CabShadowBinding = 41;
 // The dynamic shadow maps, near, middle and far (task 48): 42 to 44, what
 // moves beside the static maps (shadow0, shadow1, shadow2: the caches).
 constexpr int DynamicShadowBinding = 42;
+// The trains passing through the cab's or car's map's column (task renderer
+// 50, TARGET_SHADOW_PASSING).
+constexpr int PassingShadowBinding = 45;
 // MSTS night textures (task 35), as OpenGL binds them.
 constexpr int NightTextureBinding = NightTextures::TextureUnit;
 

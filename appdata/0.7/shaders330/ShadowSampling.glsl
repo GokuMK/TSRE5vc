@@ -210,17 +210,39 @@ uniform sampler2DShadow dynamicShadow0;
 uniform sampler2DShadow dynamicShadow1;
 uniform sampler2DShadow dynamicShadow2;
 uniform vec3 dynamicShadowBias;
+// Where each dynamic map holds something (32 x 32 cells over its square, a
+// bit a cell, near, middle, far: RhiRenderer::markDynamicCells): its taps
+// elsewhere are skipped (an empty map's everywhere).
+uniform uvec4 dynamicShadowCells[24];
+bool dynamicCell(int map, vec2 uv) {
+    ivec2 c = ivec2(clamp(uv, 0.0, 0.99999)*32.0);
+    int bit = c.y*32 + c.x;
+    int word = bit >> 5;
+    uvec4 v = dynamicShadowCells[map*8 + (word >> 2)];
+    int lane = word & 3;
+    uint w = lane == 0 ? v.x : lane == 1 ? v.y : lane == 2 ? v.z : v.w;
+    return ((w >> uint(bit & 31)) & 1u) != 0u;
+}
 #endif
-// The cab's sun shadow map (TARGET_SHADOW_CAB, while the view rides a cab):
-// its weight (x: 0 off, fading in to 1), normal offset (y, m, the vertex
-// shader's), depth bias (z, its depth units) and tap spread (w, its UV).
-// Fine texels moving with the train: its own frames and pillars do not
-// crawl over the near map's grid.
+// The cab's sun shadow map (TARGET_SHADOW_CAB, while the view rides a cab;
+// a car's, four times as wide as high, while the camera is in one: task
+// renderer 49): its weight (x: 0 off, fading in to 1), normal offset (y, m,
+// the vertex shader's), depth bias (z, its depth units) and tap spread (w, its
+// UV across). Fine texels moving with the train: its own frames and pillars
+// do not crawl over the near map's grid.
 uniform sampler2DShadow cabShadowMap;
 uniform vec4 cabShadowParams;
+// The cab's or car's map holding the train alone, drawn when its cache asks
+// (task renderer 50): inside its box the world's shadows come from the
+// static maps (x 1), and trains passing through its column from a small map
+// of their own (cabPassingMap, y 1 while one passes; z, w a texel in its
+// UV). x 0: the map holds everything in its column, as before.
+uniform sampler2DShadow cabPassingMap;
+uniform vec4 cabShadowWorld;
 // Its filter (RouteEditorGLWidget's cab tuning): the kernel (0 the 16-point
 // disc of cabShadowParams.w; 3, 5 or 7 a tent over so many texels), a texel
-// in its UV, the per-tap receiver-plane correction (1 on, 0 off).
+// in its UV across (y) and up (w; 0: as across), the per-tap receiver-plane
+// correction (1 on, 0 off).
 uniform vec4 cabShadowFilter;
 
 // A tap of the cab map at uv: a filtered 2 x 2 comparison, its depth moved
@@ -234,7 +256,7 @@ float cabTap(vec2 uv, vec3 c, float depth, vec2 gradient, float limit) {
 // is the tent's, even over whole texels: an edge moving a fraction of a
 // texel changes the result gently, no steps.
 float cabTentLit(vec3 c, float depth, vec2 gradient, float limit) {
-    float texel = cabShadowFilter.y;
+    vec2 texel = vec2(cabShadowFilter.y, cabShadowFilter.w > 0.0 ? cabShadowFilter.w : cabShadowFilter.y);
     vec2 uv = c.xy/texel;
     vec2 base = floor(uv + 0.5);
     float s = uv.x + 0.5 - base.x;
@@ -242,6 +264,10 @@ float cabTentLit(vec3 c, float depth, vec2 gradient, float limit) {
     base = (base - 0.5)*texel;
     float sum = 0.0;
     int kernel = int(cabShadowFilter.x + 0.5);
+    // One filtered 2 x 2 comparison (task renderer 50: a finer cached map's
+    // cheapest lookup).
+    if (kernel == 1)
+        return texture(cabShadowMap, vec3(c.xy, depth));
     if (kernel == 3) {
         vec2 uw = vec2(3.0 - 2.0*s, 1.0 + 2.0*s);
         vec2 u = vec2((2.0 - s)/uw.x - 1.0, s/uw.y + 1.0);
@@ -452,6 +478,68 @@ float lampScale(float enclosed) {
 }
 #endif
 
+// A near or middle map's filter tap i: the point moved by the disc's
+// offset, its depth along the receiver's plane.
+vec3 cascadeTap(vec3 pos, float res, float bias, vec2 gradient, float limit, int i) {
+    return vec3(pos.xy + poissonDisk[i]/res,
+            pos.z - bias + receiverPlaneBias(gradient, poissonDisk[i]/res, limit));
+}
+
+#ifdef TSRE_RHI
+// A near or middle map's 16 taps: the share in shadow in its static map
+// (occludedStatic) and, lit where both are, with its dynamic map's taps at
+// the same places (occluded; task 48), those only where dynamicTaps (its
+// cells); vegetation's every fourth (task 37). The test stands outside the
+// loops: an `if` round each dynamic tap in the one loop left the Deck
+// fetching them all (task renderer 50).
+void cascadeTaps(sampler2DShadow staticMap, sampler2DShadow dynamicMap, sampler2DShadow vegetationMap,
+        bool dynamicTaps, vec3 pos, float res, float bias, vec2 gradient, float limit, float dynamicBias,
+        float crown, out float occluded, out float occludedStatic, out float vegetation,
+        out float vegetationDeep) {
+    occluded = 0.0;
+    occludedStatic = 0.0;
+    vegetation = 0.0;
+    vegetationDeep = 0.0;
+#ifdef TSRE_SHADOW_CHEAP
+    // The environment cube's programs: one filtered tap of each map at the
+    // point (a 256 px face's texel is far wider than the filter).
+    vec3 tap = vec3(pos.xy, pos.z - bias);
+    float lit = texture(staticMap, tap);
+    occludedStatic = 1.0 - lit;
+    occluded = occludedStatic;
+    if (dynamicTaps)
+        occluded = 1.0 - lit*texture(dynamicMap, vec3(tap.xy, tap.z - dynamicBias));
+    if (vegetationShadowsOn != 0) {
+        vegetation = 1.0 - texture(vegetationMap, tap);
+        if (materialVegetation != 0 && vegetation > 0.0)
+            vegetationDeep = 1.0 - texture(vegetationMap, vec3(tap.xy, tap.z - crown));
+    }
+#else
+    if (dynamicTaps) {
+        for (int i = 0; i < 16; i++) {
+            vec3 tap = cascadeTap(pos, res, bias, gradient, limit, i);
+            float lit = texture(staticMap, tap);
+            occludedStatic += (1.0 - lit)/16.0;
+            occluded += (1.0 - lit*texture(dynamicMap, vec3(tap.xy, tap.z - dynamicBias)))/16.0;
+        }
+    } else {
+        for (int i = 0; i < 16; i++)
+            occludedStatic += (1.0 - texture(staticMap, cascadeTap(pos, res, bias, gradient, limit, i)))/16.0;
+        occluded = occludedStatic;
+    }
+    if (vegetationShadowsOn != 0) {
+        for (int i = 0; i < 16; i += 4) {
+            vec3 tap = cascadeTap(pos, res, bias, gradient, limit, i);
+            float leaves = 1.0 - texture(vegetationMap, tap);
+            vegetation += leaves/4.0;
+            if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
+                vegetationDeep += (1.0 - texture(vegetationMap, vec3(tap.xy, tap.z - crown)))/2.0;
+        }
+    }
+#endif
+}
+#endif
+
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
     // The shadow's contrast: the near and mid maps' sum reaches 1.6, the far
@@ -473,6 +561,13 @@ float shadowedVisibility(float cosTheta) {
     camdist2 = clamp(camdist2, 0, 1.0);
     vec4 shadow0Pos2 = shadow0Pos*0.5+0.5;
     float t0 = 1.0 - floor(clamp(length(shadow0Pos.xyz), 0, 1.0));
+#ifdef TSRE_SHADOW_CHEAP
+    // The cube's programs from the middle map on (task renderer 50): the
+    // near map's texels are far finer than a face's, and its lookups missed
+    // the cache most (the whole cube 0.7 to 1.1 ms less at a 2048 near map,
+    // 1.1 to 2.5 at 4096; the view's images the same).
+    t0 = 0.0;
+#endif
     float shadow0Res = shadow1Res*shadowMapScale.x;
     float shadowMidRes = shadow1Res*shadowMapScale.y;
     // Without normals keep the tuned bias.
@@ -490,6 +585,15 @@ float shadowedVisibility(float cosTheta) {
 #ifdef TSRE_RHI
     vec3 cab = cabShadowPos.xyz*0.5+0.5;
     vec2 gradientCab = receiverPlaneGradient(cab);
+    // The dynamic maps' taps where they hold something; not at all inside
+    // a cached cab's or car's box once faded in (the static maps' share
+    // and its own map make it there: task renderer 50).
+    vec2 cabEdge = abs(cab.xy - 0.5)*2.0;
+    bool cabWhole = cabShadowWorld.x > 0.5 && cabShadowParams.x >= 1.0 && max(cabEdge.x, cabEdge.y) <= 0.85
+            && cab.z >= 0.0 && cab.z <= 1.0;
+    bool dynamic0Taps = !cabWhole && dynamicCell(0, shadow0Pos2.xy);
+    bool dynamicMidTaps = !cabWhole && dynamicCell(1, shadowPos2.xy);
+    bool dynamic2Taps = !cabWhole && dynamicCell(2, shadow2Pos2.xy);
 #endif
     // Up to a slope of about 70 degrees across the filter.
     float limit0 = 3.0*shadowDepthBias.x;
@@ -506,79 +610,88 @@ float shadowedVisibility(float cosTheta) {
     // anyway), then the weight and contrast of the map the fragment uses.
     // One map per fragment: the weights are 0 or 1.
     float occluded = 0.0;
+#ifdef TSRE_RHI
+    // The static maps' share alone: the world inside the cab's or car's box
+    // while its map holds the train (task renderer 50).
+    float occludedStatic = 0.0;
+#endif
     float vegetation = 0.0;
     float vegetationDeep = 0.0;
     float weight = 0.0;
     float contrast = 0.0;
-#ifdef TSRE_RHI
-    bool vegetationMaps = vegetationShadowsOn != 0;
-#else
-    bool vegetationMaps = false;
-#endif
+    // The dynamic maps' taps in loops of their own, chosen outside them
+    // (cascadeTaps).
     if (t0 > 0.0) {
-        for (int i = 0; i < 16; i++) {
-            vec3 tap = vec3(shadow0Pos2.xy + poissonDisk[i]/shadow0Res,
-                    shadow0Pos2.z - bias0 + receiverPlaneBias(gradient0, poissonDisk[i]/shadow0Res, limit0));
-            float lit = texture(shadow0, tap);
 #ifdef TSRE_RHI
-            lit *= texture(dynamicShadow0, vec3(tap.xy, tap.z - dynamic0));
+        cascadeTaps(shadow0, dynamicShadow0, vegetationShadow0, dynamic0Taps, shadow0Pos2.xyz, shadow0Res,
+                bias0, gradient0, limit0, dynamic0, vegetationCrown.x, occluded, occludedStatic, vegetation,
+                vegetationDeep);
+#else
+        for (int i = 0; i < 16; i++)
+            occluded += (1.0 - texture(shadow0, cascadeTap(shadow0Pos2.xyz, shadow0Res, bias0, gradient0, limit0, i)))/16.0;
 #endif
-            occluded += (1.0 - lit)/16.0;
-#ifdef TSRE_RHI
-            if (vegetationMaps && (i & 3) == 0) {
-                float leaves = 1.0 - texture(vegetationShadow0, tap);
-                vegetation += leaves/4.0;
-                if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
-                    vegetationDeep += (1.0 - texture(vegetationShadow0,
-                            vec3(tap.xy, tap.z - vegetationCrown.x)))/2.0;
-            }
-#endif
-        }
         weight = t0;
         contrast = 16.0*shadowIntensity;
     } else if (t > 0.0) {
-        for (int i = 0; i < 16; i++) {
-            vec3 tap = vec3(shadowPos2.xy + poissonDisk[i]/shadowMidRes,
-                    shadowPos2.z - biasMid + receiverPlaneBias(gradientMid, poissonDisk[i]/shadowMidRes, limitMid));
-            float lit = texture(shadow1, tap);
 #ifdef TSRE_RHI
-            lit *= texture(dynamicShadow1, vec3(tap.xy, tap.z - dynamicMid));
+        cascadeTaps(shadow1, dynamicShadow1, vegetationShadow1, dynamicMidTaps, shadowPos2.xyz, shadowMidRes,
+                biasMid, gradientMid, limitMid, dynamicMid, vegetationCrown.y, occluded, occludedStatic,
+                vegetation, vegetationDeep);
+#else
+        for (int i = 0; i < 16; i++)
+            occluded += (1.0 - texture(shadow1, cascadeTap(shadowPos2.xyz, shadowMidRes, biasMid, gradientMid, limitMid, i)))/16.0;
 #endif
-            occluded += (1.0 - lit)/16.0;
-#ifdef TSRE_RHI
-            if (vegetationMaps && (i & 3) == 0) {
-                float leaves = 1.0 - texture(vegetationShadow1, tap);
-                vegetation += leaves/4.0;
-                if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
-                    vegetationDeep += (1.0 - texture(vegetationShadow1,
-                            vec3(tap.xy, tap.z - vegetationCrown.y)))/2.0;
-            }
-#endif
-        }
         weight = t;
         contrast = 16.0*shadowIntensity;
     } else {
-        for (int i = 0; i < 2; i++) {
-            vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
-            float lit = texture(shadow2, tap);
-#ifdef TSRE_RHI
-            lit *= texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
-#endif
-            occluded += (1.0 - lit)/2.0;
-#ifdef TSRE_RHI
-            if (vegetationMaps) {
+#if defined(TSRE_RHI) && defined(TSRE_SHADOW_CHEAP)
+        // The cube's programs: one tap of each map at the point.
+        vec3 tap = vec3(shadow2Pos2.xy, shadow2Pos2.z - bias2);
+        float lit = texture(shadow2, tap);
+        occludedStatic = 1.0 - lit;
+        occluded = occludedStatic;
+        if (dynamic2Taps)
+            occluded = 1.0 - lit*texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
+        if (vegetationShadowsOn != 0) {
+            vegetation = 1.0 - texture(vegetationShadow2, tap);
+            if (materialVegetation != 0 && vegetation > 0.0)
+                vegetationDeep = 1.0 - texture(vegetationShadow2, vec3(tap.xy, tap.z - vegetationCrown.z));
+        }
+#elif defined(TSRE_RHI)
+        if (dynamic2Taps) {
+            for (int i = 0; i < 2; i++) {
+                vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
+                float lit = texture(shadow2, tap);
+                occludedStatic += (1.0 - lit)/2.0;
+                occluded += (1.0 - lit*texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2)))/2.0;
+            }
+        } else {
+            for (int i = 0; i < 2; i++)
+                occludedStatic += (1.0 - texture(shadow2, vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res,
+                        shadow2Pos2.z - bias2)))/2.0;
+            occluded = occludedStatic;
+        }
+        if (vegetationShadowsOn != 0) {
+            for (int i = 0; i < 2; i++) {
+                vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
                 float leaves = 1.0 - texture(vegetationShadow2, tap);
                 vegetation += leaves/2.0;
                 if (materialVegetation != 0 && leaves > 0.0)
                     vegetationDeep += (1.0 - texture(vegetationShadow2,
                             vec3(tap.xy, tap.z - vegetationCrown.z)))/2.0;
             }
-#endif
         }
+#else
+        for (int i = 0; i < 2; i++)
+            occluded += (1.0 - texture(shadow2, vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res,
+                    shadow2Pos2.z - bias2)))/2.0;
+#endif
         weight = (1.0 - tMid)*t2;
         contrast = 2.0*farShadowIntensity;
     }
 #ifdef TSRE_RHI
+    // The world alone (the static maps), for the cab's or car's box below.
+    float visibilityWorld = visibility;
     if (materialVegetation != 0) {
         // Vegetation itself takes vegetation's maps as light passing its own
         // crown and its neighbours', whichever way a leaf faces: behind
@@ -594,11 +707,17 @@ float shadowedVisibility(float cosTheta) {
         float lost = vegetationCrown.w*(vegetation - deep) + vegetationSelfShadow*deep;
         visibility -= shadowsEnabled2*weight*contrast*occluded;
         visibility = max(visibility, 0.0)*(1.0 - shadowsEnabled2*weight*lost);
+        visibilityWorld -= shadowsEnabled2*weight*contrast*occludedStatic;
+        visibilityWorld = max(visibilityWorld, 0.0)*(1.0 - shadowsEnabled2*weight*lost);
     } else
 #endif
     {
         float shaded = occluded + vegetation - occluded*vegetation;
         visibility -= shadowsEnabled2*weight*contrast*shaded;
+#ifdef TSRE_RHI
+        float shadedWorld = occludedStatic + vegetation - occludedStatic*vegetation;
+        visibilityWorld -= shadowsEnabled2*weight*contrast*shadedWorld;
+#endif
     }
 #ifdef TSRE_RHI
     // In the cab's map's box: its lookup instead (everything in the column
@@ -611,18 +730,43 @@ float shadowedVisibility(float cosTheta) {
         if (inside > 0.0) {
             float cabBias = cabShadowParams.z;
             float occludedCab = 0.0;
+#ifdef TSRE_SHADOW_CHEAP
+            // The cube's programs: one filtered tap.
+            occludedCab = 1.0 - texture(cabShadowMap, vec3(cab.xy, cab.z - cabBias));
+#else
             if (cabShadowFilter.x > 0.5) {
                 occludedCab = 1.0 - cabTentLit(cab, cab.z - cabBias, gradientCab, 3.0*cabBias);
             } else {
                 for (int i = 0; i < 16; i++) {
-                    vec2 offset = poissonDisk[i]*cabShadowParams.w;
+                    vec2 offset = poissonDisk[i]*cabShadowParams.w
+                            *vec2(1.0, cabShadowFilter.w > 0.0 ? cabShadowFilter.w/cabShadowFilter.y : 1.0);
                     vec3 tap = vec3(cab.xy + offset, cab.z - cabBias
                             + cabShadowFilter.z*receiverPlaneBias(gradientCab, offset, 3.0*cabBias));
                     occludedCab += (1.0 - texture(cabShadowMap, tap))/16.0;
                 }
             }
+#endif
+            // Trains passing through the column (task renderer 50): four
+            // filtered taps of their small map (half the texels across, so
+            // twice the bias), a texel apart, while one passes.
+            if (cabShadowWorld.y > 0.5) {
+#ifdef TSRE_SHADOW_CHEAP
+                float occludedPassing = 1.0 - texture(cabPassingMap, vec3(cab.xy, cab.z - 2.0*cabBias));
+#else
+                float occludedPassing = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    vec2 offset = vec2(i == 1 || i == 3 ? 1.0 : -1.0, i >= 2 ? 1.0 : -1.0)*cabShadowWorld.zw;
+                    occludedPassing += (1.0 - texture(cabPassingMap, vec3(cab.xy + offset, cab.z - 2.0*cabBias)))/4.0;
+                }
+#endif
+                occludedCab = occludedCab + occludedPassing - occludedCab*occludedPassing;
+            }
             float cabVisibility = (1.0-enableNormals) + cosTheta*enableNormals
                     - shadowsEnabled2*16.0*shadowIntensity*occludedCab;
+            // The map holding the train alone: the world's shadows from the
+            // static maps (the dynamic ones hold the train's coarse copy).
+            if (cabShadowWorld.x > 0.5)
+                cabVisibility = min(cabVisibility, visibilityWorld);
             visibility = mix(visibility, cabVisibility, inside*cabShadowParams.x);
         }
     }

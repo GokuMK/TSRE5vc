@@ -124,6 +124,10 @@ public:
     // each frame), null for none: with its cab view, the camera inside a
     // car, whose lamps' ambient fills light (task renderer 46 C).
     static const Eng *viewerCar;
+    // The cars of the train the camera is in (its 3D cab ridden, the walking
+    // character in one of its cars), set by the view each frame: never
+    // standing (the static shadow maps leave them out; task renderer 50).
+    static std::vector<const Eng *> viewerTrain;
 
     int flip = flip;
     int loaded = -1;

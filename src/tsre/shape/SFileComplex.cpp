@@ -661,6 +661,7 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->emitterProblems.clear();
     d->extension = ShapeLod::Extension::Default;
     d->lightSchedule = ShapeLights::Schedule::Default;
+    d->selfLit = true;
     d->texturePath = d->textureRoot;
     if (readFile) {
         QString path = ContentPath::withExtension(d->path, "sd");
@@ -692,7 +693,8 @@ void SFileComplex::loadMetadata(bool readFile) {
     d->emitterProblems = std::move(read.emitterProblems);
     d->extension = read.extension;
     d->lightSchedule = read.lightSchedule;
-    d->texturePath += TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
+    d->selfLit = read.selfLit != ShapeLights::SelfLit::Off;
+    d->texturePath +=TerrainSeason::shapeTextureDirectory(d->alternative, Game::season);
     if (!readFile)
         releaseTextures();
 }

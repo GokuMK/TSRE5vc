@@ -275,7 +275,7 @@ void SFileComplex::pushRenderItem(RenderQueue &queue, quint32 selection, unsigne
             item->mesh.count = p.count;
             item->mesh.primitive = RenderItem::primitiveFromGl(p.mode);
             item->material.wireframe = false;
-            MstsMaterials::applyLight(*item, mat.light);
+            MstsMaterials::applyLight(*item, MstsMaterials::lightMaterial(mat.light, d->selfLit));
             // Same classes as the alpha written into the vertices.
             item->material.surface = mat.alpha == 1 ? RenderItem::SURFACE_OPAQUE
                     : mat.alphaTest ? RenderItem::SURFACE_ALPHA_TEST

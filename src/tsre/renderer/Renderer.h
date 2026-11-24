@@ -127,10 +127,32 @@ public:
     // when the renderer has one: fine texels moving with the train, so its
     // casters do not crawl over the near map's grid.
     virtual bool cabShadows() const { return false; }
-    // Its size in texels, 0 without: the near map's dynamic size (task 48:
-    // half the near map, 2048 at 4096, by default; the user, 2026-11-16),
-    // TSRE_CAB_SHADOW_SIZE over it.
+    // Its size in texels, 0 without: 2048 (task renderer 50; it followed the
+    // near map's dynamic size before), TSRE_CAB_SHADOW_SIZE over it.
     virtual int cabShadowSize() const { return 0; }
+    // The car's map instead, set each frame (task renderer 49: the camera
+    // in a car with the walking character): the same target and lookups,
+    // four times as wide as high, a car's length along it. Its size:
+    // cabShadowWidth() by cabShadowHeight() (the cab's square without).
+    virtual void setCarShadowMap(bool car) { (void)car; }
+    virtual int cabShadowWidth() const { return cabShadowSize(); }
+    virtual int cabShadowHeight() const { return cabShadowSize(); }
+    // The cab's or car's map holding the train alone, cached (task renderer
+    // 50): renderTrainShadowCasters draws the casters the train's cars own
+    // (`cars`) into the bound target; renderPassingShadowCasters draws the
+    // moving casters other trains own into TARGET_SHADOW_PASSING (half the
+    // cab map's texels each way), bound, cleared and drawn only when there
+    // are any, and returns how many it drew.
+    virtual bool cabShadowCache() const { return false; }
+    virtual void renderTrainShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                          const float *viewProjection) {
+        (void)cars; (void)range; (void)statsSlot; (void)viewProjection;
+    }
+    virtual int renderPassingShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                           const float *viewProjection) {
+        (void)cars; (void)range; (void)statsSlot; (void)viewProjection;
+        return 0;
+    }
     // Cached static shadow maps (task 37), when the renderer has them.
     // beginShadowCache binds the cache of a map (0 near, 1 middle, 2 far;
     // 3 to 5 vegetation's), cleared and at the static map's size, for its
@@ -483,7 +505,10 @@ public:
 
     // Render targets: the view's frame, one of the three shadow maps (the
     // dynamic ones with dynamicShadowMaps()), or the cab's (cabShadows()).
-    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR, TARGET_SHADOW_CAB};
+    // TARGET_SHADOW_PASSING: the trains passing through the cab's or car's
+    // map's column (task renderer 50).
+    enum Target {TARGET_VIEW = 0, TARGET_SHADOW_NEAR, TARGET_SHADOW_MID, TARGET_SHADOW_FAR, TARGET_SHADOW_CAB,
+                 TARGET_SHADOW_PASSING};
     // The surface whose frame TARGET_VIEW is.
     void setSurface(RenderSurface *surface) { viewSurface = surface; }
     // Creates the shadow maps the main program samples: near, middle and

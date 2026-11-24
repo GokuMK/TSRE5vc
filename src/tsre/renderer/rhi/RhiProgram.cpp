@@ -57,7 +57,7 @@ void reflect(RhiProgram &program) {
             // use bindings 2, 3 and 9, the dynamic ones 42 to 44 (task 48).
             if (sampler.name == "shadow0" || sampler.name == "shadow1" || sampler.name == "shadow2"
                     || sampler.name.startsWith("vegetationShadow") || sampler.name.startsWith("dynamicShadow")
-                    || sampler.name == "cabShadowMap")
+                    || sampler.name == "cabShadowMap" || sampler.name == "cabPassingMap")
                 entry.type = 3;
             samplers.insert(entry.binding, entry);
         }

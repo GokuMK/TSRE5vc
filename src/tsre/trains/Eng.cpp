@@ -1732,7 +1732,11 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
     // maps take it, to compare their shadows with the boxes'.
     static const qint64 standingMs = qEnvironmentVariableIsSet("TSRE_TRAIN_STANDING_MS")
             ? qEnvironmentVariableIntValue("TSRE_TRAIN_STANDING_MS") : StandingMs;
-    const bool standing = !staticOnTrack && cabViewpoint < 0 && now - placedSince >= standingMs;
+    // Never a car of the train the camera is in (task renderer 50): its own
+    // map holds it there, and the static maps' coarse copy would shadow its
+    // interior.
+    const bool standing = !staticOnTrack && cabViewpoint < 0 && now - placedSince >= standingMs
+            && std::find(viewerTrain.begin(), viewerTrain.end(), this) == viewerTrain.end();
     // What it draws in its own frame, for its lamps' maps there (task
     // renderer 46 C): not its place, bogies or wheels; its parts once they
     // rest.
@@ -1929,6 +1933,7 @@ void Eng::pushRenderItemBetween(RenderQueue &queue, const float *playerT, quint3
 }
 
 const Eng *Eng::viewerCar = nullptr;
+std::vector<const Eng *> Eng::viewerTrain;
 
 // Emitters farther from the camera give out nothing (m).
 static constexpr float ExhaustDistance = 2000.0f;

@@ -373,6 +373,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     // Read by RouteEditorGLWidget when it makes the maps.
     claim("core.rendering.shadow.middleMapSize", SettingType::Enum);
     claim("core.rendering.shadow.dynamicMapSize", SettingType::Enum);
+    // Kept by RouteEditorGLWidget as it changes (the cab's and car's filter).
+    claim("core.rendering.shadow.interiorQuality", SettingType::Enum);
     claim("core.rendering.shadow.distantMapSize", SettingType::Enum);
     if (appliesNow("core.rendering.shadow.distantMapSize")) {
         shadowLowMapSize = settings.runtimeInt("core.rendering.shadow.distantMapSize");

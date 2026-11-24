@@ -35,6 +35,9 @@ out vec4 lampDepth;
 #endif
 
 void main() {
+// Opaque casters (task renderer 49): no discard, so their depth is tested
+// and written before this shader runs (early depth).
+#ifndef TSRE_SHADOW_OPAQUE
         if(vTerrainGap > 0.0)
             discard;
       //color = vec4(1.0, 1.0, 0.5, 1.0);
@@ -44,6 +47,7 @@ void main() {
             if(color.a < alphaTest || (shadowAlphaDrop > 0.0 && color.a >= shadowAlphaDrop))
                 discard;
         }
+#endif
 #ifdef TSRE_LAMP_SHADOW
         lampDepth = vec4(1.0 - gl_FragCoord.z);
 #endif

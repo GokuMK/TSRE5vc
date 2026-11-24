@@ -286,6 +286,26 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", skinned});
     skinnedLampShadowProgram = int(definitions.size());
     definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", skinned + QStringList{"TSRE_LAMP_SHADOW"}});
+    // Opaque casters (task renderer 49): no discard.
+    const QStringList opaque{"TSRE_SHADOW_OPAQUE"};
+    opaqueShadowProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", opaque});
+    opaqueLampShadowProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", opaque + QStringList{"TSRE_LAMP_SHADOW"}});
+    // The environment cube's lit programs (task renderer 50): one filtered
+    // tap of each shadow map (programFor). Programs of their own: a branch
+    // in the main ones, never taken, made the ET22 cab's view 9 ms slower.
+    const QStringList cheap{"TSRE_SHADOW_CHEAP"};
+    cubeMainProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::MAIN, "StandardFog", mainFragment, cheap});
+    cubeTerrainProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::TERRAIN, "StandardFog", mainFragment, cheap + QStringList{"TSRE_TERRAIN"}});
+    cubePbrProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", cheap + QStringList{"TSRE_PBR"}});
+    cubeWaterProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::WATER, "StandardFog", "StandardFog", cheap + QStringList{"TSRE_WATER"}});
+    cubeSkinnedPbrProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", cheap + skinned + QStringList{"TSRE_PBR"}});
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -429,6 +449,11 @@ void RhiRenderer::releaseResources() {
         releaseAttachments(map);
     for (Attachments &cache : shadowCaches)
         releaseAttachments(cache);
+    carShadowMap.sharedPass = nullptr;
+    releaseAttachments(carShadowMap);
+    passingShadowMap.sharedPass = nullptr;
+    releaseAttachments(passingShadowMap);
+    releaseAttachments(cabShadowMap);
     delete uniformArena.buffer;
     uniformArena.buffer = nullptr;
     delete instanceArena.buffer;
@@ -476,20 +501,40 @@ RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass, bool movin
     if (baseProgram == PROGRAM_SHADOW) {
         if (skinned)
             return variant(lampShadowDrawing ? skinnedLampShadowProgram : skinnedShadowProgram);
+        // Opaque casters without the alpha test (task renderer 49): early
+        // depth, what lies behind them skipped. The shadow program's discard
+        // (the alpha test, the terrain's gaps) made every caster's depth
+        // late: the cab's and a coach's maps, layers of floors, seats and
+        // roofs, cost 3.0 and 1.1 ms of the Deck's GPU, about 2.1 and 0.7
+        // with these programs, drawn first (QueueRenderer::
+        // groupShadowCasters). Opaque as the view draws them (an opaque MSTS
+        // part whatever its texture's alpha; PBR's OPAQUE).
+        // TSRE_SHADOW_OPAQUE=0: as before.
+        static const bool opaqueCasters = qEnvironmentVariable("TSRE_SHADOW_OPAQUE") != "0";
+        if (opaqueCasters && item->drawSurface() == RenderItem::SURFACE_OPAQUE)
+            return variant(lampShadowDrawing ? opaqueLampShadowProgram : opaqueShadowProgram);
         return variant(lampShadowDrawing ? lampShadowProgram : int(RhiProgram::SHADOW));
     }
+    // The environment cube's faces: the lit programs reading the shadow maps
+    // with one filtered tap each (task renderer 50: a 256 px face's texel is
+    // far wider than the filters, which took 34 to 52 % of the cube's GPU
+    // time). TSRE_SHADOW_FILTER_CHEAP=0: the full filters there too; =view:
+    // the main view's static items too (for measuring).
+    static const QString cheapMode = qEnvironmentVariable("TSRE_SHADOW_FILTER_CHEAP");
+    const bool cheap = cheapMode == "view" ? !moving
+            : cheapMode != "0" && secondaryView && currentTarget == TargetEnvironment;
     if (skinned && !isUnlitPass(pass) && !usesTerrainProgram(item))
-        return variant(skinnedPbrProgram);
+        return variant(cheap ? cubeSkinnedPbrProgram : skinnedPbrProgram);
     if (usesTerrainProgram(item))
-        return variant(RhiProgram::TERRAIN);
+        return variant(cheap ? cubeTerrainProgram : int(RhiProgram::TERRAIN));
     // Moving instances write the velocity (task 38).
     if (isUnlitPass(pass))
         return variant(moving ? MovingUnlit : RhiProgram::UNLIT);
     if (item->pbr.enabled)
-        return variant(moving ? MovingPbr : RhiProgram::PBR);
+        return variant(cheap ? cubePbrProgram : moving ? int(MovingPbr) : int(RhiProgram::PBR));
     if (item->water.enabled)
-        return variant(RhiProgram::WATER);
-    return variant(moving ? MovingMain : RhiProgram::MAIN);
+        return variant(cheap ? cubeWaterProgram : int(RhiProgram::WATER));
+    return variant(cheap ? cubeMainProgram : moving ? int(MovingMain) : int(RhiProgram::MAIN));
 }
 
 // The values GLUU::setMatrixUniforms gives a program, from the GLUU fields.
@@ -560,6 +605,9 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
                     gluu->cabShadowParams[2], gluu->cabShadowParams[3]);
     program->setVec("cabShadowFilter", gluu->cabShadowFilter[0], gluu->cabShadowFilter[1],
                     gluu->cabShadowFilter[2], gluu->cabShadowFilter[3]);
+    program->setVec("cabShadowWorld", gluu->cabShadowWorld[0], gluu->cabShadowWorld[1],
+                    gluu->cabShadowWorld[2], gluu->cabShadowWorld[3]);
+    program->set("dynamicShadowCells", dynamicCells, int(sizeof(dynamicCells)));
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     // Sharper or softer textures (core.rendering.textureLodBias); with TAA
@@ -1816,12 +1864,12 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize, in
         shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
     }
-    // The cab's (16 MB at 2048): the near map's dynamic size.
+    // The cab's (16 MB at 2048): 2048 (cabShadowSize).
     const QSize cabSize(cabShadowSize(), cabShadowSize());
     if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
         createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
     cabShadowMap.openGlRows = true;
-    targets[TARGET_SHADOW_CAB].attachments = &cabShadowMap;
+    targets[TARGET_SHADOW_CAB].attachments = carShadow && carShadowMap.valid() ? &carShadowMap : &cabShadowMap;
 }
 
 int RhiRenderer::frameShadowMapSize(int map) const {
@@ -1865,16 +1913,101 @@ QRhiTexture *RhiRenderer::dynamicShadowDepth(int map) const {
     return shadowMaps[map].valid() ? shadowMaps[map].depth : dummyDepth;
 }
 
-// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else the near
-// map's dynamic size (task 48: 2048 at a 4096 near map with half-size
-// dynamic maps, the user's choice of 2026-11-16).
+// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else 2048
+// whatever the near map's size (task renderer 50, the user, 2026-11-24:
+// cached, it is drawn only when it changes; the setting Interior shadows
+// chooses its filter). It followed the near map's dynamic size before
+// (task 48: 2048 at a 4096 near map with half-size dynamic maps).
 int RhiRenderer::cabShadowSize() const {
     static const int forced = [] {
         bool ok = false;
         const int s = qEnvironmentVariable("TSRE_CAB_SHADOW_SIZE").toInt(&ok);
         return ok ? std::clamp(s, 512, 4096) : 0;
     }();
-    return forced > 0 ? forced : std::clamp(frameShadowMapSize(0), 512, 4096);
+    return forced > 0 ? forced : 2048;
+}
+
+// The car's map (task renderer 49): made the first time the camera is in a
+// car, made again when the cab's size changed; drawn with the cab map's
+// pipelines (the same depth format: compatible passes).
+void RhiRenderer::setCarShadowMap(bool car) {
+    carShadow = car;
+    if (car) {
+        const QSize size(cabShadowWidth(), cabShadowHeight());
+        if (!carShadowMap.valid() || carShadowMap.size != size) {
+            beginFrameIfNeeded();
+            // Its release leaves the cab's pipelines alone.
+            carShadowMap.sharedPass = nullptr;
+            if (!createAttachments(carShadowMap, QRhiTexture::UnknownFormat, size, {}))
+                carShadow = false;
+            carShadowMap.openGlRows = true;
+        }
+        carShadowMap.sharedPass = cabShadowMap.valid() ? cabShadowMap.passes[0] : nullptr;
+    }
+    targets[TARGET_SHADOW_CAB].attachments = carShadow ? &carShadowMap : &cabShadowMap;
+}
+
+// A car's map: TSRE_CAR_SHADOW_SIZE texels along (512 to 8192), a quarter
+// of that across; else twice as long as the cab's is wide, as many texels
+// as the cab's (4096 x 1024 at a 2048 cab map: 6 mm texels over a Bhp's
+// 24 m; the user, 2026-11-24: 2048 x 512 had a quarter of the cab's).
+// Its drawing is fill-bound (a coach's floors, seats and roofs over each
+// other): 4096 x 1024 cost 4.4 ms of the Deck's GPU, 2048 x 512 1.1 ms,
+// with the whole column every frame (task renderer 49); cached, only when
+// it is drawn again (task 50).
+static int carShadowLength(int cabSize) {
+    static const int forced = [] {
+        bool ok = false;
+        const int s = qEnvironmentVariable("TSRE_CAR_SHADOW_SIZE").toInt(&ok);
+        return ok ? std::clamp(s, 512, 8192) : 0;
+    }();
+    return forced > 0 ? forced : std::min(2 * cabSize, 8192);
+}
+
+// The cab's or car's map holding the train alone (task renderer 50): the
+// train's own casters into the bound target (the cab's), when its cache asks.
+void RhiRenderer::renderTrainShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                           const float *viewProjection) {
+    beginFrameIfNeeded();
+    if (!targetReady())
+        return;
+    planTrainCasters(cars, true, range, viewProjection);
+    recordCasters(statsSlot);
+}
+
+// The trains passing through its column: planned every frame, drawn into
+// their own small map only when there are any (none, nothing bound, cleared
+// or read). With the cab map's pipelines (a compatible pass).
+int RhiRenderer::renderPassingShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                            const float *viewProjection) {
+    beginFrameIfNeeded();
+    planTrainCasters(cars, false, range, viewProjection);
+    if (shadowCasters.empty())
+        return 0;
+    const QSize size(std::max(1, cabShadowWidth() / 2), std::max(1, cabShadowHeight() / 2));
+    if (!passingShadowMap.valid() || passingShadowMap.size != size) {
+        passingShadowMap.sharedPass = nullptr;
+        if (!createAttachments(passingShadowMap, QRhiTexture::UnknownFormat, size, {}))
+            return 0;
+        passingShadowMap.openGlRows = true;
+    }
+    passingShadowMap.sharedPass = cabShadowMap.valid() ? cabShadowMap.passes[0] : nullptr;
+    targets[TARGET_SHADOW_PASSING].attachments = &passingShadowMap;
+    bindTarget(TARGET_SHADOW_PASSING);
+    clear(true, true);
+    setViewport(0, 0, size.width(), size.height());
+    if (!targetReady())
+        return 0;
+    recordCasters(statsSlot);
+    return int(shadowCasters.size());
+}
+
+int RhiRenderer::cabShadowWidth() const {
+    return carShadow ? carShadowLength(cabShadowSize()) : cabShadowSize();
+}
+
+int RhiRenderer::cabShadowHeight() const {
+    return carShadow ? std::max(1, carShadowLength(cabShadowSize()) / 4) : cabShadowSize();
 }
 
 bool RhiRenderer::enclosureTarget(int which) const {
@@ -2887,10 +3020,19 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
         const int vegetation = binding - RhiShaderSource::VegetationShadowBinding;
         if (vegetation >= 0 && vegetation < 3 && shadows)
             texture = staticShadowDepth(3 + vegetation);
-        // The cab's, while the view rides a cab.
-        if (binding == RhiShaderSource::CabShadowBinding && cabShadowMap.valid() && Game::shadowsEnabled > 0
-                && gluu->cabShadowParams[0] > 0.0f)
-            texture = cabShadowMap.depth;
+        // The cab's, while the view rides a cab; a car's, while the camera
+        // is in one (task renderer 49).
+        if (binding == RhiShaderSource::CabShadowBinding && Game::shadowsEnabled > 0
+                && gluu->cabShadowParams[0] > 0.0f) {
+            const Attachments &map = carShadow ? carShadowMap : cabShadowMap;
+            if (map.valid())
+                texture = map.depth;
+        }
+        // The trains passing through its column, while one does (task
+        // renderer 50).
+        if (binding == RhiShaderSource::PassingShadowBinding && Game::shadowsEnabled > 0
+                && gluu->cabShadowParams[0] > 0.0f && gluu->cabShadowWorld[1] > 0.0f && passingShadowMap.valid())
+            texture = passingShadowMap.depth;
         break;
     }
     case 4:
@@ -3383,7 +3525,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && !item->material.blendInOrder && texelsOf(item) != TEXELS_OPAQUE;
     key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
-    key.casterBias = currentTarget == TARGET_SHADOW_CAB;
+    key.casterBias = currentTarget == TARGET_SHADOW_CAB || currentTarget == TARGET_SHADOW_PASSING;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
     // maps keep culling: unculled they cost 5-10 ms at the CMK station; the
@@ -3601,8 +3743,74 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
         return;
     // Casters in range and inside the light view, instanced by packet.
     planShadowCasters(range, viewProjection, false, 0.0f, casters, set, cover);
+    // The dynamic maps (task 48): where they hold something.
+    if (currentTarget >= TARGET_SHADOW_NEAR && currentTarget <= TARGET_SHADOW_FAR)
+        markDynamicCells(currentTarget - TARGET_SHADOW_NEAR, viewProjection);
     waitingDraws += quint64(plannedShapesWaiting);
     recordCasters(statsSlot);
+}
+
+// The cells of a dynamic map its planned casters cover: each caster's
+// bounding sphere in the map's square (its outline from the sun), 1.5 m
+// wider for the lit shaders' filter and normal offset. A caster without
+// bounds (an animated MSTS shape's moving parts: posed packets keep none)
+// marks UnboundedReach metres round its object's origin; none at all, or no
+// projection, sets them all.
+void RhiRenderer::markDynamicCells(int map, const float *viewProjection) {
+    static const bool cellsOn = qEnvironmentVariable("TSRE_DYNAMIC_SHADOW_CELLS") != "0";
+    // TSRE_DYNAMIC_SHADOW_CELLS_LOG=1: a map's casters and cells set, once a
+    // second.
+    static const bool cellsLog = qEnvironmentVariableIsSet("TSRE_DYNAMIC_SHADOW_CELLS_LOG");
+    constexpr float UnboundedReach = 50.0f;
+    quint32 *cells = dynamicCells[map];
+    constexpr int Words = DynamicCellsSide * DynamicCellsSide / 32;
+    std::fill(cells, cells + Words, 0u);
+    if (shadowCasters.empty())
+        return;
+    if (!cellsOn || viewProjection == nullptr) {
+        std::fill(cells, cells + Words, ~0u);
+        return;
+    }
+    const float *m = viewProjection;
+    // Clip x and y a metre along the world's axes: the rows' lengths.
+    const float scaleX = std::sqrt(m[0] * m[0] + m[4] * m[4] + m[8] * m[8]);
+    const float scaleY = std::sqrt(m[1] * m[1] + m[5] * m[5] + m[9] * m[9]);
+    constexpr float Margin = 1.5f;
+    int unbounded = 0;
+    for (const DrawInstance *instance : shadowCasters) {
+        float center[3];
+        float radius = 0.0f;
+        if (!instanceBounds(*instance, center, radius)) {
+            const float *w = instanceMatrix(instance->matrix);
+            std::copy(w + 12, w + 15, center);
+            radius = UnboundedReach;
+            ++unbounded;
+        }
+        const float x = m[0] * center[0] + m[4] * center[1] + m[8] * center[2] + m[12];
+        const float y = m[1] * center[0] + m[5] * center[1] + m[9] * center[2] + m[13];
+        const float rx = (radius + Margin) * scaleX, ry = (radius + Margin) * scaleY;
+        // Clip [-1, 1] to cells.
+        auto cell = [](float clip) {
+            return int(std::floor((clip * 0.5f + 0.5f) * float(DynamicCellsSide)));
+        };
+        const int x0 = std::max(0, cell(x - rx)), x1 = std::min(DynamicCellsSide - 1, cell(x + rx));
+        const int y0 = std::max(0, cell(y - ry)), y1 = std::min(DynamicCellsSide - 1, cell(y + ry));
+        for (int cy = y0; cy <= y1; ++cy)
+            for (int cx = x0; cx <= x1; ++cx) {
+                const int bit = cy * DynamicCellsSide + cx;
+                cells[bit >> 5] |= 1u << (bit & 31);
+            }
+    }
+    static QElapsedTimer every[3];
+    if (cellsLog && (!every[map].isValid() || every[map].elapsed() >= 1000)) {
+        every[map].start();
+        int set = 0;
+        for (int i = 0; i < Words; ++i)
+            set += qPopulationCount(cells[i]);
+        qInfo().noquote() << QString("Dynamic shadow cells: map %1, %2 casters (%3 without bounds), %4 of %5 cells")
+                                 .arg(map).arg(shadowCasters.size()).arg(unbounded).arg(set)
+                                 .arg(DynamicCellsSide * DynamicCellsSide);
+    }
 }
 
 void RhiRenderer::recordCasters(int statsSlot) {
@@ -3827,6 +4035,7 @@ const char *RhiRenderer::targetName(int which) const {
     case TARGET_SHADOW_MID: return "sun shadow middle";
     case TARGET_SHADOW_FAR: return "sun shadow far";
     case TARGET_SHADOW_CAB: return "sun shadow cab";
+    case TARGET_SHADOW_PASSING: return "sun shadow passing";
     case TargetEnclosure: return "enclosure";
     case TargetSelection: return "selection";
     case TargetEnvironment: return "environment";

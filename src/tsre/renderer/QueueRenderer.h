@@ -292,6 +292,11 @@ protected:
     // the car's parts as the view draws them (its cab's from the cab),
     // moving or standing, within its reach and view, into shadowCasters.
     void planOwnCasters(const void *car, const float *centre, float range, const float *viewProjection);
+    // The cab's or car's map holding the train alone (task renderer 50):
+    // the casters a train's cars own (own), or the moving casters of every
+    // other owner (other trains passing), in range of the camera and inside
+    // the light view, into shadowCasters.
+    void planTrainCasters(const std::vector<const void *> &cars, bool own, float range, const float *viewProjection);
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;
