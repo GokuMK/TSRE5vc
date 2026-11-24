@@ -118,17 +118,16 @@ scrollbarvertical sliderbar
     white-space: nowrap;
 }
 
-/* Three columns: routes, the route's runs, the run's details. */
+/* The route page (task explore 05): the routes, the chosen route. */
 .column
 {
     position: absolute;
     top: 24dp;
-    bottom: 92dp;
+    bottom: 24dp;
 }
 
-#routes-column { left: 2%; width: 20%; }
-#runs-column { left: 24%; width: 24%; }
-#details-column { left: 50%; right: 2%; top: 62dp; }
+#routes-column { left: 2%; width: 24%; }
+#route-column { left: 28%; right: 2%; }
 
 .list
 {
@@ -173,33 +172,28 @@ scrollbarvertical sliderbar
 /* Left from a route goes back to the menu's item. */
 #routes .item { nav-left: #explore; }
 
-#runs h3
-{
-    font-size: 15dp;
-    color: #8c8c8c;
-    margin: 14dp 0dp 4dp 10dp;
-}
-
-/* The details. */
-.route, .choices, .timetable
+#route-info
 {
     position: absolute;
-    top: 0dp;
-    bottom: 0dp;
+    top: 50dp;
+    bottom: 76dp;
     left: 0dp;
     right: 0dp;
-}
-
-.route, .choices
-{
     overflow-y: auto;
 }
 
-.route img
+/* The picture its own shape, as tall as leaves room for the text. */
+#route-info img
 {
     display: block;
-    width: 100%;
+    height: 400dp;
     margin-bottom: 14dp;
+}
+
+.facts
+{
+    color: #e0e0e0;
+    margin-bottom: 6dp;
 }
 
 .text
@@ -209,10 +203,109 @@ scrollbarvertical sliderbar
     margin-bottom: 10dp;
 }
 
+.text.lead
+{
+    color: #d0d0d0;
+}
+
 .hint
 {
     color: #8c8c8c;
     padding: 6dp 10dp;
+}
+
+/* The route's pages: greyed when it has none of them. */
+.page-buttons
+{
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    bottom: 0dp;
+    height: 58dp;
+    display: flex;
+}
+
+.page-button
+{
+    display: block;
+    flex: 1 1 0dp;
+    margin-right: 14dp;
+    padding: 12dp 16dp;
+    font-size: 22dp;
+    text-align: center;
+    color: #ffffff;
+    background-color: #ffffff0f;
+    border: 1dp #c4a48066;
+}
+
+.page-button:focus, .page-button:hover
+{
+    background-color: #c4a48040;
+    border-color: #c4a480;
+}
+
+.page-button .count
+{
+    margin-left: 10dp;
+    color: #c4a480;
+}
+
+.page-button.disabled
+{
+    color: #6c6c6c;
+    background-color: #ffffff06;
+    border-color: #ffffff20;
+    tab-index: none;
+    nav: none;
+    pointer-events: none;
+}
+
+.page-button.disabled .count
+{
+    color: #6c6c6c;
+}
+
+/* A run's page: its heading, the page, the bar under it. */
+.heading
+{
+    position: absolute;
+    left: 2%;
+    right: 2%;
+    top: 18dp;
+    height: 44dp;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+#back
+{
+    display: inline-block;
+    font-size: 24dp;
+    padding: 4dp 12dp;
+    color: #c8c8c8;
+    border: 1dp transparent;
+}
+
+#back:focus, #back:hover
+{
+    color: #ffffff;
+    border-color: #c4a480;
+}
+
+.heading .title
+{
+    font-size: 26dp;
+    color: #ffffff;
+    margin-left: 18dp;
+}
+
+.pagebox
+{
+    position: absolute;
+    left: 2%;
+    right: 2%;
+    top: 74dp;
+    bottom: 136dp;
 }
 
 .choice
@@ -220,7 +313,6 @@ scrollbarvertical sliderbar
     box-sizing: border-box;
     display: block;
     padding: 6dp 10dp;
-    margin-bottom: 6dp;
     color: #ffffff;
     background-color: #ffffff0a;
     border: 1dp #ffffff20;
@@ -237,73 +329,68 @@ scrollbarvertical sliderbar
 .label
 {
     display: inline-block;
-    width: 38%;
     color: #9a9a9a;
 }
 
-.fact
-{
-    padding: 4dp 11dp;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.pair
-{
-    display: block;
-}
-
-.pair .half
-{
-    display: inline-block;
-    width: 68%;
-}
-
-.pair .small
-{
-    display: inline-block;
-    width: 30%;
-    margin-left: 2%;
-    text-align: center;
-}
-
-.pair .fact
-{
-    box-sizing: border-box;
-}
-
-.pair .half .label
-{
-    width: 56%;
-}
-
-/* A timetable set: a filter, the trains' table, the day under it. */
+/* A row of tools over a list: its filter, toggles. */
 .tools
 {
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    top: 0dp;
     display: flex;
     align-items: center;
     height: 40dp;
 }
 
-.tools .label
+.tools button, .tools span
 {
-    width: auto;
-    margin-right: 8dp;
+    flex: 0 0 auto;
 }
 
-#filter
+.tools .label
+{
+    margin-right: 8dp;
+    white-space: nowrap;
+}
+
+.tools .label.gap
+{
+    margin-left: 22dp;
+}
+
+.set-name
+{
+    color: #ffffff;
+    white-space: nowrap;
+}
+
+.tools .choice.set
+{
+    flex: 0 1 auto;
+    max-width: 40%;
+}
+
+#filter, .filter
 {
     display: block;
-    width: 34%;
+    width: 30%;
     padding: 4dp 8dp;
     background-color: #ffffff12;
     border: 1dp #ffffff30;
     color: #ffffff;
 }
 
-#filter:focus
+#filter:focus, .filter:focus
 {
     border-color: #c4a480;
+}
+
+.filter
+{
+    flex: 1 1 0dp;
+    width: auto;
 }
 
 .toggle
@@ -313,6 +400,7 @@ scrollbarvertical sliderbar
     padding: 4dp 12dp;
     color: #9a9a9a;
     border: 1dp #ffffff30;
+    white-space: nowrap;
 }
 
 .toggle.on
@@ -326,41 +414,13 @@ scrollbarvertical sliderbar
     border-color: #c4a480;
 }
 
-/* Drive or Walk (task explore 04): the first row of a run's choices, the
-   start of a timetable's tools. */
-.modes
-{
-    margin-bottom: 8dp;
-}
-
-.modes #mode-drive, .toggle.first
-{
-    margin-left: 0dp;
-}
-
-.tools .label.gap
-{
-    margin-left: 22dp;
-}
-
-/* Walking a timetable: the station and the time under the table too. */
-.timetable.walking .rows
-{
-    bottom: 196dp;
-}
-
-.timetable.walking .under
-{
-    height: 188dp;
-}
-
-/* The head and each row a flex row of cells, the same widths: the head
-   as wide as a row beside the list's scroll bar, its cells as far in as a
-   row's (its border and padding). */
+/* A list's head and its rows: flex rows of cells, the same widths; the
+   head as wide as a row beside the list's scroll bar, its cells as far in
+   as a row's (its border and padding). */
 .table-head
 {
     position: absolute;
-    top: 50dp;
+    top: 48dp;
     left: 0dp;
     right: 12dp;
     height: 30dp;
@@ -376,7 +436,7 @@ scrollbarvertical sliderbar
     border-bottom: 2dp transparent;
 }
 
-.table-head .cell:focus, .table-head .cell:hover
+.table-head button.cell:focus, .table-head button.cell:hover
 {
     color: #ffffff;
 }
@@ -394,8 +454,7 @@ scrollbarvertical sliderbar
 
 .rows
 {
-    top: 84dp;
-    bottom: 104dp;
+    top: 82dp;
     font-size: 16dp;
 }
 
@@ -420,60 +479,278 @@ scrollbarvertical sliderbar
     text-align: left;
 }
 
-/* Each column's share of a row: a column not shown gives its share to
-   the others. Category, Number and Line only when the set has them, and
-   on wide views. */
-.wide { display: none; }
+/* The activities page: the list, the details beside it. */
+#activity-left
+{
+    position: absolute;
+    left: 0dp;
+    top: 0dp;
+    bottom: 0dp;
+    width: 37%;
+}
+
+#activity-left .table-head { top: 0dp; }
+#activity-left .rows { top: 34dp; }
+
+.c-act-name { flex: 3 1 0dp; }
+.c-act-difficulty { flex: 1.3 1 0dp; }
+.c-act-time { flex: 0.8 1 0dp; }
+
+#activity-details
+{
+    position: absolute;
+    left: 40%;
+    right: 0dp;
+    top: 0dp;
+    bottom: 0dp;
+    overflow-y: auto;
+    padding-right: 12dp;
+}
+
+#activity-details h3
+{
+    font-size: 24dp;
+    color: #ffffff;
+    margin-bottom: 6dp;
+}
+
+#activity-details h4
+{
+    font-size: 16dp;
+    color: #c4a480;
+    margin: 14dp 0dp 6dp 0dp;
+    border-bottom: 1dp #c4a48044;
+}
+
+.box
+{
+    padding: 8dp 12dp 2dp 12dp;
+    background-color: #ffffff08;
+    border: 1dp #ffffff18;
+}
+
+.fact-line
+{
+    color: #d0d0d0;
+    margin-bottom: 4dp;
+}
+
+.stops
+{
+    margin: 6dp 0dp 8dp 0dp;
+    font-size: 16dp;
+}
+
+.stop
+{
+    display: flex;
+    padding: 2dp 0dp;
+    color: #c8c8c8;
+}
+
+.stop.head
+{
+    color: #9a9a9a;
+    font-size: 15dp;
+}
+
+.c-stop-station { flex: 3 1 0dp; }
+.c-stop-time { flex: 1 1 0dp; }
+
+/* The timetables page: the table the page's width, the chosen train
+   under it. Category, Number and Line only when the set has them. */
 .c-name { flex: 3 1 0dp; }
-.c-start { flex: 1.1 1 0dp; }
+.c-start { flex: 1 1 0dp; }
+.c-end { flex: 1 1 0dp; }
 .c-from { flex: 2.4 1 0dp; }
 .c-to { flex: 2.4 1 0dp; }
 .c-category { flex: 1.2 1 0dp; }
 .c-number { flex: 1.3 1 0dp; }
 .c-line { flex: 1 1 0dp; }
 .c-engine { flex: 2.8 1 0dp; }
+.c-stops { flex: 0.8 1 0dp; }
 
-@media (min-aspect-ratio: 16/10)
+#timetable-page .rows
 {
-    .wide { display: block; }
+    bottom: 124dp;
 }
 
-.under
+#train-info
 {
     position: absolute;
     left: 0dp;
     right: 0dp;
     bottom: 0dp;
-    height: 96dp;
+    height: 116dp;
+    padding: 8dp 12dp;
+    box-sizing: border-box;
+    background-color: #ffffff08;
+    border: 1dp #ffffff18;
+    overflow: hidden;
+    font-size: 16dp;
 }
 
-/* Explore: greyed until the run is complete. */
-#bottom
+.info-line
+{
+    color: #c8c8c8;
+    white-space: nowrap;
+    overflow: hidden;
+    margin-bottom: 3dp;
+}
+
+.info-line.strong
+{
+    color: #ffffff;
+    font-size: 18dp;
+}
+
+.calls
+{
+    color: #d0d0d0;
+}
+
+/* Each call a box of its own: the line breaks between them. */
+.call
+{
+    display: inline-block;
+    margin-right: 16dp;
+    white-space: nowrap;
+}
+
+.call.pass
+{
+    color: #707070;
+}
+
+/* The explore page: a path and a train side by side, each a list with a
+   filter, the chosen one's note under it. */
+.half
+{
+    position: absolute;
+    top: 0dp;
+    bottom: 0dp;
+}
+
+#path-half { left: 0dp; width: 48%; }
+#consist-half { left: 52%; right: 0dp; }
+
+.half .rows
+{
+    bottom: 58dp;
+}
+
+.c-path { flex: 1 1 0dp; }
+.c-path-name { flex: 1 1 0dp; color: #8c8c8c; }
+.c-consist { flex: 1.6 1 0dp; }
+.c-consist-engine { flex: 1 1 0dp; }
+
+.list-note
+{
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    bottom: 0dp;
+    height: 50dp;
+    color: #b0b0b0;
+    font-size: 16dp;
+    overflow: hidden;
+}
+
+/* Exploring on foot with no train: the trains greyed. */
+.half.greyed
+{
+    opacity: 0.4;
+}
+
+.half.greyed button, .half.greyed input
+{
+    tab-index: none;
+    nav: none;
+    pointer-events: none;
+}
+
+/* The bar: two rows of choices, Start at the end. */
+#bar
 {
     position: absolute;
     left: 2%;
     right: 2%;
-    bottom: 22dp;
-    height: 52dp;
+    bottom: 18dp;
+    height: 104dp;
+}
+
+.bar-row
+{
+    display: flex;
+    align-items: center;
+    height: 46dp;
+    margin-bottom: 8dp;
+    white-space: nowrap;
+}
+
+/* Each item its own width (RmlUi's flex would shrink a button to
+   nothing); the status takes the rest; the station's name is cut when
+   long. */
+.bar-row button, .bar-row span
+{
+    flex: 0 0 auto;
+}
+
+.bar-row .choice
+{
+    margin-right: 6dp;
+}
+
+.bar-row .choice.wide
+{
+    flex: 0 1 auto;
+    min-width: 160dp;
+    max-width: 520dp;
+}
+
+.bar-label
+{
+    color: #9a9a9a;
+    margin: 0dp 8dp 0dp 22dp;
+}
+
+.bar-label.first
+{
+    margin-left: 0dp;
+}
+
+.bar-value
+{
+    color: #ffffff;
+}
+
+.bar-value.gap
+{
+    margin-left: 22dp;
+}
+
+#mode-drive
+{
+    margin-left: 0dp;
 }
 
 #status
 {
-    position: absolute;
-    left: 0dp;
-    right: 260dp;
-    bottom: 12dp;
+    display: block;
+    flex: 1 1 0dp;
+    min-width: 0dp;
+    margin: 0dp 14dp;
     color: #e0a080;
     font-size: 17dp;
+    white-space: normal;
+    overflow: hidden;
 }
 
 #go
 {
-    position: absolute;
-    right: 0dp;
-    bottom: 0dp;
+    display: block;
     font-size: 28dp;
-    padding: 8dp 40dp;
+    padding: 6dp 40dp;
     color: #ffffff;
     background-color: #2a5d8f;
     border: 1dp #5599ff66;
@@ -492,7 +769,7 @@ scrollbarvertical sliderbar
     border-color: #ffffff20;
 }
 
-/* A choice's values, over the details. */
+/* A choice's values, over the right of the window. */
 #picker
 {
     position: absolute;
@@ -500,7 +777,7 @@ scrollbarvertical sliderbar
     left: 50%;
     right: 2%;
     top: 24dp;
-    bottom: 92dp;
+    bottom: 136dp;
     padding: 14dp 16dp;
     background-color: #14171c;
     border: 1dp #c4a480;
@@ -522,11 +799,21 @@ scrollbarvertical sliderbar
 
 /* While it is open, the rest of the window is out of the keys' and the
    mouse's way. */
-.picking .column button, .picking .column input, .picking #bottom button
+.picking button, .picking input
 {
     tab-index: none;
     nav: none;
     pointer-events: none;
+}
+
+.picking #picker button
+{
+    tab-index: auto;
+    nav-up: auto;
+    nav-down: auto;
+    nav-left: auto;
+    nav-right: auto;
+    pointer-events: auto;
 }
 
 /* The game menu (Esc in a run): in the middle, over the run. */

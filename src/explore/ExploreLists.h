@@ -41,6 +41,12 @@ struct RouteInfo {
     // known.
     double latitude = 0.0;
     bool latitudeKnown = false;
+    // Its facts (task explore 05): kilometres or miles, electrified and
+    // its line's voltage (V, 0 none given), its speed limit (m/s).
+    bool metric = true;
+    bool electrified = false;
+    float lineVoltage = 0.0f;
+    float speedLimit = 0.0f;
 };
 // The game root's routes (a TRK in the folder, Game::checkRoute's rule),
 // sorted by name.
@@ -74,6 +80,9 @@ struct ActivityInfo {
         int departure = -1;
     };
     QVector<Stop> playerStops;
+    // Its other trains (its Traffic_Definition's services; task explore
+    // 05).
+    int traffic = 0;
 };
 // The route's activities (ACTIVITIES/*.act), those of another route (its
 // RouteID) left out, sorted by name.
@@ -115,6 +124,16 @@ struct TrainInfo {
         int passing = -1;
     };
     QVector<Time> times;
+    // Task explore 05: its #comment and #briefing cells, its consists (as
+    // written, '+' between them) and path; when it ends (its last call's
+    // arrival, else its time there; -1 none) and how many stops it makes
+    // (calls that are not passes).
+    QString comment;
+    QString briefing;
+    QString consist;
+    QString path;
+    int endTime = -1;
+    int stops = 0;
 };
 // A timetable set's trains, static ones left out, in the set's order; its
 // station rows' names into `stations` (each once, in order).
@@ -150,6 +169,8 @@ struct ConsistInfo {
     // and its name (the .eng's, else the file's).
     QString engine;
     QString engineName;
+    // Its cars, the engines with them (task explore 05).
+    int cars = 0;
 };
 // The game root's consists led by an engine that is there (Open Rails'
 // explore list), sorted by engine and name. Reads every consist and their

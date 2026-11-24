@@ -15,6 +15,7 @@
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QTemporaryDir>
+#include <QThreadPool>
 #include <algorithm>
 
 namespace {
@@ -81,6 +82,9 @@ int TsreTests::runExploreListsSuite(bool verbose) {
                        QString("EUROPE1's latitude from its TRK (%1)").arg(route->latitude));
             test.check(!route->loadingScreen.isEmpty() && QFileInfo(route->loadingScreen).isFile(),
                        "its loading screen found: " + route->loadingScreen);
+            // Its facts (task explore 05): miles, no wires, 46.94 m/s.
+            test.check(!route->metric && !route->electrified && std::abs(route->speedLimit - 46.9392f) < 0.01f,
+                       QString("EUROPE1's facts: miles, not electrified, %1 m/s").arg(route->speedLimit));
             timer.restart();
             const QVector<Explore::Lists::ActivityInfo> activities = Explore::Lists::activities(root, *route);
             qInfo().noquote() << QString("[tests:explore-lists] EUROPE1: %1 activities in %2 ms")
@@ -100,6 +104,8 @@ int TsreTests::runExploreListsSuite(bool verbose) {
                            QString("lclsrvce's values: %1, %2 s, season %3, weather %4, %5 min, %6 on %7")
                                    .arg(local->name).arg(local->startTime).arg(local->season).arg(local->weather)
                                    .arg(local->duration).arg(local->consist, local->path));
+            if (local != nullptr)
+                test.check(local->traffic == 12, QString("lclsrvce's other trains: %1 (12)").arg(local->traffic));
             QStringList names;
             for (const Explore::Lists::ActivityInfo &a : activities)
                 names << a.name;
@@ -159,6 +165,97 @@ int TsreTests::runExploreListsSuite(bool verbose) {
         test.check(countOf<Explore::Lists::ConsistInfo>(consists, [&root](const Explore::Lists::ConsistInfo &c) {
                        return c.engineName.isEmpty() || !ContentPath::readable(root + "/TRAINS/TRAINSET/" + c.engine);
                    }) == 0, "each one's engine there, named");
+        const Explore::Lists::ConsistInfo *scotsman = nullptr;
+        for (const Explore::Lists::ConsistInfo &c : consists)
+            if (c.file.compare("Scotsman.con", Qt::CaseInsensitive) == 0)
+                scotsman = &c;
+        test.check(scotsman != nullptr && scotsman->cars >= 11 && countOf<Explore::Lists::ConsistInfo>(
+                           consists, [](const Explore::Lists::ConsistInfo &c) { return c.cars < 1; }) == 0,
+                   QString("the consists' cars counted (Scotsman: %1)").arg(scotsman != nullptr ? scotsman->cars : -1));
+
+        // The pages through the window's model (task explore 05).
+        const QString folder = QDir::current().filePath(QString("appdata/") + Game::AppDataVersion + "/ui");
+        const bool started = Ui::Runtime::get() != nullptr || Ui::Runtime::start(folder);
+        NoRender render;
+        Rml::Context *context = started ? Rml::CreateContext("explore-pages", Rml::Vector2i(1920, 1080), &render) : nullptr;
+        test.check(context != nullptr, "RmlUi started");
+        if (context != nullptr && route != nullptr) {
+            const int files = QDir(root + "/ROUTES/EUROPE1/ACTIVITIES").entryList({"*.act"}, QDir::Files).size();
+            const Explore::Lists::RouteStations stations = Explore::Lists::routeStations(root, "EUROPE1");
+            const QVector<Explore::Lists::PathInfo> paths = Explore::Lists::playerPaths(root, "EUROPE1");
+            QTemporaryDir temporary;
+            Explore::Panel::setRememberedFile(temporary.filePath("explore.json"));
+            {
+                Explore::Panel panel(*context, root, "EUROPE1", [](const Explore::RunChoice &) {});
+                Rml::ElementDocument *document = nullptr;
+                {
+                    Script::State::Deadline deadline(Ui::Runtime::get()->lua());
+                    document = context->LoadDocument((folder + "/explore-menu.rml").toStdString());
+                }
+                panel.setDocument(document);
+                // Shown as the menu shows it.
+                if (document != nullptr) {
+                    document->Show();
+                    if (Rml::Element *window = document->GetElementById("explore-window"))
+                        window->SetClass("shown", true);
+                }
+                panel.open();
+                // The workers' lists: the route's stations, the consists.
+                const auto settleWorkers = [&] {
+                    QThreadPool::globalInstance()->waitForDone();
+                    panel.frame();
+                    context->Update();
+                };
+                settleWorkers();
+                test.check(panel.page() == "route" && panel.text("route-facts").contains(qtTrId("ui.explore.miles"))
+                                   && panel.text("route-counts").contains(
+                                           qtTrId("ui.explore.count.activities").arg(files))
+                                   && panel.text("route-counts").contains(
+                                           qtTrId("ui.explore.count.stations").arg(stations.names.size())),
+                           QString("the route page: %1; %2").arg(panel.text("route-facts"), panel.text("route-counts")));
+                test.check(!panel.openPage("timetable") && panel.page() == "route", "no timetables: no page of them");
+                test.check(panel.chooseRun("lclsrvce.act") && panel.page() == "activity" && panel.ready(),
+                           "Local Service's page, Start can be pressed");
+                settleWorkers();
+                const QString train = panel.text("activity-train");
+                test.check(panel.text("activity-facts").startsWith("09:00")
+                                   && panel.text("activity-traffic").contains("12")
+                                   && train.contains("Flying Scotsman") && panel.text("activity-path").contains("Carlisle"),
+                           QString("its details: %1; %2; %3; %4").arg(panel.text("activity-facts"), train,
+                                                                    panel.text("activity-path"),
+                                                                    panel.text("activity-traffic")));
+                test.check(panel.choice().kind == Explore::RunChoice::Kind::Activity
+                                   && panel.choice().file == "lclsrvce.act",
+                           "the run: Local Service");
+                test.check(panel.back() && panel.page() == "route" && !panel.back(), "back to the route page, once");
+                test.check(panel.openPage("explore") && panel.page() == "explore"
+                                   && panel.pathFiles().size() == int(paths.size()),
+                           QString("exploring: every player path (%1)").arg(panel.pathFiles().size()));
+                panel.setPathFilter("dent");
+                QStringList filtered = panel.pathFiles();
+                bool matches = !filtered.isEmpty() && filtered.size() < int(paths.size());
+                for (const Explore::Lists::PathInfo &p : paths)
+                    if (filtered.contains(p.file))
+                        matches = matches && (p.start + p.end + p.name + p.file).contains("dent", Qt::CaseInsensitive);
+                test.check(matches && filtered.contains("ShrtPass.pat"),
+                           QString("the paths' filter 'dent': %1").arg(filtered.join(", ")));
+                panel.setConsistFilter("scotsman");
+                const QStringList trainsShown = panel.consistFiles();
+                test.check(!trainsShown.isEmpty() && trainsShown.size() < consists.size()
+                                   && trainsShown.contains("Scotsman.con", Qt::CaseInsensitive),
+                           QString("the trains' filter 'scotsman': %1").arg(trainsShown.join(", ")));
+                const bool chosen = panel.choosePath("ShrtPass.pat") && panel.chooseConsist("Scotsman.con");
+                context->Update();
+                test.check(chosen && panel.ready()
+                                   && panel.text("consist-note").contains(qtTrId("ui.explore.cars").arg(scotsman != nullptr ? scotsman->cars : 0)),
+                           "a path and a train: Start can be pressed; " + panel.text("consist-note"));
+                if (document != nullptr)
+                    document->Close();
+                context->Update();
+            }
+            Explore::Panel::setRememberedFile(QString());
+            Rml::RemoveContext("explore-pages");
+        }
     }
 
     if (prudnik) {
@@ -238,6 +335,12 @@ int TsreTests::runExploreListsSuite(bool verbose) {
                 }
                 test.check(document != nullptr, "the menu's document binds the model");
                 panel.setDocument(document);
+                // Shown as the menu shows it.
+                if (document != nullptr) {
+                    document->Show();
+                    if (Rml::Element *window = document->GetElementById("explore-window"))
+                        window->SetClass("shown", true);
+                }
                 panel.open();
                 test.check(panel.routeNames().contains("PRUDNIK") && panel.chooseRun("PSK_2026.timetable_or"),
                            "PRUDNIK chosen first (the Load window's), PSK_2026 chosen");
@@ -306,6 +409,21 @@ int TsreTests::runExploreListsSuite(bool verbose) {
                     test.check(raszowa->from == "KK-Azoty" && raszowa->to == "Opole Gl",
                                QString("its first and last calls in time: %1 - %2 (the set's rows put KK-Azoty last)")
                                        .arg(raszowa->from, raszowa->to));
+                    // Task explore 05: its end, stops, comment, consist, path;
+                    // the page's line of its calls.
+                    test.check(raszowa->endTime == 6 * 3600 + 23 * 60 && raszowa->stops == 11
+                                       && raszowa->comment == "R 46403" && raszowa->consist == "PSK_PREG_EN57AL-1687"
+                                       && raszowa->path == "REG_Rac_KKIV8_OII4",
+                               QString("its end %1 s, %2 stops, '%3', %4 on %5")
+                                       .arg(raszowa->endTime).arg(raszowa->stops)
+                                       .arg(raszowa->comment, raszowa->consist, raszowa->path));
+                    context->Update();
+                    Rml::Element *callsLine = document != nullptr ? document->GetElementById("train-calls") : nullptr;
+                    test.check(panel.text("train-comment") == "R 46403" && panel.text("train-details").contains("PSK_PREG_EN57AL-1687")
+                                       && callsLine != nullptr && callsLine->GetNumChildren() >= raszowa->times.size(),
+                               QString("the chosen train under the table: %1; %2; %3 calls")
+                                       .arg(panel.text("train-comment"), panel.text("train-details"))
+                                       .arg(callsLine != nullptr ? callsLine->GetNumChildren() : -1));
                     const Explore::RunChoice walking = panel.choice();
                     test.check(walking.walk && walking.station.compare("Raszowa", Qt::CaseInsensitive) == 0
                                        && walking.train == "0518_R46403_R-KK-O" && there > 0 && walking.time == there - 300,

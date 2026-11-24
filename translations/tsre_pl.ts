@@ -17890,98 +17890,128 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Season</source>
         <translation>Pora roku</translation>
     </message>
-    <message id="ui.explore.start.time">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="219"/>
-        <source>Start time</source>
-        <translation>Godzina startu</translation>
-    </message>
-    <message id="ui.explore.duration">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="221"/>
-        <source>Duration</source>
-        <translation>Czas trwania</translation>
-    </message>
     <message id="ui.explore.difficulty">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="223"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="219"/>
         <source>Difficulty</source>
         <translation>Trudność</translation>
     </message>
     <message id="ui.explore.path">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="225"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="221"/>
         <source>Path</source>
         <translation>Ścieżka</translation>
     </message>
     <message id="ui.explore.filter">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="227"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="223"/>
         <source>Filter</source>
         <translation>Filtr</translation>
     </message>
     <message id="ui.explore.drivable.only">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="229"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="225"/>
         <source>Drivable only</source>
         <translation>Tylko do prowadzenia</translation>
     </message>
     <message id="ui.explore.train">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="231"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="227"/>
         <source>Train</source>
         <translation>Pociąg</translation>
     </message>
     <message id="ui.explore.starts">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="233"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="229"/>
         <source>Starts</source>
         <translation>Odjazd</translation>
     </message>
     <message id="ui.explore.from">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="235"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="231"/>
         <source>From</source>
         <translation>Z</translation>
     </message>
     <message id="ui.explore.to">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="237"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="233"/>
         <source>To</source>
         <translation>Do</translation>
     </message>
     <message id="ui.explore.category">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="239"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="235"/>
         <source>Category</source>
         <translation>Kategoria</translation>
     </message>
     <message id="ui.explore.number">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="241"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="237"/>
         <source>Number</source>
         <translation>Numer</translation>
     </message>
     <message id="ui.explore.line">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="243"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="239"/>
         <source>Line</source>
         <translation>Linia</translation>
     </message>
     <message id="ui.explore.engine">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="245"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="241"/>
         <source>Engine</source>
         <translation>Lokomotywa</translation>
     </message>
     <message id="ui.explore.drive">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="248"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="244"/>
         <source>Drive</source>
         <translation>Prowadź</translation>
     </message>
     <message id="ui.explore.walk">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="250"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="246"/>
         <source>Walk</source>
         <translation>Pieszo</translation>
     </message>
     <message id="ui.explore.reading.stations">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="252"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="248"/>
         <source>Reading the stations…</source>
         <translation>Wczytywanie stacji…</translation>
     </message>
+    <message id="ui.explore.start">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="251"/>
+        <source>Start</source>
+        <translation>Start</translation>
+    </message>
+    <message id="ui.explore.activity">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="253"/>
+        <source>Activity</source>
+        <translation>Scenariusz</translation>
+    </message>
+    <message id="ui.explore.briefing">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="255"/>
+        <source>Briefing</source>
+        <translation>Odprawa</translation>
+    </message>
+    <message id="ui.explore.your.train">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="257"/>
+        <source>Your train</source>
+        <translation>Twój pociąg</translation>
+    </message>
+    <message id="ui.explore.arrives">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="259"/>
+        <source>Arrives</source>
+        <translation>Przyjazd</translation>
+    </message>
+    <message id="ui.explore.departs">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="261"/>
+        <source>Departs</source>
+        <translation>Odjazd</translation>
+    </message>
+    <message id="ui.explore.ends">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="263"/>
+        <source>Ends</source>
+        <translation>Koniec</translation>
+    </message>
+    <message id="ui.explore.stops">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="265"/>
+        <source>Stops</source>
+        <translation>Postoje</translation>
+    </message>
     <message id="ui.explore.resume">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="254"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="275"/>
         <source>Resume</source>
         <translation>Wznów</translation>
     </message>
     <message id="ui.explore.main.menu">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="256"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="277"/>
         <source>Main menu</source>
         <translation>Menu główne</translation>
     </message>
@@ -19130,122 +19160,218 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Usiądź</translation>
     </message>
     <message id="ui.explore.season.spring">
-        <location filename="../src/explore/ExplorePanel.cpp" line="68"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="103"/>
         <source>Spring</source>
         <translation>Wiosna</translation>
     </message>
     <message id="ui.explore.season.summer">
-        <location filename="../src/explore/ExplorePanel.cpp" line="71"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="106"/>
         <source>Summer</source>
         <translation>Lato</translation>
     </message>
     <message id="ui.explore.season.autumn">
-        <location filename="../src/explore/ExplorePanel.cpp" line="74"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="109"/>
         <source>Autumn</source>
         <translation>Jesień</translation>
     </message>
     <message id="ui.explore.season.winter">
-        <location filename="../src/explore/ExplorePanel.cpp" line="77"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="112"/>
         <source>Winter</source>
         <translation>Zima</translation>
     </message>
     <message id="ui.explore.weather.clear">
-        <location filename="../src/explore/ExplorePanel.cpp" line="87"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="122"/>
         <source>Clear</source>
         <translation>Pogodnie</translation>
     </message>
     <message id="ui.explore.weather.snow">
-        <location filename="../src/explore/ExplorePanel.cpp" line="90"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="125"/>
         <source>Snow</source>
         <translation>Śnieg</translation>
     </message>
     <message id="ui.explore.weather.rain">
-        <location filename="../src/explore/ExplorePanel.cpp" line="93"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="128"/>
         <source>Rain</source>
         <translation>Deszcz</translation>
     </message>
     <message id="ui.explore.difficulty.easy">
-        <location filename="../src/explore/ExplorePanel.cpp" line="102"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="137"/>
         <source>Easy</source>
         <translation>Łatwy</translation>
     </message>
     <message id="ui.explore.difficulty.medium">
-        <location filename="../src/explore/ExplorePanel.cpp" line="105"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="140"/>
         <source>Medium</source>
         <translation>Średni</translation>
     </message>
     <message id="ui.explore.difficulty.hard">
-        <location filename="../src/explore/ExplorePanel.cpp" line="108"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="143"/>
         <source>Hard</source>
         <translation>Trudny</translation>
     </message>
+    <message id="ui.explore.minutes.only">
+        <location filename="../src/explore/ExplorePanel.cpp" line="154"/>
+        <source>%1 min</source>
+        <translation>%1 min</translation>
+    </message>
+    <message id="ui.explore.hours.minutes">
+        <location filename="../src/explore/ExplorePanel.cpp" line="156"/>
+        <source>%1 h %2 min</source>
+        <translation>%1 h %2 min</translation>
+    </message>
+    <message id="ui.explore.kilometres">
+        <location filename="../src/explore/ExplorePanel.cpp" line="178"/>
+        <source>Kilometres</source>
+        <translation>Kilometry</translation>
+    </message>
+    <message id="ui.explore.miles">
+        <location filename="../src/explore/ExplorePanel.cpp" line="180"/>
+        <source>Miles</source>
+        <translation>Mile</translation>
+    </message>
+    <message id="ui.explore.electrified.kv">
+        <location filename="../src/explore/ExplorePanel.cpp" line="183"/>
+        <source>Electrified, %1 kV</source>
+        <translation>Zelektryfikowana, %1 kV</translation>
+    </message>
+    <message id="ui.explore.electrified.v">
+        <location filename="../src/explore/ExplorePanel.cpp" line="186"/>
+        <source>Electrified, %1 V</source>
+        <translation>Zelektryfikowana, %1 V</translation>
+    </message>
+    <message id="ui.explore.electrified">
+        <location filename="../src/explore/ExplorePanel.cpp" line="189"/>
+        <source>Electrified</source>
+        <translation>Zelektryfikowana</translation>
+    </message>
+    <message id="ui.explore.not.electrified">
+        <location filename="../src/explore/ExplorePanel.cpp" line="192"/>
+        <source>Not electrified</source>
+        <translation>Niezelektryfikowana</translation>
+    </message>
+    <message id="ui.explore.speed.limit.kmh">
+        <location filename="../src/explore/ExplorePanel.cpp" line="196"/>
+        <source>Speed limit %1 km/h</source>
+        <translation>Prędkość maks. %1 km/h</translation>
+    </message>
+    <message id="ui.explore.speed.limit.mph">
+        <location filename="../src/explore/ExplorePanel.cpp" line="198"/>
+        <source>Speed limit %1 mph</source>
+        <translation>Prędkość maks. %1 mph</translation>
+    </message>
     <message id="ui.explore.passes">
-        <location filename="../src/explore/ExplorePanel.cpp" line="334"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="424"/>
         <source>passes %1</source>
         <translation>przejeżdża %1</translation>
     </message>
+    <message id="ui.explore.timetable">
+        <location filename="../src/explore/ExplorePanel.cpp" line="841"/>
+        <source>Timetable</source>
+        <translation>Rozkład jazdy</translation>
+    </message>
+    <message id="ui.explore.count.activities">
+        <location filename="../src/explore/ExplorePanel.cpp" line="975"/>
+        <source>Activities: %1</source>
+        <translation>Scenariusze: %1</translation>
+    </message>
+    <message id="ui.explore.count.timetables">
+        <location filename="../src/explore/ExplorePanel.cpp" line="977"/>
+        <source>Timetables: %1</source>
+        <translation>Rozkłady: %1</translation>
+    </message>
+    <message id="ui.explore.count.paths">
+        <location filename="../src/explore/ExplorePanel.cpp" line="979"/>
+        <source>Player paths: %1</source>
+        <translation>Ścieżki gracza: %1</translation>
+    </message>
+    <message id="ui.explore.count.stations">
+        <location filename="../src/explore/ExplorePanel.cpp" line="982"/>
+        <source>Stations: %1</source>
+        <translation>Stacje: %1</translation>
+    </message>
     <message id="ui.explore.explore.route">
-        <location filename="../src/explore/ExplorePanel.cpp" line="558"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="992"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1581"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1601"/>
         <location filename="../src/explore/ExploreRun.cpp" line="400"/>
         <location filename="../src/explore/ExploreRun.cpp" line="433"/>
         <source>Explore the route</source>
         <translation>Eksploruj trasę</translation>
     </message>
     <message id="ui.explore.activities">
-        <location filename="../src/explore/ExplorePanel.cpp" line="561"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="996"/>
         <source>Activities</source>
         <translation>Scenariusze</translation>
     </message>
     <message id="ui.explore.timetables">
-        <location filename="../src/explore/ExplorePanel.cpp" line="566"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1000"/>
         <source>Timetables</source>
         <translation>Rozkłady jazdy</translation>
     </message>
+    <message id="ui.explore.other.trains">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1026"/>
+        <source>Other trains: %1</source>
+        <translation>Inne pociągi: %1</translation>
+    </message>
+    <message id="ui.explore.count.trains">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1048"/>
+        <source>Trains: %1</source>
+        <translation>Pociągi: %1</translation>
+    </message>
+    <message id="ui.explore.consist.is">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1074"/>
+        <source>Consist: %1</source>
+        <translation>Skład: %1</translation>
+    </message>
+    <message id="ui.explore.path.is">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1077"/>
+        <source>Path: %1</source>
+        <translation>Ścieżka: %1</translation>
+    </message>
+    <message id="ui.explore.cars">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1115"/>
+        <source>Cars: %1</source>
+        <translation>Pojazdy: %1</translation>
+    </message>
     <message id="ui.explore.start.at">
-        <location filename="../src/explore/ExplorePanel.cpp" line="670"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="269"/>
         <source>Start at</source>
         <translation>Start</translation>
     </message>
     <message id="ui.explore.no.train">
-        <location filename="../src/explore/ExplorePanel.cpp" line="676"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="850"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="267"/>
         <source>No train</source>
         <translation>Bez pociągu</translation>
     </message>
     <message id="ui.explore.station">
-        <location filename="../src/explore/ExplorePanel.cpp" line="687"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="832"/>
         <source>Station</source>
         <translation>Stacja</translation>
     </message>
     <message id="ui.explore.heading.to">
-        <location filename="../src/explore/ExplorePanel.cpp" line="696"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="271"/>
         <source>Heading to</source>
         <translation>Kierunek</translation>
     </message>
-    <message id="ui.explore.locomotive">
-        <location filename="../src/explore/ExplorePanel.cpp" line="705"/>
-        <source>Locomotive</source>
-        <translation>Lokomotywa</translation>
-    </message>
     <message id="ui.explore.consist">
-        <location filename="../src/explore/ExplorePanel.cpp" line="714"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="273"/>
         <source>Consist</source>
         <translation>Skład</translation>
     </message>
     <message id="ui.explore.time">
-        <location filename="../src/explore/ExplorePanel.cpp" line="723"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="731"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="850"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="858"/>
         <source>Time</source>
         <translation>Godzina</translation>
     </message>
     <message id="ui.explore.day">
-        <location filename="../src/explore/ExplorePanel.cpp" line="740"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="748"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="867"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="875"/>
         <source>Day</source>
         <translation>Dzień</translation>
     </message>
     <message id="ui.explore.weather">
-        <location filename="../src/explore/ExplorePanel.cpp" line="757"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="884"/>
         <source>Weather</source>
         <translation>Pogoda</translation>
     </message>

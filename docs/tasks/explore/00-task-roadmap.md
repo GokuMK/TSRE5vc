@@ -7,8 +7,10 @@ Status 2026-11-20: tasks 01 and 02 built on `feature/explore` (worktree
 `../TSRE5vc-explore`), the user's go for each; merged into main the same
 day. Task 03 in design; task 04 (walking runs, the characters in explore
 mode) built 2026-11-21 on `feature/explore`, merged into main 2026-11-22
-with main brought in first. The questions at the end answered the same
-day; two left for later (6, pausing; 10, how the intro ships).
+with main brought in first. Task 05 (the Explore window in pages) built
+2026-11-24 on `feature/explore`, not merged. The questions at the end
+answered the same day; two left for later (6, pausing; 10, how the intro
+ships).
 
 Names used here: **the explore mode window** is the Qt window holding the
 view; **the Explore window** is the RmlUi window that the main menu's
@@ -170,8 +172,8 @@ places outside the view; its setting goes (question 2: yes).
   the chosen train's timetable, at any station and time without a train,
   in activities and exploring (its train stopping at its path's
   platforms); the character placed on the platform.
-- [ ] 05 [The Explore window in pages](05-explore-pages.md) (design
-  2026-11-24, the user's request): a route page (picture, facts,
+- [x] 05 [The Explore window in pages](05-explore-pages.md) (built
+  2026-11-24, not merged): a route page (picture, facts,
   description, Activities / Timetables / Explore the route), then each
   of those a page of the window's whole width: the timetable's table
   full width with a train's calls, an activity's briefing and train, the

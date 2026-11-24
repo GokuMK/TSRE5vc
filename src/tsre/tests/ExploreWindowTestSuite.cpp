@@ -58,10 +58,10 @@ bool settleUntil(const std::function<bool()> &done, int ms) {
     return done();
 }
 
-void key(QWidget *view, int key) {
-    QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
+void key(QWidget *view, int key, const QString &text = QString()) {
+    QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, text);
     QApplication::sendEvent(view, &press);
-    QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier);
+    QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, text);
     QApplication::sendEvent(view, &release);
     settle(120);
 }
@@ -266,22 +266,27 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
           "Left from a route: back to the menu's item, the window still shown (" + menu->focused() + ")");
     key(view, Qt::Key_Right);
     check(menu->focused() == "routes:item", "Right on the marked item: into its window (" + menu->focused() + ")");
-    // Across the columns (RmlUi's arrows stay in a list); Enter goes on.
+    // The route page (task explore 05): Enter on a route goes to its pages'
+    // buttons; a route of only a TRK has no activities and no timetables,
+    // their buttons greyed and passed.
     key(view, Qt::Key_Return);
-    settleUntil([menu] { return menu->focused() == "runs:item"; }, 1000);
-    check(menu->focused() == "runs:item", "Enter on a route: its runs (" + menu->focused() + ")");
-    key(view, Qt::Key_Return);
-    settleUntil([menu] { return menu->focused() == "pick-start"; }, 1000);
-    check(menu->focused() == "pick-start", "Enter on Explore the route: its choices (" + menu->focused() + ")");
-    key(view, Qt::Key_Right);
-    check(menu->focused() == "go", "Right from the choices: Explore (" + menu->focused() + ")");
-    check(menu->panel() != nullptr && !menu->panel()->ready(), "no path, no consist: Explore greyed");
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->focused() == "open-explore" && menu->panel() != nullptr && menu->panel()->page() == "route",
+          "Enter on a route: its pages' buttons, Explore the route (" + menu->focused() + ")");
+    check(menu->panel() != nullptr && menu->panel()->text("route-counts").contains("0"),
+          "the route's counts shown (" + (menu->panel() != nullptr ? menu->panel()->text("route-counts") : QString()) + ")");
     key(view, Qt::Key_Left);
-    check(menu->focused() == "pick-start", "Left: the choices (" + menu->focused() + ")");
-    // Drive or Walk above the choices (task explore 04): Up reaches it, Right
-    // Walk, Enter walks; Left and Enter drive again, Down the choices.
-    key(view, Qt::Key_Up);
-    check(menu->focused() == "mode-drive", "Up from the first choice: Drive (" + menu->focused() + ")");
+    check(menu->focused() == "routes:item", "Left past the greyed buttons: the routes (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    check(menu->focused() == "open-explore", "Right: the buttons again (" + menu->focused() + ")");
+    // Explore the route's page: no paths, no consists, the keys on its bar.
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->focused() == "mode-drive"; }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->page() == "explore" && menu->focused() == "mode-drive",
+          "Enter on Explore the route: its page, no path to choose: the bar's Drive (" + menu->focused() + ")");
+    check(menu->panel() != nullptr && !menu->panel()->ready(), "no path, no consist: Start greyed");
+    // Drive or Walk (task explore 04): Right Walk, Enter walks; Left and
+    // Enter drive again.
     key(view, Qt::Key_Right);
     check(menu->focused() == "mode-walk", "Right: Walk (" + menu->focused() + ")");
     key(view, Qt::Key_Return);
@@ -291,9 +296,42 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     check(menu->focused() == "mode-drive" && menu->panel() != nullptr && !menu->panel()->choice().walk,
           "Left, Enter: Drive again (" + menu->focused() + ")");
     key(view, Qt::Key_Down);
-    check(menu->focused() == "pick-start", "Down: the choices (" + menu->focused() + ")");
+    check(menu->focused() == "pick-day", "Down: the bar's second row, the day (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    check(menu->focused() == "pick-month", "Right: the month (" + menu->focused() + ")");
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->panel() != nullptr && menu->panel()->picking(); }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->picking(), "Enter: the month's picker");
+    key(view, Qt::Key_Escape);
+    settleUntil([menu] { return menu->focused() == "pick-month"; }, 1000);
+    check(menu->panel() != nullptr && !menu->panel()->picking() && menu->focused() == "pick-month",
+          "Esc: the picker closed, the month again (" + menu->focused() + ")");
+    // A filter takes the letters typed though the menu has the keys (task
+    // explore 05; the screen gave text only to a field outside a menu).
+    check(menu->click("path-filter"), "a click on the paths' filter");
+    key(view, Qt::Key_A, "a");
+    key(view, Qt::Key_B, "b");
+    check(menu->focused() == "path-filter" && menu->panel() != nullptr && menu->panel()->text("path-filter") == "ab",
+          "typed into it: '" + (menu->panel() != nullptr ? menu->panel()->text("path-filter") : QString()) + "'");
+    // Esc: back to the route page, its button; Left from the first column
+    // too.
+    key(view, Qt::Key_Escape);
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->page() == "route" && menu->focused() == "open-explore",
+          "Esc on a page: the route page, Explore the route's button (" + menu->focused() + ", "
+                  + (menu->panel() != nullptr ? menu->panel()->page() : QString()) + ")");
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->focused() == "mode-drive"; }, 1000);
     key(view, Qt::Key_Left);
-    check(menu->focused() == "runs:item", "Left: the runs (" + menu->focused() + ")");
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->page() == "route" && menu->focused() == "open-explore",
+          "Left from a page's first column: the route page (" + menu->focused() + ")");
+    // Out to the menu and in again: the button of the page last used.
+    key(view, Qt::Key_Escape);
+    check(menu->focused() == "explore", "Esc on the route page: the menu's item (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->focused() == "open-explore", "Right: in again, on the page last used (" + menu->focused() + ")");
     key(view, Qt::Key_Left);
     check(menu->focused() == "routes:item", "Left: the routes (" + menu->focused() + ")");
     key(view, Qt::Key_Escape);

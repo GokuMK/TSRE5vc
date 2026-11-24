@@ -1,7 +1,8 @@
 # Explore task 05 - The Explore window in pages: a route, then its activities, timetables or exploring
 
-Status 2026-11-24: design, the user's request; its questions answered
-the same day (at the end), not built. Part of the [explore set](00-task-roadmap.md). Reworks task 02's
+Status 2026-11-24: built on `feature/explore` the same day (the user's
+go: "ok, proceed"), not merged; its questions answered (at the end); see
+"As built". Part of the [explore set](00-task-roadmap.md). Reworks task 02's
 three-column window ([02](02-explore-window.md)); keeps its readers, the
 run's start, the game menu and the remembered choices, and task 04's
 walking ([04](04-walking-runs.md)).
@@ -268,3 +269,88 @@ Answers (the user, 2026-11-24):
    wording was not clear): the route page with the last route chosen
    and the last page's button focused, one Enter from that page; not
    straight into that page. The user: "a".
+
+## As built (2026-11-24)
+- **The pages** as designed: the route page (routes; picture, facts,
+  counts, description; Activities, Timetables, Explore the route with
+  their counts, greyed at 0), then a run page with its heading
+  (`< Settle & Carlisle Line  Activities`, the route's name a button
+  back) and the bar under it in two rows; Start in place of Explore.
+- **The activities page:** the list (name, difficulty, duration); the
+  details: the facts line, the description, the briefing in a box (left
+  out when it repeats the description), your train (its consist and
+  engine, its path's ends, its stops with their times), the other
+  trains. One change: the details scroll as one (not the briefing apart):
+  a page's text has nothing to focus, so **Page Up and Page Down scroll
+  it** (and the route page's description).
+- **The timetables page:** the tools row (the set's picker only when the
+  route has more than one, else its name; the trains' count; the filter;
+  Drivable only), the table (Train, Starts, Ends, From, To, Category,
+  Number and Line when the set has them on any view, Engine, Stops; the
+  filter finds the comment too), the chosen train under it: its comment
+  (else its name), its briefing when it says more, its consist and path,
+  its calls in time order (a stop's arrival, its first's departure;
+  passes dimmed), each call wrapping whole.
+- **The explore page:** the two filtered lists as proposed; the paths'
+  rows got a third, dimmed column, the path's name (seen live: EUROPE1
+  has two Carlisle to Settle paths that read the same).
+- **Keys:** the route page: Enter on a route goes to the button of the
+  page last used there (the remembered run's), else the first not
+  greyed; the greyed ones are passed; Left from the buttons to the
+  routes. A run page: Left and Right across its lists and the bar, along
+  the bar's row inside it (Start its last); Left from the first column,
+  or with nothing left of it, back to the route page; Esc too, the
+  page's button then focused; Esc again the menu's item. Up from a list's
+  first row to its filter, Down from the filter's row to the list. Enter
+  on an activity, a train or a consist goes to Start; on a path to the
+  trains. A page opens on Start when it holds the run last started (one
+  Enter from the route page's button, answer 5), else on its first
+  column with something to focus.
+- **Found live and fixed:**
+  - **Typing into a menu's text field:** the UI screen gave typed text
+    only to a field outside a modal menu (`Ui::Screen::keyPress`, its
+    `Keys::Text`), so no letter reached the Explore window's filters,
+    task 02's timetable filter included. A menu's focused text field now
+    takes the text; the keys stay the menu's.
+  - **Esc in a filter:** RmlUi's text field stops every key it gets (Esc
+    too); the window's key handler listens in the capture phase, before
+    it.
+  - The page's `.note` class moved the menu's "Later" notes (renamed);
+    RmlUi's flex shrank the bar's buttons to nothing (`flex: 0 0 auto`).
+- **The values** (`Explore::Lists`): the route's units, electrified and
+  line voltage, speed limit from the TRK read already; an activity's
+  other trains counted in its parse (Local Service 12); a timetable
+  train's comment, briefing, consist, path, end and stops; a consist's
+  cars. The route's stations read on the worker when a route is chosen
+  (its count), as walking read them.
+- **The code:** `Explore::Panel` around pages (task 02's runs list gone;
+  `page()`, `openPage()`, `back()`, the filters, `text(id)` for the
+  checks); `Explore::Menu`: Esc back a page, Up and Down to a filter,
+  Page Up and Down, its key listener in the capture phase, `click()`
+  focusing first as a mouse does; `Ui::Screen::keyPress` (typing).
+- **Texts:** 28 new (English and Polish), 3 gone (Start time, Duration,
+  Locomotive).
+- **Checks:**
+  - `explore-window` 54 (was 46): the route page's buttons (greyed ones
+    passed), Enter into the explore page (no paths: on the bar's Drive),
+    the bar's keys, a picker, typing into the paths' filter, Esc and Left
+    back to the route page, in again on the page last used;
+  - `explore-lists` EUROPE1 29 (the route's facts, Local Service's 12
+    other trains, the consists' cars, the pages through the model: the
+    route's counts, no timetables page, Local Service's details, back,
+    the explore page's filters, a consist's note), PRUDNIK 29
+    (0518_R46403_R-KK-O: ends 06:23, 11 stops, "R 46403", its consist,
+    path and calls under the table);
+  - `explore-start` EUROPE1 73, PRUDNIK 40 (unchanged), `rmlui` 43;
+  - `all` built, ctest 11/11, 125 of the 153 app suites (the 28 others
+    need content or arguments, as on main), `settings` 306, `keys` 19,
+    `server` 172, `simulation-wire` 16.
+- **Live, Xvfb at 1280x720, keys only:** EUROPE1: the route page, Local
+  Service (Page Down, Esc back), the explore page; PRUDNIK: the route page
+  at first opening (Timetables focused), the timetables page opened on
+  Start, the 21:03 TLK chosen by keys (its comment readable under the
+  table), the explore page with "nysa" and "en57" typed into its filters.
+  Screens in the session's scratchpad (live/), not kept.
+- **Left:** a 4:3 window not looked at live (the layout is in shares and
+  dp); the route's picture a fixed 400 dp tall; the menu folded beside
+  the run pages (question 1) later.

@@ -56,18 +56,27 @@ struct Menu::Data {
     std::unique_ptr<Panel> panel;
     std::vector<std::unique_ptr<Listener>> listeners;
     // Each listener with what it listens on, to be removed.
-    std::vector<std::pair<Rml::Element *, std::pair<Rml::EventId, Listener *>>> attached;
+    struct Attached {
+        Rml::Element *element;
+        Rml::EventId event;
+        Listener *listener;
+        bool capture;
+    };
+    std::vector<Attached> attached;
     // The keys go into the window once its entry is made (the model's
     // elements come with the next update).
     bool enterPending = false;
     int enterTries = 0;
 
-    void listen(Rml::Element *element, Rml::EventId event, std::function<void(Rml::Event &)> handler) {
+    // `capture`: before the element the event is for (a text field stops
+    // every key it is given).
+    void listen(Rml::Element *element, Rml::EventId event, std::function<void(Rml::Event &)> handler,
+                bool capture = false) {
         if (element == nullptr)
             return;
         listeners.push_back(std::make_unique<Listener>(std::move(handler)));
-        element->AddEventListener(event, listeners.back().get());
-        attached.push_back({element, {event, listeners.back().get()}});
+        element->AddEventListener(event, listeners.back().get(), capture);
+        attached.push_back({element, event, listeners.back().get(), capture});
     }
     Rml::Element *item(const char *id) const {
         return document != nullptr ? document->GetElementById(id) : nullptr;
@@ -83,8 +92,8 @@ Menu::Menu(Ui::Screen &screen, const QString &root, const QString &route,
 }
 
 Menu::~Menu() {
-    for (const auto &[element, listener] : d->attached)
-        element->RemoveEventListener(listener.first, listener.second);
+    for (const Data::Attached &a : d->attached)
+        a.element->RemoveEventListener(a.event, a.listener, a.capture);
     if (d->document != nullptr)
         d->document->Close();
     // The document goes at the context's next update; its model after it.
@@ -153,8 +162,10 @@ bool Menu::load() {
         });
     });
     // The keys between the menu and its window: Right on the marked item
-    // in; Esc in the window back to it (a picker closed first). Esc on the
-    // menu stays (the screen would hide the document).
+    // in; Esc in the window back to it (a picker closed first; a run's page
+    // back to the route page first, task explore 05). Esc on the menu stays
+    // (the screen would hide the document). In the capture phase: a text
+    // field (a filter) would stop Esc and Down itself.
     d->listen(d->document, Rml::EventId::Keydown, [this](Rml::Event &event) {
         Rml::Element *focus = screen.context() != nullptr ? screen.context()->GetFocusElement() : nullptr;
         const bool inWindow = d->window != nullptr && inside(focus, d->window);
@@ -163,9 +174,23 @@ bool Menu::load() {
             event.StopPropagation();
             if (d->panel && d->panel->picking())
                 d->panel->closePicker();
+            else if (inWindow && d->panel && d->panel->back())
+                return;
             else if (inWindow)
                 if (Rml::Element *explore = d->item("explore"))
                     explore->Focus(true);
+            return;
+        }
+        // A list's first row and its filter (task explore 05); the page's
+        // text scrolled by Page Up and Page Down.
+        if ((key == Rml::Input::KI_UP || key == Rml::Input::KI_DOWN) && inWindow && d->panel
+                && !d->panel->picking() && d->panel->moveUpDown(focus, key == Rml::Input::KI_DOWN)) {
+            event.StopPropagation();
+            return;
+        }
+        if ((key == Rml::Input::KI_PRIOR || key == Rml::Input::KI_NEXT) && inWindow && d->panel
+                && !d->panel->picking() && d->panel->scrollDetails(key == Rml::Input::KI_NEXT)) {
+            event.StopPropagation();
             return;
         }
         if (key == Rml::Input::KI_RIGHT && focus != nullptr && focus->GetId() == "explore") {
@@ -179,7 +204,7 @@ bool Menu::load() {
             if (d->panel->picking() || d->panel->moveAcross(focus, key == Rml::Input::KI_RIGHT))
                 event.StopPropagation();
         }
-    });
+    }, true);
     return true;
 }
 
@@ -255,6 +280,8 @@ bool Menu::click(const QString &id) {
     Rml::Element *element = d->document->GetElementById(id.toStdString());
     if (element == nullptr)
         return false;
+    // Focused first, as a mouse click focuses it (a text field).
+    element->Focus();
     element->Click();
     return true;
 }
