@@ -347,17 +347,44 @@ New `Template3D` generation modes, read only in `COMPLEX` members
   objects, `DB/DB30_A1tBuffer.s` 90, `A1tUSBuffer.s` 29, `A1tBuffer.s`
   24). No automatic placement at track database end nodes. First steps
   draw buffer shapes as track only.
-- Later (decision 35, design, not built): `SwitchMotor` and
+- Later (decisions 35, 36, 38; design, not built): `SwitchDrive` and
   `SwitchIndicator`, optional; a family without the mesh draws none, and
   filters turn them off per shape (part names as the modes). Each switch
   of the plan (blade pair) gets a record: its toe (where the blades
   start), heading, diverging side, main route.
-  - `SwitchMotor`: a static mesh placed from the toe by `Offset`: x out
+  - `SwitchDrive`: a static mesh placed from the toe by `Offset`: x out
     from the track centre (its sign: the side, below), y up, z along the
     switch. Longer switches have two or three drives: `Spacing` along the
     blades from the first, as many as fit with at least one `Spacing` left
-    before the blades' heel (proposal). The user fine-tunes offsets in the
-    template.
+    before the blades' heel. The user fine-tunes offsets in the template.
+  - Hand operation (decision 38): a template marked `HandOperated ( 1 )`
+    is the part the player operates by hand (a hand lever; later perhaps a
+    motor's crank). A filter's `HandOperated ( 1 )` makes the switches it
+    matches hand-operated: they draw the marked drive templates instead of
+    the unmarked ones (the motor); every other switch draws the unmarked
+    ones. The side flip applies to all of a switch's parts.
+
+    ```text
+    Template3D (
+        GenerationMode ( SwitchDrive )
+        Shape ( "meshes/point_motor.obj" )
+        Offset ( 1.55 0.15 0.2 )
+    )
+    Template3D (
+        GenerationMode ( SwitchDrive )
+        Shape ( "meshes/hand_lever.obj" )
+        Offset ( 1.6 0.15 0.3 )
+        HandOperated ( 1 )
+    )
+    ```
+
+    Using it belongs to the junction-state task: the walking character's
+    usables (characters task 03: within `Character::UseReach`, a label
+    under the view's mark, E or a click) get their first kind standing in
+    the world, not in a car; using it throws the switch through the
+    simulation, and blades, lever and indicator move. Static MSTS shapes
+    alike by the lever's matrix name (DB: `S1_HEBEL`), as cab controls.
+    Task 17 gives the format and where the marked part stands.
   - `SwitchIndicator`: a mesh placed from the toe by its own `Offset`, one
     per switch. Its `Shape` list follows the switch's routes, main route
     first; one shape shows no state. Until the junction-state task it
@@ -1079,11 +1106,19 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
     own start, for static track objects and DynTracks alike, so the pattern
     restarts at every joint. The data is at hand: `OrtsProfileRoll::forObject`
     already finds each object's vector sections (node, index, reversed).
+38. Hand operation (the user, 2026-11-24): the part says it is operated by
+    hand, so a walking player gets a label on it, as on cab controls. The
+    drive part is `SwitchDrive`; a template marked `HandOperated ( 1 )` is
+    the hand-operated part, and a filter's `HandOperated ( 1 )` makes its
+    switches hand-operated (section 2). The label and the throwing come
+    with the junction-state task.
 
 ## Open questions
 
-1. Hand operation (decision 35): the user leans to one part shared by
-   motor and hand switches, with an option for hand operation enabled or
-   disabled. Proposal: the drive part's template takes the motor mesh and,
-   optionally, a hand lever mesh; a filter's hand-operation option picks
-   the lever for the shapes it matches (default: motor).
+1. Buffers (decision 37): how a filter gives buffer shapes their stop.
+   Proposal: nothing new in the format. A buffer family's `MAIN` draws the
+   track plus the stop mesh with the existing `Place` mode at `PathEnd`
+   (or `PathStart`, whichever end the shape's stop is at); a name filter
+   picks it for the buffer shapes. Open Rails draws it today. Alternative:
+   a `Buffer` part in every family, turned on by a filter option; a new
+   mode in `MAIN` that today's Open Rails warns about.
