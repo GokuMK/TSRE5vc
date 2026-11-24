@@ -411,6 +411,14 @@ struct GltfLight {
     // extras.TSRE_viewDistance (m; 0 none): farther from the camera it
     // lights nothing (task shapes 16).
     float viewDistance = 0.0f;
+    // extras.TSRE_shadows ("Scene", "Own", "None"), TSRE_ambient
+    // [fraction, range] and TSRE_ambientColor [r, g, b], as an .sd light's
+    // Shadows, Ambient and AmbientColor3F (task renderer 46 C).
+    ShapeLights::Light::Shadows shadows = ShapeLights::Light::Shadows::Default;
+    float ambient = 0.0f;
+    float ambientRange = 0.0f;
+    bool ambientColored = false;
+    float ambientColor[3] = {1.0f, 1.0f, 1.0f};
     bool spot = false;
     bool supported = true;
     float color[3] = {1.0f, 1.0f, 1.0f};
@@ -1085,6 +1093,16 @@ static void parseModelFromRoot(const QJsonObject& root, GltfModel& model) {
         if (light.carRole == ShapeLights::CarRole::None)
             light.carRole = ShapeLights::carRole(o.value("name").toString());
         light.viewDistance = std::max(0.0f, float(extras.value("TSRE_viewDistance").toDouble(0.0)));
+        ShapeLights::readShadows(extras.value("TSRE_shadows").toString(), light.shadows);
+        const QVector<float> ambient = jsonFloatArray(extras.value("TSRE_ambient").toArray());
+        if (ambient.size() >= 2 && ambient[0] > 0.0f && ambient[1] > 0.0f) {
+            light.ambient = ambient[0];
+            light.ambientRange = ambient[1];
+        }
+        const QVector<float> ambientColor = jsonFloatArray(extras.value("TSRE_ambientColor").toArray());
+        light.ambientColored = ambientColor.size() >= 3;
+        for (int c = 0; c < 3 && c < ambientColor.size(); ++c)
+            light.ambientColor[c] = std::max(0.0f, ambientColor[c]);
         light.spot = type == "spot";
         light.supported = type == "point" || type == "spot";
         const QVector<float> color = jsonFloatArray(o.value("color").toArray());
@@ -3243,6 +3261,11 @@ bool GltfShape::parseFile() {
         named.on = source.on;
         named.carRole = source.carRole;
         named.viewDistance = source.viewDistance;
+        named.shadows = source.shadows;
+        named.ambient = source.ambient;
+        named.ambientRange = source.ambientRange;
+        named.ambientColored = source.ambientColored;
+        std::copy(source.ambientColor, source.ambientColor + 3, named.ambientColor);
         named.type = source.spot ? ShapeLights::Light::Type::Spot : ShapeLights::Light::Type::Point;
         float length = 0.0f;
         for (int c = 0; c < 3; ++c) {

@@ -2325,15 +2325,15 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
     </message>
     <message id="route.editor.load.window.button.explore">
         <location filename="../src/routeEditor/LoadWindow.cpp" line="55"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="177"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="179"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="178"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="180"/>
         <source>Explore</source>
         <translation>Eksploruj</translation>
     </message>
     <message id="route.editor.load.window.button.edit">
         <location filename="../src/routeEditor/LoadWindow.cpp" line="62"/>
         <location filename="../src/routeEditor/LoadWindow.cpp" line="265"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="180"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="181"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -2924,127 +2924,127 @@ Skład o tej nazwie pliku już istnieje. Zastąpić?
         <translation>Teren proceduralny</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7759"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7800"/>
         <source>&amp;Undo</source>
         <translation>&amp;Cofnij</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4968"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4978"/>
         <source>OSM Data</source>
         <translation>Dane OSM</translation>
     </message>
     <message id="route.editor.glwidget.walk.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1039"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1040"/>
         <source>Walk</source>
         <translation>Idź</translation>
     </message>
     <message id="route.editor.glwidget.walk.no.place">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1041"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1042"/>
         <source>No place to stand near the camera: within the route&apos;s reach of a track, on a floor where a person fits. Fly nearer to a track.</source>
         <translation>Brak miejsca, w którym można stanąć przy kamerze: w zasięgu toru wyznaczonym przez trasę, na podłożu, na którym zmieści się człowiek. Podleć bliżej toru.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4973"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4983"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Najpierw ustaw katalog danych OpenStreetMap w Ustawienia &gt; Mapy i geodane &gt; Geodane. Znajdują się w nim pliki .osm.pbf pobrane dla twojego obszaru, na przykład z Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4979"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4989"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić danych OSM.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5476"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5486"/>
         <source>Imagery</source>
         <translation>Zobrazowanie</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5479"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5489"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>Ta trasa nie ma odniesienia geograficznego, więc nie można na niej umieścić zobrazowania.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5481"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5491"/>
         <source>No imagery source can be shown: %1</source>
         <translation>Nie można wyświetlić żadnego źródła zobrazowania: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5533"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5543"/>
         <source>Measure Distance</source>
         <translation>Zmierz odległość</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7688"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7729"/>
         <source>Undo</source>
         <translation>Cofnij</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7690"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7731"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>Ostatnia zmiana dotyczy scenariusza: można ją cofnąć po zatrzymaniu symulacji.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7765"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7806"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7771"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7812"/>
         <source>&amp;Paste</source>
         <translation>&amp;Wklej</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7777"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7818"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Zaznacz podobne 1×1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7783"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7824"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Zaznacz podobne 3×3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7789"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7830"/>
         <source>&amp;Select Tool</source>
         <translation>Narzędzie &amp;zaznaczania</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7795"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7836"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Dopasuj teren do obiektu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7801"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7842"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Dopasuj położenie do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7807"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7848"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Dopasuj obrót do terenu</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7813"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7854"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pobierz do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7819"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7860"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pobierz obrót do umieszczenia</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7825"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7866"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pobierz wysokość do umieszczenia</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7837"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7878"/>
         <source>Object: %1</source>
         <translation>Obiekt: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7855"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7896"/>
         <source>No Tool</source>
         <translation>Brak narzędzia</translation>
     </message>
@@ -3222,7 +3222,7 @@ Wybierz Nie, aby zamiast tego wypełnić cały kafel wybranym materiałem.</tran
         <translation>&amp;Najbliższy wektor TDB/RDB</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7873"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7914"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
@@ -13193,37 +13193,37 @@ Profil użyty przy uruchomieniu aplikacji: %1</translation>
         <translation>Obrazy (*.png *.bmp *.tga)</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.flip">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1124"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1140"/>
         <source>&amp;Flip</source>
         <translation>&amp;Odwróć</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.left">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1128"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1144"/>
         <source>&amp;Move Left</source>
         <translation>Przesuń w &amp;lewo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1132"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1148"/>
         <source>&amp;Move right</source>
         <translation>Przesuń w &amp;prawo</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.delete">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1136"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1152"/>
         <source>&amp;Delete</source>
         <translation>&amp;Usuń</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.copy">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1140"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1156"/>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiuj</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.paste.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1144"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1160"/>
         <source>&amp;Paste Right</source>
         <translation>Wklej z &amp;prawej</translation>
     </message>
     <message id="shape.viewer.context.selected.unit">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1158"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1174"/>
         <source>Selected Unit</source>
         <translation>Wybrany pojazd</translation>
     </message>
@@ -13734,12 +13734,12 @@ TSRE pobierze teraz dane aplikacji.</translation>
         <translation>&amp;Odwróć zaznaczone</translation>
     </message>
     <message id="tsre.world.route.dialog.title.procedural.terrain">
-        <location filename="../src/tsre/world/Route.cpp" line="332"/>
+        <location filename="../src/tsre/world/Route.cpp" line="333"/>
         <source>Procedural terrain</source>
         <translation>Teren proceduralny</translation>
     </message>
     <message id="tsre.world.route.title.tdb.error">
-        <location filename="../src/tsre/world/Route.cpp" line="567"/>
+        <location filename="../src/tsre/world/Route.cpp" line="568"/>
         <source>TDB Error</source>
         <translation>Błąd TDB</translation>
     </message>
@@ -17930,98 +17930,128 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <source>Season</source>
         <translation>Pora roku</translation>
     </message>
-    <message id="ui.explore.start.time">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="219"/>
-        <source>Start time</source>
-        <translation>Godzina startu</translation>
-    </message>
-    <message id="ui.explore.duration">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="221"/>
-        <source>Duration</source>
-        <translation>Czas trwania</translation>
-    </message>
     <message id="ui.explore.difficulty">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="223"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="219"/>
         <source>Difficulty</source>
         <translation>Trudność</translation>
     </message>
     <message id="ui.explore.path">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="225"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="221"/>
         <source>Path</source>
         <translation>Ścieżka</translation>
     </message>
     <message id="ui.explore.filter">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="227"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="223"/>
         <source>Filter</source>
         <translation>Filtr</translation>
     </message>
     <message id="ui.explore.drivable.only">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="229"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="225"/>
         <source>Drivable only</source>
         <translation>Tylko do prowadzenia</translation>
     </message>
     <message id="ui.explore.train">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="231"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="227"/>
         <source>Train</source>
         <translation>Pociąg</translation>
     </message>
     <message id="ui.explore.starts">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="233"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="229"/>
         <source>Starts</source>
         <translation>Odjazd</translation>
     </message>
     <message id="ui.explore.from">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="235"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="231"/>
         <source>From</source>
         <translation>Z</translation>
     </message>
     <message id="ui.explore.to">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="237"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="233"/>
         <source>To</source>
         <translation>Do</translation>
     </message>
     <message id="ui.explore.category">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="239"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="235"/>
         <source>Category</source>
         <translation>Kategoria</translation>
     </message>
     <message id="ui.explore.number">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="241"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="237"/>
         <source>Number</source>
         <translation>Numer</translation>
     </message>
     <message id="ui.explore.line">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="243"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="239"/>
         <source>Line</source>
         <translation>Linia</translation>
     </message>
     <message id="ui.explore.engine">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="245"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="241"/>
         <source>Engine</source>
         <translation>Lokomotywa</translation>
     </message>
     <message id="ui.explore.drive">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="248"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="244"/>
         <source>Drive</source>
         <translation>Prowadź</translation>
     </message>
     <message id="ui.explore.walk">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="250"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="246"/>
         <source>Walk</source>
         <translation>Pieszo</translation>
     </message>
     <message id="ui.explore.reading.stations">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="252"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="248"/>
         <source>Reading the stations…</source>
         <translation>Wczytywanie stacji…</translation>
     </message>
+    <message id="ui.explore.start">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="251"/>
+        <source>Start</source>
+        <translation>Start</translation>
+    </message>
+    <message id="ui.explore.activity">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="253"/>
+        <source>Activity</source>
+        <translation>Scenariusz</translation>
+    </message>
+    <message id="ui.explore.briefing">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="255"/>
+        <source>Briefing</source>
+        <translation>Odprawa</translation>
+    </message>
+    <message id="ui.explore.your.train">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="257"/>
+        <source>Your train</source>
+        <translation>Twój pociąg</translation>
+    </message>
+    <message id="ui.explore.arrives">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="259"/>
+        <source>Arrives</source>
+        <translation>Przyjazd</translation>
+    </message>
+    <message id="ui.explore.departs">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="261"/>
+        <source>Departs</source>
+        <translation>Odjazd</translation>
+    </message>
+    <message id="ui.explore.ends">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="263"/>
+        <source>Ends</source>
+        <translation>Koniec</translation>
+    </message>
+    <message id="ui.explore.stops">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="265"/>
+        <source>Stops</source>
+        <translation>Postoje</translation>
+    </message>
     <message id="ui.explore.resume">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="254"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="275"/>
         <source>Resume</source>
         <translation>Wznów</translation>
     </message>
     <message id="ui.explore.main.menu">
-        <location filename="../src/tsre/ui/UiTexts.cpp" line="256"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="277"/>
         <source>Main menu</source>
         <translation>Menu główne</translation>
     </message>
@@ -18748,52 +18778,62 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>ani Image, ani Position i Size</translation>
     </message>
     <message id="shapelights.problem.color.hex">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="177"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="215"/>
         <source>ColorRGBA %1 is not hex RRGGBBAA; white is used</source>
         <translation>ColorRGBA %1 nie jest szesnastkowym RRGGBBAA; użyto białego</translation>
     </message>
     <message id="shapelights.problem.colors">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="180"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="218"/>
         <source>both Color3F and ColorRGBA; the later is used</source>
         <translation>jednocześnie Color3F i ColorRGBA; użyto późniejszego</translation>
     </message>
     <message id="shapelights.problem.directions">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="183"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="221"/>
         <source>both QDirection and Rotation; the later is used</source>
         <translation>jednocześnie QDirection i Rotation; użyto późniejszego</translation>
     </message>
     <message id="shapelights.problem.cone">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="189"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="227"/>
         <source>Cone %1 %2 is not 0 &lt;= inner &lt; outer &lt;= 90 degrees; %3 %4 is used</source>
         <translation>Cone %1 %2 nie spełnia 0 &lt;= wewnętrzny &lt; zewnętrzny &lt;= 90 stopni; użyto %3 %4</translation>
     </message>
+    <message id="shapelights.problem.shadows">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="233"/>
+        <source>Shadows %1 is not Scene, Own or None; its default is used</source>
+        <translation>Shadows %1 to nie Scene, Own ani None; użyto domyślnego</translation>
+    </message>
+    <message id="shapelights.problem.ambient.range">
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="236"/>
+        <source>Ambient %1 without a range above 0: no fill</source>
+        <translation>Ambient %1 bez zasięgu większego od 0: bez wypełnienia</translation>
+    </message>
     <message id="shapelights.problem.type">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="196"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="242"/>
         <source>left out: Type %1 is neither Point nor Spot</source>
         <translation>pominięte: Type %1 to ani Point, ani Spot</translation>
     </message>
     <message id="shapelights.problem.no.intensity">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="200"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="246"/>
         <source>left out: no Intensity above 0</source>
         <translation>pominięte: brak Intensity powyżej 0</translation>
     </message>
     <message id="shapelights.car.dark">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="363"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="428"/>
         <source>Shape %1 on a car spawner&apos;s car: nothing switches on its lights %2 (On ( 0 )); a road car&apos;s light names start with HEAD, TAIL, BRAKE, TURN_L or TURN_R.</source>
         <translation>Kształt %1 na samochodzie z generatora samochodów: nic nie włącza jego świateł %2 (On ( 0 )); nazwy świateł samochodu zaczynają się od HEAD, TAIL, BRAKE, TURN_L lub TURN_R.</translation>
     </message>
     <message id="shapelights.shape.problem">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="378"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="443"/>
         <source>Shape %1: a light (ESD_TSRELight): %2.</source>
         <translation>Kształt %1: światło (ESD_TSRELight): %2.</translation>
     </message>
     <message id="shapelights.shape.hierarchy">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="382"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="447"/>
         <source>Shape %1: its light&apos;s ShapeHierarchy %2 is not one of the shape&apos;s matrices; the light hangs on its root.</source>
         <translation>Kształt %1: ShapeHierarchy %2 jego światła nie jest żadną z macierzy kształtu; światło wisi na jego korzeniu.</translation>
     </message>
     <message id="shapelights.schedule.unknown">
-        <location filename="../src/tsre/shape/ShapeLights.cpp" line="611"/>
+        <location filename="../src/tsre/shape/ShapeLights.cpp" line="685"/>
         <source>Shape %1: its ESD_TSRELightSchedule (glTF: TSRE_lightSchedule) is none of Night, Always and Default; it is ignored.</source>
         <translation>Kształt %1: jego ESD_TSRELightSchedule (glTF: TSRE_lightSchedule) nie jest żadnym z Night, Always i Default; zostaje pominięty.</translation>
     </message>
@@ -18864,32 +18904,38 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
     </message>
     <message id="shapeseats.seat">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="94"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="150"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="161"/>
         <source>a Seat without its four numbers (x y z heading) left out</source>
         <translation>Seat bez swoich czterech liczb (x y z kierunek) pominięty</translation>
     </message>
     <message id="shapeseats.aisle">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="106"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="162"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="173"/>
         <source>an Aisle without its four numbers (x y z0 z1) left out</source>
         <translation>Aisle bez swoich czterech liczb (x y z0 z1) pominięty</translation>
     </message>
     <message id="shapeseats.passage">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="114"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="170"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="181"/>
         <source>a Passage without its four numbers (x y z width) left out</source>
         <translation>Passage bez swoich czterech liczb (x y z szerokość) pominięty</translation>
     </message>
-    <message id="shapeseats.door">
+    <message id="shapeseats.endpassage">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="125"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="181"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="192"/>
+        <source>an EndPassage without its four numbers (x y z width) left out</source>
+        <translation>EndPassage bez swoich czterech liczb (x y z szerokość) pominięty</translation>
+    </message>
+    <message id="shapeseats.door">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="136"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="203"/>
         <source>a Door without its four numbers (x y z width) left out</source>
         <translation>Door bez swoich czterech liczb (x y z szerokość) pominięty</translation>
     </message>
     <message id="shapeseats.unknown">
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="135"/>
-        <source>%1 is not one of its lines (Seat, Aisle, Passage, Door)</source>
-        <translation>%1 nie jest żadną z jego linii (Seat, Aisle, Passage, Door)</translation>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="146"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage, EndPassage, Door)</source>
+        <translation>%1 nie jest żadną z jego linii (Seat, Aisle, Passage, EndPassage, Door)</translation>
     </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
@@ -19124,152 +19170,252 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Nie udało się zapisać archiwum: %1</translation>
     </message>
     <message id="characters.use.board">
-        <location filename="../src/tsre/characters/Character.cpp" line="685"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="822"/>
         <source>Board</source>
         <translation>Wsiądź</translation>
     </message>
     <message id="characters.use.step.off">
-        <location filename="../src/tsre/characters/Character.cpp" line="687"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="824"/>
         <source>Step off</source>
         <translation>Wysiądź</translation>
     </message>
     <message id="characters.use.drive">
-        <location filename="../src/tsre/characters/Character.cpp" line="714"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="851"/>
         <source>Drive</source>
         <translation>Prowadź</translation>
     </message>
     <message id="characters.use.cab.out">
-        <location filename="../src/tsre/characters/Character.cpp" line="731"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="868"/>
         <source>Get out</source>
         <translation>Wyjdź z kabiny</translation>
     </message>
     <message id="characters.use.cab.in">
-        <location filename="../src/tsre/characters/Character.cpp" line="733"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="870"/>
         <source>Climb in</source>
         <translation>Wejdź do kabiny</translation>
     </message>
     <message id="characters.use.sit">
-        <location filename="../src/tsre/characters/Character.cpp" line="760"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="897"/>
         <source>Sit down</source>
         <translation>Usiądź</translation>
     </message>
     <message id="ui.explore.season.spring">
-        <location filename="../src/explore/ExplorePanel.cpp" line="68"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="104"/>
         <source>Spring</source>
         <translation>Wiosna</translation>
     </message>
     <message id="ui.explore.season.summer">
-        <location filename="../src/explore/ExplorePanel.cpp" line="71"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="107"/>
         <source>Summer</source>
         <translation>Lato</translation>
     </message>
     <message id="ui.explore.season.autumn">
-        <location filename="../src/explore/ExplorePanel.cpp" line="74"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="110"/>
         <source>Autumn</source>
         <translation>Jesień</translation>
     </message>
     <message id="ui.explore.season.winter">
-        <location filename="../src/explore/ExplorePanel.cpp" line="77"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="113"/>
         <source>Winter</source>
         <translation>Zima</translation>
     </message>
     <message id="ui.explore.weather.clear">
-        <location filename="../src/explore/ExplorePanel.cpp" line="87"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="123"/>
         <source>Clear</source>
         <translation>Pogodnie</translation>
     </message>
     <message id="ui.explore.weather.snow">
-        <location filename="../src/explore/ExplorePanel.cpp" line="90"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="126"/>
         <source>Snow</source>
         <translation>Śnieg</translation>
     </message>
     <message id="ui.explore.weather.rain">
-        <location filename="../src/explore/ExplorePanel.cpp" line="93"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="129"/>
         <source>Rain</source>
         <translation>Deszcz</translation>
     </message>
     <message id="ui.explore.difficulty.easy">
-        <location filename="../src/explore/ExplorePanel.cpp" line="102"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="138"/>
         <source>Easy</source>
         <translation>Łatwy</translation>
     </message>
     <message id="ui.explore.difficulty.medium">
-        <location filename="../src/explore/ExplorePanel.cpp" line="105"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="141"/>
         <source>Medium</source>
         <translation>Średni</translation>
     </message>
     <message id="ui.explore.difficulty.hard">
-        <location filename="../src/explore/ExplorePanel.cpp" line="108"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="144"/>
         <source>Hard</source>
         <translation>Trudny</translation>
     </message>
+    <message id="ui.explore.minutes.only">
+        <location filename="../src/explore/ExplorePanel.cpp" line="155"/>
+        <source>%1 min</source>
+        <translation>%1 min</translation>
+    </message>
+    <message id="ui.explore.hours.minutes">
+        <location filename="../src/explore/ExplorePanel.cpp" line="157"/>
+        <source>%1 h %2 min</source>
+        <translation>%1 h %2 min</translation>
+    </message>
+    <message id="ui.explore.kilometres">
+        <location filename="../src/explore/ExplorePanel.cpp" line="179"/>
+        <source>Kilometres</source>
+        <translation>Kilometry</translation>
+    </message>
+    <message id="ui.explore.miles">
+        <location filename="../src/explore/ExplorePanel.cpp" line="181"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="210"/>
+        <source>Miles</source>
+        <translation>Mile</translation>
+    </message>
+    <message id="ui.explore.electrified.kv">
+        <location filename="../src/explore/ExplorePanel.cpp" line="184"/>
+        <source>Electrified, %1 kV</source>
+        <translation>Zelektryfikowana, %1 kV</translation>
+    </message>
+    <message id="ui.explore.electrified.v">
+        <location filename="../src/explore/ExplorePanel.cpp" line="187"/>
+        <source>Electrified, %1 V</source>
+        <translation>Zelektryfikowana, %1 V</translation>
+    </message>
+    <message id="ui.explore.electrified">
+        <location filename="../src/explore/ExplorePanel.cpp" line="190"/>
+        <source>Electrified</source>
+        <translation>Zelektryfikowana</translation>
+    </message>
+    <message id="ui.explore.not.electrified">
+        <location filename="../src/explore/ExplorePanel.cpp" line="193"/>
+        <source>Not electrified</source>
+        <translation>Niezelektryfikowana</translation>
+    </message>
+    <message id="ui.explore.speed.limit.kmh">
+        <location filename="../src/explore/ExplorePanel.cpp" line="197"/>
+        <source>Speed limit %1 km/h</source>
+        <translation>Prędkość maks. %1 km/h</translation>
+    </message>
+    <message id="ui.explore.speed.limit.mph">
+        <location filename="../src/explore/ExplorePanel.cpp" line="199"/>
+        <source>Speed limit %1 mph</source>
+        <translation>Prędkość maks. %1 mph</translation>
+    </message>
     <message id="ui.explore.passes">
-        <location filename="../src/explore/ExplorePanel.cpp" line="334"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="425"/>
         <source>passes %1</source>
         <translation>przejeżdża %1</translation>
     </message>
+    <message id="ui.explore.timetable">
+        <location filename="../src/explore/ExplorePanel.cpp" line="842"/>
+        <source>Timetable</source>
+        <translation>Rozkład jazdy</translation>
+    </message>
+    <message id="ui.explore.count.activities">
+        <location filename="../src/explore/ExplorePanel.cpp" line="976"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="212"/>
+        <source>Activities: %1</source>
+        <translation>Scenariusze: %1</translation>
+    </message>
+    <message id="ui.explore.count.timetables">
+        <location filename="../src/explore/ExplorePanel.cpp" line="978"/>
+        <source>Timetables: %1</source>
+        <translation>Rozkłady: %1</translation>
+    </message>
+    <message id="ui.explore.count.paths">
+        <location filename="../src/explore/ExplorePanel.cpp" line="980"/>
+        <source>Player paths: %1</source>
+        <translation>Ścieżki gracza: %1</translation>
+    </message>
+    <message id="ui.explore.count.stations">
+        <location filename="../src/explore/ExplorePanel.cpp" line="983"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="214"/>
+        <source>Stations: %1</source>
+        <translation>Stacje: %1</translation>
+    </message>
     <message id="ui.explore.explore.route">
-        <location filename="../src/explore/ExplorePanel.cpp" line="558"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="398"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="431"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="993"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1583"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1603"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="400"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="433"/>
         <source>Explore the route</source>
         <translation>Eksploruj trasę</translation>
     </message>
     <message id="ui.explore.activities">
-        <location filename="../src/explore/ExplorePanel.cpp" line="561"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="997"/>
         <source>Activities</source>
         <translation>Scenariusze</translation>
     </message>
     <message id="ui.explore.timetables">
-        <location filename="../src/explore/ExplorePanel.cpp" line="566"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1001"/>
         <source>Timetables</source>
         <translation>Rozkłady jazdy</translation>
     </message>
+    <message id="ui.explore.other.trains">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1027"/>
+        <source>Other trains: %1</source>
+        <translation>Inne pociągi: %1</translation>
+    </message>
+    <message id="ui.explore.count.trains">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1049"/>
+        <source>Trains: %1</source>
+        <translation>Pociągi: %1</translation>
+    </message>
+    <message id="ui.explore.consist.is">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1075"/>
+        <source>Consist: %1</source>
+        <translation>Skład: %1</translation>
+    </message>
+    <message id="ui.explore.path.is">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1078"/>
+        <source>Path: %1</source>
+        <translation>Ścieżka: %1</translation>
+    </message>
+    <message id="ui.explore.cars">
+        <location filename="../src/explore/ExplorePanel.cpp" line="1116"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="250"/>
+        <source>Cars: %1</source>
+        <translation>Pojazdy: %1</translation>
+    </message>
     <message id="ui.explore.start.at">
-        <location filename="../src/explore/ExplorePanel.cpp" line="670"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="269"/>
         <source>Start at</source>
         <translation>Start</translation>
     </message>
     <message id="ui.explore.no.train">
-        <location filename="../src/explore/ExplorePanel.cpp" line="676"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="850"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="267"/>
         <source>No train</source>
         <translation>Bez pociągu</translation>
     </message>
     <message id="ui.explore.station">
-        <location filename="../src/explore/ExplorePanel.cpp" line="687"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="833"/>
         <source>Station</source>
         <translation>Stacja</translation>
     </message>
     <message id="ui.explore.heading.to">
-        <location filename="../src/explore/ExplorePanel.cpp" line="696"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="271"/>
         <source>Heading to</source>
         <translation>Kierunek</translation>
     </message>
-    <message id="ui.explore.locomotive">
-        <location filename="../src/explore/ExplorePanel.cpp" line="705"/>
-        <source>Locomotive</source>
-        <translation>Lokomotywa</translation>
-    </message>
     <message id="ui.explore.consist">
-        <location filename="../src/explore/ExplorePanel.cpp" line="714"/>
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="273"/>
         <source>Consist</source>
         <translation>Skład</translation>
     </message>
     <message id="ui.explore.time">
-        <location filename="../src/explore/ExplorePanel.cpp" line="723"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="731"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="851"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="859"/>
         <source>Time</source>
         <translation>Godzina</translation>
     </message>
     <message id="ui.explore.day">
-        <location filename="../src/explore/ExplorePanel.cpp" line="740"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="748"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="868"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="876"/>
         <source>Day</source>
         <translation>Dzień</translation>
     </message>
     <message id="ui.explore.weather">
-        <location filename="../src/explore/ExplorePanel.cpp" line="757"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="885"/>
         <source>Weather</source>
         <translation>Pogoda</translation>
     </message>
@@ -19279,45 +19425,45 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
         <translation>Przygotowanie przejazdu: %1 s</translation>
     </message>
     <message id="ui.explore.error.no.route">
-        <location filename="../src/explore/ExploreRun.cpp" line="295"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="297"/>
         <source>The route %1 is not in the game root.</source>
         <translation>Trasy %1 nie ma w katalogu gry.</translation>
     </message>
     <message id="ui.explore.error.route.load">
-        <location filename="../src/explore/ExploreRun.cpp" line="303"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="305"/>
         <source>The route %1 did not load.</source>
         <translation>Trasa %1 nie wczytała się.</translation>
     </message>
     <message id="ui.explore.error.activity">
-        <location filename="../src/explore/ExploreRun.cpp" line="363"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="365"/>
         <source>The activity %1 did not load.</source>
         <translation>Scenariusz %1 nie wczytał się.</translation>
     </message>
     <message id="ui.explore.error.timetable">
-        <location filename="../src/explore/ExploreRun.cpp" line="371"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="373"/>
         <source>The timetable %1 did not load.</source>
         <translation>Rozkład jazdy %1 nie wczytał się.</translation>
     </message>
     <message id="ui.explore.error.explore">
-        <location filename="../src/explore/ExploreRun.cpp" line="394"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="419"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="468"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="506"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="396"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="421"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="470"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="508"/>
         <source>The run could not be made.</source>
         <translation>Nie udało się przygotować przejazdu.</translation>
     </message>
     <message id="ui.explore.error.walk.path">
-        <location filename="../src/explore/ExploreRun.cpp" line="459"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="461"/>
         <source>The train does not call at %1 on this path.</source>
         <translation>Pociąg nie zatrzymuje się na stacji %1 na tej ścieżce.</translation>
     </message>
     <message id="ui.explore.error.walk.platform">
-        <location filename="../src/explore/ExploreRun.cpp" line="477"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="479"/>
         <source>%1 has no platform in the route&apos;s track database.</source>
         <translation>%1 nie ma peronu w bazie torów trasy.</translation>
     </message>
     <message id="ui.explore.error.walk.place">
-        <location filename="../src/explore/ExploreRun.cpp" line="530"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="532"/>
         <source>No place to stand at %1.</source>
         <translation>Brak miejsca do stania na stacji %1.</translation>
     </message>

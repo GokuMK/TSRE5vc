@@ -85,6 +85,9 @@ public:
         float lightReach = 0.0f;
         bool lightsShown = true;
         bool lightsOn = true;
+        // The camera inside its car (RenderQueue::setViewerInside): its
+        // lights' ambient fills light.
+        bool viewerInside = false;
         // Its bounding sphere in submission space, centre and radius (below
         // 0: none), from its packet's bounds at submission: each view culls
         // by it.
@@ -261,11 +264,12 @@ protected:
     // task 24), with signal lights scaled by signalGain (task 26); signal
     // lights are left out otherwise. Ranges follow the brightness as shown:
     // times rangeGain, the exposure the view applies (task 29).
-    // movingOnly: those on moving things alone (the lamps' maps drawn each
-    // frame, task renderer 46 A).
+    // carsOnly: those on cars alone, moving or standing (the moving lamps'
+    // maps drawn each frame and the cars' own lamps' maps, task renderer 46
+    // A and C).
     void gatherLights(std::vector<LightGrid::Light> &lights, float exposure,
                       float emissiveGain, bool emittersOnly = false, float signalGain = 0.0f,
-                      float rangeGain = 1.0f, bool movingOnly = false) const;
+                      float rangeGain = 1.0f, bool carsOnly = false) const;
     // For traces (task renderer 46, step 0): what shadow maps of the lamps
     // nearest eye would hold (the static casters within each lamp's reach,
     // their triangles), and how many lamps reach each moving caster.
@@ -284,6 +288,10 @@ protected:
     void gatherCarCasters(std::vector<const DrawInstance *> &casters) const;
     void planCarCasters(const std::vector<const DrawInstance *> &casters, const std::vector<const void *> &cars,
                         const float *centre, float range, const float *viewProjection);
+    // A car's own lamp's casters (its map in the car's frame, task 46 C):
+    // the car's parts as the view draws them (its cab's from the cab),
+    // moving or standing, within its reach and view, into shadowCasters.
+    void planOwnCasters(const void *car, const float *centre, float range, const float *viewProjection);
 
     std::vector<GroupPlan> groupPlans;
     std::vector<const DrawInstance *> plannedInstances;

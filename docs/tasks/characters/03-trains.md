@@ -233,6 +233,7 @@ Fixed (the user's go, 2026-11-21: 1 to 3, crouching lower):
   coupled neighbour's (the next in the consist, flipped or not) at the
   middle of the gap between their ends; a floor across that gap (half in
   each frame); only where both facing ends have one (a cab's end none).
+  Now task [05](05-walking-between-cars.md) (brief 2026-11-23).
 - Jumping onto or off a moving train; controls limited while the driver
   is out of the cab (the roadmap's later questions).
 - The cab: a tap of E at the driver's place (the control under the

@@ -240,6 +240,10 @@ struct ViewSpec {
     // Riding the cab, its place (task maszyna 04: 1 pressed again): its 3D
     // cab's next viewpoints, then the window's eye.
     int cabPlace = 0;
+    // Looking from it that way ("cabLook": [yaw, pitch] in degrees, as
+    // core.startup.camera gives them; task renderer 46 C: a cab's ceiling).
+    bool hasCabLook = false;
+    float cabLook[2] = {0, 0};
     // Riding one of its vehicles (as its consist lists them) from an eye
     // looking at a point, both in that vehicle's frame (its front at the
     // origin, ahead -z, x to its right, metres): "trainVehicle", "trainEye",
@@ -856,6 +860,7 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         view.train = object.value("train").toInt(-1);
         view.trainView = object.value("trainView").toString();
         view.cabPlace = object.value("cabPlace").toInt(0);
+        view.hasCabLook = readFloatArray(object.value("cabLook"), view.cabLook, 2);
         view.trainVehicle = object.value("trainVehicle").toInt(-1);
         view.simulateTo = object.value("simulateTo").toString();
         view.motionSeconds = object.value("motionSeconds").toDouble(0.0);
@@ -1562,6 +1567,10 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         } else if (!spec.map && spec.train >= 0
                 && !(spec.trainView.isEmpty() ? widget.viewTrain(spec.train) : widget.rideTrain(spec.train, ride, spec.cabPlace)))
             qWarning() << CaptureLog << "train" << spec.train << "is not on the track";
+        else if (!spec.map && spec.train >= 0 && spec.hasCabLook)
+            widget.diagnosticLook(spec.cabLook[0], spec.cabLook[1]);
+        if (!spec.map && spec.train >= 0)
+            qInfo().noquote() << CaptureLog << spec.name << "camera" << widget.cameraSetting();
         // Walking from the view's camera, a train's too (task characters
         // 03: from inside a car).
         if (spec.walk && !widget.diagnosticWalk(spec.walkKeys, spec.walkSeconds, spec.walkThird, spec.walkBack))

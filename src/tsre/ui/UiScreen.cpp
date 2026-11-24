@@ -386,10 +386,19 @@ bool Screen::keyPress(QKeyEvent *event) {
     }
     Deadline deadline;
     const int state = modifiers(event->modifiers());
+    // A menu's text field (the Explore window's filters, task explore 05)
+    // takes the text typed too; the keys stay the menu's.
+    bool typing = owner == Keys::Text;
+    if (owner == Keys::Menu)
+        if (Rml::Element *focus = d->context->GetFocusElement()) {
+            const Rml::String tag = focus->GetTagName();
+            const Rml::String type = focus->GetAttribute<Rml::String>("type", "text");
+            typing = tag == "textarea" || (tag == "input" && (type == "text" || type == "password"));
+        }
     const bool unused = d->context->ProcessKeyDown(keyIdentifier(event->key()), state);
     // Typing: printable text, not shortcuts.
     const QString text = event->text();
-    if (owner == Keys::Text && !text.isEmpty() && text.at(0).isPrint()
+    if (typing && !text.isEmpty() && text.at(0).isPrint()
             && !(event->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)))
         d->context->ProcessTextInput(text.toStdString());
     // Esc leaves a text field; it closes a menu unless the menu used it (a

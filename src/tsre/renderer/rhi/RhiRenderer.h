@@ -1241,7 +1241,7 @@ private:
     std::vector<LightGrid::Light> frameLights;
     bool lightsPrepared = false;
     // The frame's lights as the lamps and the scene take them.
-    void gatherFrameLights(std::vector<LightGrid::Light> &lights, bool movingOnly = false);
+    void gatherFrameLights(std::vector<LightGrid::Light> &lights, bool carsOnly = false);
     // The lamps' static shadow maps (task 46): layers of R16F (or R32F)
     // arrays holding 1 - depth (floats are finest near 0), each a lamp's
     // depth seen from it, drawn once and kept while its array has room. Two
@@ -1266,6 +1266,11 @@ private:
         int tileBase = 0;
         std::vector<Attachments> tileTargets;
         std::vector<quint64> tileOwners;
+        // The cars' own point lamps' cubes (task 46 C): CubeFaces layers a
+        // cube from cubeBase on (after the maps, before the tiles), each
+        // slot's lamp.
+        int cubeBase = 0;
+        std::vector<quint64> cubeOwners;
         QRhiTexture *staging = nullptr;
     };
     static constexpr int LampShadowSets = 2;
@@ -1284,6 +1289,24 @@ private:
         // order there, its map drawn each frame with the moving cars, no
         // tile (task 46 A).
         bool moving = false;
+        // A car's own lamp's (task 46 C): known by its car and the light,
+        // its map in the car's frame drawn with the car alone, kept while
+        // the car draws the same (content), moved with the car (carLocal:
+        // the map's matrix times the car's box when drawn), no tile.
+        bool car = false;
+        quint64 content = 0;
+        float carLocal[16] = {};
+        // A car's own point lamp's cube (task 46 C): its set and slot
+        // (-1 none), drawn, stale (its car draws something else: still
+        // used until drawn again, else the lamp flashed unshadowed), the
+        // frame it was drawn and the last frame it was wanted.
+        bool cube = false;
+        int cubeSet = -1;
+        int cubeSlot = -1;
+        bool cubeDrawn = false;
+        bool cubeStale = false;
+        quint64 cubeDrawnFrame = 0;
+        quint64 cubeWanted = 0;
         // The standing cars drawn into its map of each set: their boxes are
         // left out of its light (the map shadows them).
         std::vector<const void *> cars[LampShadowSets];
@@ -1322,7 +1345,16 @@ private:
     // the shadow fading out over the last fifth (LocalLightShadowFar in
     // LocalLights.glsl, the same). Bounds a map's casters and its texels.
     static constexpr float LampShadowFar = 100.0f;
-    bool createLampShadowSet(int set, int layers, int tiles, int size, QRhiTexture::Format format);
+    bool createLampShadowSet(int set, int layers, int tiles, int size, QRhiTexture::Format format, int cubes = 0);
+    static constexpr int CubeFaces = 6;
+    // A car's own point lamp's cube (task 46 C): its frame (submission
+    // space to the cube's: the car's axes, the lamp at the origin; near and
+    // far kept in its spare bottom row, as the shaders read them), and a
+    // face's matrix (OpenGL clip space: a 90 degree view along +x, -x, +y,
+    // -y, +z, -z of that frame, as LocalLights.glsl's cube lookup takes it).
+    void cubeFrame(const RenderQueue::CarBox &box, const float *lamp, float nearPlane, float farPlane,
+                   float *frame) const;
+    static void cubeFaceMatrix(const float *frame, int face, float *matrix);
     void releaseLampShadowSet(int set);
     void releaseLampShadows();
     quint64 lampShadowKey(const LightGrid::Light &light, const int *tile) const;
@@ -1338,11 +1370,35 @@ private:
         std::vector<quint64> keys;
         std::vector<LightGrid::Light> lamps;
     };
-    static MovingGroups groupMovingLamps(const std::vector<LightGrid::Light> &lights);
-    void lampShadowMatrix(const LightGrid::Light &light, float *matrix) const;
+    // carLamps: each light's car box (carLamp), its own lamps left out.
+    static MovingGroups groupMovingLamps(const std::vector<LightGrid::Light> &lights,
+                                         const std::vector<int> &carLamps);
+    void lampShadowMatrix(const LightGrid::Light &light, float *matrix, float nearPlane = LampShadowNear) const;
+    // A car's own lamp's near plane (task 46 C): its Radius, the lamp's
+    // size, so its own fixture (a diffuser round it) does not shadow it.
+    static float ownLampNear(const LightGrid::Light &light) {
+        return std::clamp(light.radius, LampShadowNear, 1.0f);
+    }
     // cars: the moving cars within its reach too, as boxes, but its own
-    // (a moving lamp's map, drawn each frame).
-    void drawLampShadow(int set, int layer, const LightGrid::Light &light, bool cars = false);
+    // (a moving lamp's map, drawn each frame). own: a car's own lamp's map
+    // (task 46 C), that car alone.
+    void drawLampShadow(int set, int layer, const LightGrid::Light &light, bool cars = false,
+                        const void *own = nullptr, const float *matrix = nullptr);
+    // A car's own lamps (task 46 C, the user's design 2026-11-22 to 23): a
+    // lamp whose shape says Shadows ( Own ) on a car with boxes (not a
+    // static consist's: the world's cached maps hold it) keeps a map in the
+    // car's frame: drawn once with the car alone, moved with it, drawn
+    // again only when the car draws something else (its cab shown, a door
+    // come to rest, a cab control at rest elsewhere). Spots for now (points
+    // to take cubes). The index of the car's first box, -1 for any other
+    // light (Scene: the world's frame; None: no map).
+    // TSRE_CAR_LAMP_SHADOWS=0: none, as before.
+    QHash<const void *, int> carBoxIndex() const;
+    int carLamp(const LightGrid::Light &light, const QHash<const void *, int> &boxes) const;
+    std::vector<int> carLamps(const std::vector<LightGrid::Light> &lights) const;
+    static quint64 carLampKey(const LightGrid::Light &light);
+    // A car's box's inverse (submission space to the unit box).
+    static void carBoxInverse(const float *toWorld, float *inverse);
     // The frame's lights given the layers and matrices of the maps drawn.
     void assignLampShadows(std::vector<LightGrid::Light> &lights) const;
     // The moving cars' casters this frame (planned per lamp drawn in detail).

@@ -286,6 +286,14 @@ public:
         // An emissive signal light (task 26): only its glow splat, scaled by
         // the signal lights' daylight scale; it lights nothing.
         bool signal = false;
+        // What shadows it (task renderer 46 C): everything around it, its
+        // own object alone (a car's: a map in the car's frame), or nothing.
+        enum Shadows { SHADOWS_SCENE = 0, SHADOWS_OWN, SHADOWS_NONE };
+        unsigned char shadows = SHADOWS_SCENE;
+        // An ambient fill (task renderer 46 C): what is in its range lit
+        // whatever way it faces, no shadow, and only while the camera is
+        // inside its object's car.
+        bool ambient = false;
     };
 
     // Sphere enclosing the packet in the space of the submission transform

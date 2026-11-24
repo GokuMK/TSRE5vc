@@ -1240,6 +1240,9 @@ void RouteEditorGLWidget::capturePointer(bool on) {
 // where it stands); the run's characters go with the run (stopped, reset,
 // another).
 void RouteEditorGLWidget::stepCharacter(double seconds) {
+    // The car the camera is in with the walking character: none until found
+    // below (its lamps' ambient fills, task renderer 46 C).
+    Eng::viewerCar = nullptr;
     Characters::Cast &cast = Characters::Cast::instance();
     if (cast.count() == 0)
         return;
@@ -1278,6 +1281,12 @@ void RouteEditorGLWidget::stepCharacter(double seconds) {
             standFromDrive(driver);
     }
     keepStandingCab();
+    walking = walker();
+    if (walking != nullptr && walking->inCar() && camera != NULL && camera->getCameraObject() == walking) {
+        Consist *consist = simulation->consistOf(walking->train());
+        if (consist != nullptr && walking->car() >= 0 && walking->car() < consist->engItems.size())
+            Eng::viewerCar = consist->engItems[walking->car()].engPointer;
+    }
     useHover();
 }
 
@@ -6088,6 +6097,15 @@ bool RouteEditorGLWidget::rideTrainVehicle(int train, int vehicle, const float *
     cameraFree->setPos(eye[0], eye[1], eye[2]);
     cameraFree->setPlayerRot(std::atan2(look[0], look[2]), std::asin(look[1] / std::max(distance, 0.001f)));
     return true;
+}
+
+void RouteEditorGLWidget::diagnosticLook(float yaw, float pitch) {
+    if (camera == NULL)
+        return;
+    // Its own turn over what it rides: the ridden's first, without its own.
+    camera->setPlayerRot(0.0f, 0.0f);
+    const float ridden[2] = {camera->getRotX(), camera->getRotY()};
+    camera->setPlayerRot(yaw * float(M_PI) / 180.0f - ridden[0], pitch * float(M_PI) / 180.0f - ridden[1]);
 }
 
 bool RouteEditorGLWidget::rideTrain(int train, RideView view, int cabPlace) {

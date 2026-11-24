@@ -34,6 +34,7 @@ struct Node;
 //       Aisle 1 ( 0 1.16 -10.6 10.6 )
 //       Aisle 2 ( 0.85 1.16 -10.9 -10.3 0.4 )
 //       Passage ( 0 1.16 -5.4 0.7 )
+//       EndPassage ( 0 1.16 12.1 0.8 )
 //       Seat 1 ( 0.64 1.54 -9.77 180 )
 //       Seat 2 ( 0.19 1.54 -9.77 180 )
 //       Door 1 ( -1.36 1.14 -4.52 1.3 )
@@ -91,6 +92,19 @@ struct Passage {
     float width = 0.7f;
 };
 
+// A door in an end wall (task characters 05): the character walks through it
+// into the next car while its car is coupled to one with an EndPassage at
+// the facing end, their floors at most OneStep apart. Its middle across x,
+// the floor at it y, the wall's face along the car z (its sign the end: +
+// the shape's front), the door's width (m). One for each end at most (the
+// first read).
+struct EndPassage {
+    float position[3] = {0.0f, 0.0f, 0.0f};
+    float width = 0.7f;
+    // Its end: 1 the shape's front (+z), -1 its rear.
+    int end() const { return position[2] >= 0.0f ? 1 : -1; }
+};
+
 // A door people get in and out by (m): its outer face across at x, which
 // gives its side (where the car is drawn, +x its left: an S file's DOOR_D..F,
 // at -x as written; a MaSzyna model's odd doors), the floor at its threshold
@@ -133,6 +147,7 @@ struct Seats {
     QVector<Seat> seats;
     QVector<Aisle> aisles;
     QVector<Passage> passages;
+    QVector<EndPassage> endPassages;
     QVector<Door> doors;
     // Found by connect(): the aisles' joins and each seat's aisle (an index
     // into aisles, -1 for none).
@@ -142,6 +157,13 @@ struct Seats {
     bool empty() const { return seats.isEmpty() || aisles.isEmpty(); }
     // Nothing to use: no seats, no doors.
     bool none() const { return empty() && doors.isEmpty(); }
+    // Its EndPassage at an end (1 its front, -1 its rear), null for none.
+    const EndPassage *endPassageAt(int end) const {
+        for (const EndPassage &passage : endPassages)
+            if (passage.end() == end)
+                return &passage;
+        return nullptr;
+    }
 };
 
 // The joins of a car's aisles: every pair whose ranges overlap or nearly

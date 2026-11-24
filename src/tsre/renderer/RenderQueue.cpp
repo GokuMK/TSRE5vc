@@ -65,12 +65,13 @@ void RenderQueue::setShadowDynamic(bool dynamic) {
 }
 
 void RenderQueue::addCarBox(const void *car, const float *model, const float *centre, const float *half, int inner,
-                            bool detail, bool standing) {
+                            bool detail, bool standing, quint64 content) {
     CarBox box;
     box.car = car;
     box.inner = inner;
     box.detail = detail;
     box.standing = standing;
+    box.content = content;
     float world[3];
     for (int r = 0; r < 3; ++r)
         world[r] = model[r] * centre[0] + model[4 + r] * centre[1] + model[8 + r] * centre[2] + model[12 + r];
@@ -133,6 +134,7 @@ void RenderQueue::resetQueueState() {
     currentLightReach = 0.0f;
     currentLightsShown = true;
     currentLightsOn = true;
+    currentViewerInside = false;
     matrixStackDepth = 0;
 }
 

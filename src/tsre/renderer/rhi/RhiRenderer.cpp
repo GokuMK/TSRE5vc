@@ -4268,6 +4268,7 @@ void RhiRenderer::prepareLights() {
         const float shape[4] = {light.range, light.radius, light.cosInner, light.cosOuter};
         mix(shape, sizeof(shape));
         mix(&light.spot, sizeof(light.spot));
+        mix(&light.ambient, sizeof(light.ambient));
         mix(&light.shadowLayer, sizeof(light.shadowLayer));
         mix(&light.shadowSet, sizeof(light.shadowSet));
     }
@@ -4356,7 +4357,7 @@ void RhiRenderer::releaseLights() {
     releaseLampShadows();
 }
 
-void RhiRenderer::gatherFrameLights(std::vector<LightGrid::Light> &lights, bool movingOnly) {
+void RhiRenderer::gatherFrameLights(std::vector<LightGrid::Light> &lights, bool carsOnly) {
     lights.clear();
     if (!Game::localLightsEnabled)
         return;
@@ -4369,10 +4370,107 @@ void RhiRenderer::gatherFrameLights(std::vector<LightGrid::Light> &lights, bool 
     // not rebuild the grid each frame (task 29).
     const float shown = exposureActive() ? std::exp2(std::round(std::log2(autoExposure()) * 2.0f) * 0.5f) : 1.0f;
     gatherLights(lights, Game::localLightsExposure * day, Game::localLightsEmissiveGain * day, false, 0.0f, shown,
-                 movingOnly);
+                 carsOnly);
 }
 
-RhiRenderer::MovingGroups RhiRenderer::groupMovingLamps(const std::vector<LightGrid::Light> &lights) {
+QHash<const void *, int> RhiRenderer::carBoxIndex() const {
+    QHash<const void *, int> index;
+    const std::vector<CarBox> &boxes = carBoxes();
+    for (int i = 0; i < int(boxes.size()); i += 1 + boxes[size_t(i)].inner)
+        if (!index.contains(boxes[size_t(i)].car))
+            index.insert(boxes[size_t(i)].car, i);
+    return index;
+}
+
+int RhiRenderer::carLamp(const LightGrid::Light &light, const QHash<const void *, int> &boxes) const {
+    static const bool off = qEnvironmentVariableIsSet("TSRE_CAR_LAMP_SHADOWS")
+            && qEnvironmentVariableIntValue("TSRE_CAR_LAMP_SHADOWS") == 0;
+    if (off || light.shadows != RenderItem::Light::SHADOWS_OWN || light.ambient || light.signal || light.emissive
+            || light.owner == nullptr || light.source == 0)
+        return -1;
+    // A car with boxes (not a static consist's, whose lamps keep the world's
+    // cached maps, the car in them).
+    const auto found = boxes.constFind(light.owner);
+    return found == boxes.cend() ? -1 : found.value();
+}
+
+std::vector<int> RhiRenderer::carLamps(const std::vector<LightGrid::Light> &lights) const {
+    std::vector<int> out(lights.size(), -1);
+    if (carBoxes().empty())
+        return out;
+    const QHash<const void *, int> boxes = carBoxIndex();
+    for (size_t i = 0; i < lights.size(); ++i)
+        out[i] = carLamp(lights[i], boxes);
+    return out;
+}
+
+quint64 RhiRenderer::carLampKey(const LightGrid::Light &light) {
+    const quint64 values[2] = {quint64(reinterpret_cast<quintptr>(light.owner)), light.source};
+    quint64 hash = 14695981039346656037ull;
+    const unsigned char *p = reinterpret_cast<const unsigned char *>(values);
+    for (size_t i = 0; i < sizeof(values); ++i)
+        hash = (hash ^ p[i]) * 1099511628211ull;
+    return hash == 0 ? 1 : hash;
+}
+
+void RhiRenderer::carBoxInverse(const float *toWorld, float *inverse) {
+    // The box's axes are perpendicular (a car's placement: a turn, no
+    // shear): each a row of the inverse over its length squared.
+    std::fill(inverse, inverse + 16, 0.0f);
+    for (int a = 0; a < 3; ++a) {
+        const float *axis = toWorld + a * 4;
+        const float squared = axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2];
+        const float scale = squared > 0.0f ? 1.0f / squared : 0.0f;
+        float offset = 0.0f;
+        for (int k = 0; k < 3; ++k) {
+            inverse[k * 4 + a] = axis[k] * scale;
+            offset += axis[k] * toWorld[12 + k];
+        }
+        inverse[12 + a] = -offset * scale;
+    }
+    inverse[15] = 1.0f;
+}
+
+void RhiRenderer::cubeFrame(const CarBox &box, const float *lamp, float nearPlane, float farPlane,
+                            float *frame) const {
+    // Rows: the car's axes (its box's, unit long); the lamp at the origin.
+    std::fill(frame, frame + 16, 0.0f);
+    for (int a = 0; a < 3; ++a) {
+        const float *axis = box.toWorld + a * 4;
+        const float length = std::sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+        float offset = 0.0f;
+        for (int k = 0; k < 3; ++k) {
+            const float unit = length > 0.0f ? axis[k] / length : (k == a ? 1.0f : 0.0f);
+            frame[k * 4 + a] = unit;
+            offset += unit * lamp[k];
+        }
+        frame[12 + a] = -offset;
+    }
+    frame[3] = nearPlane;
+    frame[7] = farPlane;
+    frame[15] = 1.0f;
+}
+
+void RhiRenderer::cubeFaceMatrix(const float *frame, int face, float *matrix) {
+    // Along +x, -x, +y, -y, +z, -z of the cube's frame; up +y, or +z
+    // looking along y (LocalLights.glsl's localLightCubeClip, the same).
+    static constexpr float Ahead[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    static constexpr float Up[6][3] = {{0, 1, 0}, {0, 1, 0}, {0, 0, 1}, {0, 0, 1}, {0, 1, 0}, {0, 1, 0}};
+    float eye[3] = {0.0f, 0.0f, 0.0f};
+    float centre[3] = {Ahead[face][0], Ahead[face][1], Ahead[face][2]};
+    float up[3] = {Up[face][0], Up[face][1], Up[face][2]};
+    float view[16], projection[16], cube[16], viewed[16];
+    Mat4::lookAt(view, eye, centre, up);
+    Mat4::perspective(projection, float(M_PI) / 2.0f, 1.0f, frame[3], frame[7]);
+    std::copy(frame, frame + 16, cube);
+    cube[3] = cube[7] = cube[11] = 0.0f;
+    cube[15] = 1.0f;
+    Mat4::multiply(viewed, view, cube);
+    Mat4::multiply(matrix, projection, viewed);
+}
+
+RhiRenderer::MovingGroups RhiRenderer::groupMovingLamps(const std::vector<LightGrid::Light> &lights,
+                                                         const std::vector<int> &carLamps) {
     static const bool perLight = qEnvironmentVariableIsSet("TSRE_LAMP_MOVING_PER_LIGHT");
     const float together = std::cos(30.0f * float(M_PI) / 180.0f);
     MovingGroups groups;
@@ -4382,7 +4480,8 @@ RhiRenderer::MovingGroups RhiRenderer::groupMovingLamps(const std::vector<LightG
     QHash<const void *, int> perCar;
     for (size_t i = 0; i < lights.size(); ++i) {
         const LightGrid::Light &light = lights[i];
-        if (!light.spot || light.signal || light.emissive || !light.moving || light.owner == nullptr)
+        if (!light.spot || light.signal || light.emissive || !light.moving || light.owner == nullptr
+                || light.shadows == RenderItem::Light::SHADOWS_NONE || (i < carLamps.size() && carLamps[i] >= 0))
             continue;
         int found = -1;
         for (int g = 0; g < int(groups.lamps.size()) && found < 0 && !perLight; ++g) {
@@ -4471,7 +4570,7 @@ quint64 RhiRenderer::lampShadowKey(const LightGrid::Light &light, const int *til
 
 // The lamp's view: from it along its way, as wide as its cone (to 150
 // degrees, below), to its reach.
-void RhiRenderer::lampShadowMatrix(const LightGrid::Light &light, float *matrix) const {
+void RhiRenderer::lampShadowMatrix(const LightGrid::Light &light, float *matrix, float nearPlane) const {
     // As wide as the cone to 150 degrees: a street lamp's 75 degree cone
     // whole, its light out to its reach (a lamp 8 m up or higher); 120
     // degrees left a ring 13 to 28 m from a 9 m lamp lit through
@@ -4489,26 +4588,29 @@ void RhiRenderer::lampShadowMatrix(const LightGrid::Light &light, float *matrix)
     }
     float view[16], projection[16];
     Mat4::lookAt(view, eye, centre, up);
-    Mat4::perspective(projection, fov, 1.0f, LampShadowNear,
-                      std::clamp(light.range, LampShadowNear * 2.0f, LampShadowFar));
+    Mat4::perspective(projection, fov, 1.0f, nearPlane,
+                      std::clamp(light.range, nearPlane * 2.0f, LampShadowFar));
     Mat4::multiply(matrix, projection, view);
 }
 
-bool RhiRenderer::createLampShadowSet(int set, int layers, int tiles, int size, QRhiTexture::Format format) {
+bool RhiRenderer::createLampShadowSet(int set, int layers, int tiles, int size, QRhiTexture::Format format,
+                                      int cubes) {
     releaseLampShadowSet(set);
     LampShadowSet &maps = lampShadowSets[set];
     if (rhi == nullptr || layers < 1 || size < 1)
         return false;
     const QSize pixels(size, size);
-    maps.array = rhi->newTextureArray(format, layers + tiles, pixels, 1,
+    // The maps' layers, the cubes' (task 46 C), then the tiles.
+    const int mapped = layers + CubeFaces * cubes;
+    maps.array = rhi->newTextureArray(format, mapped + tiles, pixels, 1,
                                       QRhiTexture::RenderTarget | QRhiTexture::UsedAsTransferSource);
     maps.depth = rhi->newTexture(QRhiTexture::D32F, pixels, 1, QRhiTexture::RenderTarget);
     if (!maps.array->create() || !maps.depth->create()) {
         releaseLampShadowSet(set);
         return false;
     }
-    maps.targets.resize(size_t(layers));
-    for (int layer = 0; layer < layers; ++layer) {
+    maps.targets.resize(size_t(mapped));
+    for (int layer = 0; layer < mapped; ++layer) {
         Attachments &target = maps.targets[size_t(layer)];
         target.color = maps.array;
         target.depth = maps.depth;
@@ -4524,14 +4626,15 @@ bool RhiRenderer::createLampShadowSet(int set, int layers, int tiles, int size, 
         if (layer > 0)
             target.sharedPass = maps.targets[0].passes[0];
     }
+    maps.cubeBase = layers;
     // The tiles: colour alone (the cars over the map: no depth test).
-    maps.tileBase = layers;
+    maps.tileBase = mapped;
     maps.tileTargets.resize(size_t(tiles));
     for (int tile = 0; tile < tiles; ++tile) {
         Attachments &target = maps.tileTargets[size_t(tile)];
         target.color = maps.array;
         target.depth = nullptr;
-        target.colorLayer = layers + tile;
+        target.colorLayer = mapped + tile;
         target.ownsColor = target.ownsDepth = false;
         target.openGlRows = true;
         target.size = pixels;
@@ -4553,12 +4656,17 @@ bool RhiRenderer::createLampShadowSet(int set, int layers, int tiles, int size, 
     maps.size = size;
     maps.format = format;
     maps.owners.assign(size_t(layers), 0);
+    maps.cubeOwners.assign(size_t(cubes), 0);
     // The set's maps went with its old array.
     for (LampShadow &entry : lampShadows) {
         entry.layer[set] = -1;
         entry.drawn[set] = false;
         if (entry.tileSet == set)
             entry.tileSet = entry.tile = -1;
+        if (entry.cubeSet == set) {
+            entry.cubeSet = entry.cubeSlot = -1;
+            entry.cubeDrawn = entry.cubeStale = false;
+        }
     }
     return true;
 }
@@ -4676,7 +4784,7 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
             continue;
         LampShadow &entry = *found;
         const int set = entry.drawn[0] && entry.layer[0] >= 0 ? 0 : entry.drawn[1] && entry.layer[1] >= 0 ? 1 : -1;
-        if (set < 0 || used[set] >= capacity[set] || entry.moving)
+        if (set < 0 || used[set] >= capacity[set] || entry.moving || entry.car)
             continue;
         const float *p = lamps[k].position;
         const float range = lamps[k].range;
@@ -4858,8 +4966,9 @@ void RhiRenderer::prepareLampTiles(const std::vector<quint64> &keys, const std::
 }
 
 // A lamp's map: cleared to the far plane (1 - depth 0), its static casters
-// drawn from it.
-void RhiRenderer::drawLampShadow(int set, int layer, const LightGrid::Light &light, bool cars) {
+// drawn from it (a car's own lamp's: that car's parts).
+void RhiRenderer::drawLampShadow(int set, int layer, const LightGrid::Light &light, bool cars, const void *own,
+                                 const float *given) {
     LampShadowSet &maps = lampShadowSets[set];
     beginFrameIfNeeded();
     flushTarget();
@@ -4874,13 +4983,19 @@ void RhiRenderer::drawLampShadow(int set, int layer, const LightGrid::Light &lig
     const bool blend = setBlending(false);
     float *shadowMatrix = gluu->pShadowMatrix;
     float matrix[16];
-    lampShadowMatrix(light, matrix);
+    if (given != nullptr)
+        std::copy(given, given + 16, matrix);
+    else
+        lampShadowMatrix(light, matrix, own != nullptr ? ownLampNear(light) : LampShadowNear);
     baseProgram = PROGRAM_SHADOW;
     lampShadowDrawing = true;
     currentVariant = variant(lampShadowProgram);
     gluu->pShadowMatrix = matrix;
     applyFrameUniforms();
-    planLampCasters(light.position, light.range, matrix);
+    if (own != nullptr)
+        planOwnCasters(own, light.position, light.range, matrix);
+    else
+        planLampCasters(light.position, light.range, matrix);
     recordCasters(RenderStats::FrameStats::PassSlots - 1);
     // A moving lamp's: the moving cars in its reach and view as boxes,
     // against the depth (their far faces, as in the tiles), but its own car
@@ -4974,6 +5089,15 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
     // the others' (theirs stay).
     const int movingBudget = std::max(0, envMoving >= 0 ? envMoving : MovingPresets[std::clamp(moving, 0, 3)]);
     const int movingSet = counts[0] > 0 ? 0 : 1;
+    // The cars' own lamps (task 46 C): the nearest CarLampsMost in the same
+    // set, their maps kept (TSRE_LAMP_SHADOWS_CAR overrides).
+    constexpr int CarLampsMost = 8;
+    static const int carBudget = std::max(0, setting("TSRE_LAMP_SHADOWS_CAR", CarLampsMost));
+    // Their point lamps' cubes (task 46 C): the nearest CarCubesMost, six
+    // layers each in the coarse set (the fine one without it), one cube
+    // drawn a frame (TSRE_LAMP_SHADOWS_CUBES overrides).
+    constexpr int CarCubesMost = 4;
+    static const int cubeBudget = std::max(0, setting("TSRE_LAMP_SHADOWS_CUBES", CarCubesMost));
     const int sizes[LampShadowSets] = {fineSize, coarseSize};
     const QRhiTexture::Format format = bits == 32 ? QRhiTexture::R32F : QRhiTexture::R16F;
     // Spare layers for lamps changing sets: one coming keeps its old map
@@ -4985,13 +5109,16 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
     static const int tileTotal = std::clamp(setting("TSRE_LAMP_TILES", LampTilesMost), 0, LampTilesMost);
     const int fineTiles = std::min({counts[0], 16, tileTotal});
     const int tiles[LampShadowSets] = {fineTiles, std::min(counts[1], tileTotal - fineTiles)};
+    const int cubeSet = counts[1] > 0 ? 1 : 0;
     for (int set = 0; set < LampShadowSets; ++set) {
         const LampShadowSet &maps = lampShadowSets[set];
-        const int layers = counts[set] + SpareLayers + (set == movingSet ? movingBudget : 0);
+        const int layers = counts[set] + SpareLayers + (set == movingSet ? movingBudget + carBudget : 0);
+        const int cubes = set == cubeSet ? cubeBudget : 0;
         if (counts[set] > 0 && (maps.array == nullptr || maps.size != sizes[set]
-                                || int(maps.targets.size()) != layers || int(maps.tileTargets.size()) != tiles[set]
-                                || maps.format != format)
-                && !createLampShadowSet(set, layers, tiles[set], sizes[set], format))
+                                || int(maps.targets.size()) != layers + CubeFaces * cubes
+                                || int(maps.cubeOwners.size()) != cubes
+                                || int(maps.tileTargets.size()) != tiles[set] || maps.format != format)
+                && !createLampShadowSet(set, layers, tiles[set], sizes[set], format, cubes))
             return;
     }
     ++lampShadowFrame;
@@ -4999,12 +5126,17 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
     // The lamps, moved from last frame's tile into this one's.
     const float shift[2] = {float(lightsTile[0] - viewTile[0]) * 2048.0f, float(lightsTile[1] - viewTile[1]) * 2048.0f};
     std::vector<LightGrid::Light> lamps;
+    const QHash<const void *, int> carIndex = carBoxIndex();
     for (const LightGrid::Light &light : frameLights) {
-        if (!light.spot || light.signal || light.emissive || light.moving || light.range <= 1.0f)
+        if (!light.spot || light.signal || light.emissive || light.moving || light.range <= 1.0f
+                || light.shadows == RenderItem::Light::SHADOWS_NONE)
             continue;
         LightGrid::Light lamp = light;
         lamp.position[0] += shift[0];
         lamp.position[2] += shift[1];
+        // A standing car's own lamp: its map in the car's frame (below).
+        if (carLamp(lamp, carIndex) >= 0)
+            continue;
         // Its map's reach: its casters, what makes it stale, what it waits
         // for.
         lamp.range = std::min(lamp.range, LampShadowFar);
@@ -5058,10 +5190,16 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
     bool carMoving = false;
     for (const CarBox &car : carBoxes())
         carMoving = carMoving || !car.standing;
+    // This frame's lights on cars: the moving lamps' and the cars' own, with
+    // each one's car box if it is its car's own lamp.
+    std::vector<LightGrid::Light> onCars;
+    std::vector<int> onCarsBox;
+    if (!carBoxes().empty() && ((movingBudget > 0 && carMoving) || carBudget > 0 || cubeBudget > 0)) {
+        gatherFrameLights(onCars, true);
+        onCarsBox = carLamps(onCars);
+    }
     if (movingBudget > 0 && carMoving) {
-        std::vector<LightGrid::Light> all;
-        gatherFrameLights(all, true);
-        const MovingGroups groups = groupMovingLamps(all);
+        const MovingGroups groups = groupMovingLamps(onCars, onCarsBox);
         std::vector<std::pair<float, size_t>> near;
         for (size_t g = 0; g < groups.lamps.size(); ++g)
             if (groups.lamps[g].range >= 10.0f)
@@ -5079,12 +5217,47 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
             wantedSet.push_back(movingSet);
         }
     }
+    // The cars' own lamps (task 46 C): this frame's (a map is drawn where
+    // its car is this frame), the nearest carBudget, after the moving ones.
+    const size_t firstCar = keys.size();
+    std::vector<int> carBoxOf;
+    if (carBudget > 0) {
+        // A lamp with its map drawn ranks nearer (as the others above).
+        std::vector<std::pair<float, size_t>> near;
+        for (size_t i = 0; i < onCars.size(); ++i)
+            if (onCarsBox[i] >= 0 && onCars[i].spot && onCars[i].range > 1.0f) {
+                const auto entry = lampShadows.constFind(carLampKey(onCars[i]));
+                const bool kept = entry != lampShadows.cend() && entry->drawn[movingSet] && entry->layer[movingSet] >= 0;
+                near.push_back({distance2(onCars[i]) * (kept ? 0.8f : 1.0f), i});
+            }
+        std::sort(near.begin(), near.end());
+        QSet<quint64> taken;
+        for (const auto &[distance, i] : near) {
+            Q_UNUSED(distance);
+            const quint64 key = carLampKey(onCars[i]);
+            if (int(taken.size()) >= carBudget || taken.contains(key))
+                continue;
+            taken.insert(key);
+            LightGrid::Light lamp = onCars[i];
+            lamp.range = std::min(lamp.range, LampShadowFar);
+            chosen.push_back(lamp);
+            keys.push_back(key);
+            wantedSet.push_back(movingSet);
+            carBoxOf.push_back(onCarsBox[i]);
+        }
+    }
     lamps.swap(chosen);
     for (size_t k = 0; k < keys.size(); ++k) {
         LampShadow &entry = lampShadows[keys[k]];
-        entry.moving = k >= firstMoving;
+        entry.moving = k >= firstMoving && k < firstCar;
+        entry.car = k >= firstCar;
         // Drawn each frame: its lamp and what is around it move.
         if (entry.moving)
+            entry.stale[0] = entry.stale[1] = true;
+        // Drawn again when its car draws something else in its frame;
+        // TSRE_CAR_LAMP_REDRAW=1: each frame (to measure a map's cost).
+        static const bool carRedraw = qEnvironmentVariableIsSet("TSRE_CAR_LAMP_REDRAW");
+        if (entry.car && (carRedraw || entry.content != carBoxes()[size_t(carBoxOf[k - firstCar])].content))
             entry.stale[0] = entry.stale[1] = true;
         entry.usedFrame = lampShadowFrame;
         entry.wanted[wantedSet[k]] = lampShadowFrame;
@@ -5137,6 +5310,9 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
         // version's rule, for comparisons).
         static const bool global = qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_GLOBAL");
         for (LampShadow &entry : lampShadows) {
+            // A car's own lamp's map holds its car alone.
+            if (entry.car)
+                continue;
             if (global) {
                 entry.stale[0] = entry.stale[1] = true;
                 continue;
@@ -5207,7 +5383,7 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
     }
     // The maps due: not drawn, stale, or drawn while casters near them were
     // loading that have come since.
-    int wanted = 0, ready = 0, drawn = 0, casters = 0, stale = 0;
+    int wanted = 0, ready = 0, drawn = 0, casters = 0, stale = 0, carsDrawn = 0;
     QElapsedTimer clock;
     clock.start();
     for (size_t k = 0; k < keys.size(); ++k) {
@@ -5220,8 +5396,19 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
                 && lampShapesWaiting(lamps[k].position, lamps[k].range) == 0;
         if (entry->drawn[set] && entry->stale[set])
             ++stale;
-        if ((!entry->drawn[set] || entry->stale[set] || arrived) && (drawn < perFrame || entry->moving)) {
-            drawLampShadow(set, entry->layer[set], lamps[k], entry->moving);
+        // A car's own lamp's at once (its car alone: cheap; without it the
+        // lamp lights through the car's walls).
+        if ((!entry->drawn[set] || entry->stale[set] || arrived) && (drawn < perFrame || entry->moving || entry->car)) {
+            drawLampShadow(set, entry->layer[set], lamps[k], entry->moving, entry->car ? lamps[k].owner : nullptr);
+            if (entry->car) {
+                ++carsDrawn;
+                // Its matrix in the car's frame: times the car's box now.
+                const CarBox &box = carBoxes()[size_t(carBoxOf[k - firstCar])];
+                float matrix[16];
+                lampShadowMatrix(lamps[k], matrix, ownLampNear(lamps[k]));
+                Mat4::multiply(entry->carLocal, matrix, const_cast<float *>(box.toWorld));
+                entry->content = box.content;
+            }
             casters += int(shadowCasters.size());
             entry->cars[set].clear();
             for (const DrawInstance *caster : shadowCasters)
@@ -5236,6 +5423,99 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
         }
         if (entry->drawn[set])
             ++ready;
+    }
+    // The cars' own point lamps (task 46 C): a cube in the car's frame each,
+    // the nearest cubeBudget (one with its cube ranks nearer), a slot of the
+    // set free or the one longest unwanted, one cube drawn a frame (six
+    // maps of the car's parts): one never drawn first, then the stale one
+    // (its car drawing something else: a lever moving, a door at rest)
+    // drawn longest ago, each lamp in turn; a stale cube shows until then.
+    int cubesDrawn = 0, cubesWanted = 0;
+    LampShadowSet &cubeMaps = lampShadowSets[cubeSet];
+    if (cubeBudget > 0 && !cubeMaps.cubeOwners.empty()) {
+        static const bool carRedraw = qEnvironmentVariableIsSet("TSRE_CAR_LAMP_REDRAW");
+        std::vector<std::pair<float, size_t>> near;
+        for (size_t i = 0; i < onCars.size(); ++i)
+            if (onCarsBox[i] >= 0 && !onCars[i].spot && onCars[i].range > LampShadowNear * 2.0f) {
+                const auto entry = lampShadows.constFind(carLampKey(onCars[i]));
+                const bool kept = entry != lampShadows.cend() && entry->cubeDrawn;
+                near.push_back({distance2(onCars[i]) * (kept ? 0.8f : 1.0f), i});
+            }
+        std::sort(near.begin(), near.end());
+        QSet<quint64> taken;
+        std::vector<std::pair<size_t, quint64>> due;
+        for (const auto &[distance, i] : near) {
+            Q_UNUSED(distance);
+            const quint64 key = carLampKey(onCars[i]);
+            if (int(taken.size()) >= cubeBudget || taken.contains(key))
+                continue;
+            taken.insert(key);
+            ++cubesWanted;
+            LampShadow &entry = lampShadows[key];
+            entry.car = entry.cube = true;
+            entry.usedFrame = entry.cubeWanted = lampShadowFrame;
+            const CarBox &box = carBoxes()[size_t(onCarsBox[i])];
+            if (carRedraw || entry.content != box.content)
+                entry.cubeStale = true;
+            const int slotCount = int(cubeMaps.cubeOwners.size());
+            if (entry.cubeSet != cubeSet || entry.cubeSlot < 0 || entry.cubeSlot >= slotCount
+                    || cubeMaps.cubeOwners[size_t(entry.cubeSlot)] != key) {
+                int slot = -1;
+                quint64 oldest = ~0ull;
+                for (int s = 0; s < slotCount && slot < 0; ++s) {
+                    const auto owner = lampShadows.find(cubeMaps.cubeOwners[size_t(s)]);
+                    if (cubeMaps.cubeOwners[size_t(s)] == 0 || owner == lampShadows.end() || owner->cubeSlot != s)
+                        slot = s;
+                }
+                for (int s = 0; s < slotCount && slot < 0; ++s) {
+                    const auto owner = lampShadows.find(cubeMaps.cubeOwners[size_t(s)]);
+                    if (owner->cubeWanted < lampShadowFrame && owner->cubeWanted < oldest) {
+                        oldest = owner->cubeWanted;
+                        slot = s;
+                    }
+                }
+                if (slot < 0)
+                    continue;
+                const auto previous = lampShadows.find(cubeMaps.cubeOwners[size_t(slot)]);
+                if (previous != lampShadows.end() && previous->cubeSlot == slot) {
+                    previous->cubeSlot = previous->cubeSet = -1;
+                    previous->cubeDrawn = previous->cubeStale = false;
+                }
+                cubeMaps.cubeOwners[size_t(slot)] = key;
+                entry.cubeSet = cubeSet;
+                entry.cubeSlot = slot;
+                entry.cubeDrawn = false;
+            }
+            if (!entry.cubeDrawn || entry.cubeStale)
+                due.push_back({i, key});
+        }
+        const auto first = std::min_element(due.begin(), due.end(), [&](const auto &a, const auto &b) {
+            const LampShadow &ea = *lampShadows.constFind(a.second), &eb = *lampShadows.constFind(b.second);
+            if (ea.cubeDrawn != eb.cubeDrawn)
+                return !ea.cubeDrawn;
+            return ea.cubeDrawnFrame < eb.cubeDrawnFrame;
+        });
+        if (first != due.end()) {
+            const size_t i = first->first;
+            LampShadow &entry = lampShadows[first->second];
+            const CarBox &box = carBoxes()[size_t(onCarsBox[i])];
+            LightGrid::Light lamp = onCars[i];
+            lamp.range = std::min(lamp.range, LampShadowFar);
+            float frame[16];
+            cubeFrame(box, lamp.position, ownLampNear(lamp), lamp.range, frame);
+            for (int face = 0; face < CubeFaces; ++face) {
+                float matrix[16];
+                cubeFaceMatrix(frame, face, matrix);
+                drawLampShadow(cubeSet, cubeMaps.cubeBase + CubeFaces * entry.cubeSlot + face, lamp, false,
+                               lamp.owner, matrix);
+            }
+            entry.cubeDrawn = true;
+            entry.cubeStale = false;
+            entry.cubeDrawnFrame = lampShadowFrame;
+            entry.content = box.content;
+            entry.range = lamp.range;
+            ++cubesDrawn;
+        }
     }
     prepareLampTiles(keys, lamps);
     // Lamps that had a map to show last frame and have none now.
@@ -5256,14 +5536,15 @@ void RhiRenderer::prepareLampShadows(int quality, int moving) {
     }
     // TSRE_LAMP_SHADOW_LOG: this line alone, without the draws' trace.
     static const bool lampLog = qEnvironmentVariableIsSet("TSRE_LAMP_SHADOW_LOG");
-    if ((traceDraws || lampLog) && (drawn > 0 || lost > 0 || handedOver > 0 || dropped > 0)) {
+    if ((traceDraws || lampLog) && (drawn > 0 || cubesDrawn > 0 || lost > 0 || handedOver > 0 || dropped > 0)) {
         qint64 bytes = 0;
         for (const LampShadowSet &maps : lampShadowSets)
             bytes += qint64(maps.targets.size() + maps.tileTargets.size() + (maps.staging != nullptr ? 1 : 0))
                     * maps.size * maps.size
                     * (maps.format == QRhiTexture::R32F ? 4 : 2)
                     + (maps.depth != nullptr ? qint64(maps.size) * maps.size * 4 : 0);
-        qInfo() << "rhi-trace lamp shadows: wanted" << wanted << "ready" << ready << "drawn" << drawn << "in"
+        qInfo() << "rhi-trace lamp shadows: wanted" << wanted << "ready" << ready << "drawn" << drawn << "("
+                << carsDrawn << "cars'," << cubesDrawn << "cubes of" << cubesWanted << ") in"
                 << clock.nsecsElapsed() / 1e6 << "ms," << casters << "casters; maps" << bytes / 1048576 << "MB;"
                 << changes << "casters changed," << stale << "maps stale," << lost << "lost," << handedOver
                 << "handed over," << dropped << "dropped";
@@ -5275,10 +5556,44 @@ void RhiRenderer::assignLampShadows(std::vector<LightGrid::Light> &lights) const
         return;
     // A moving lamp by its group (as prepareLampShadows groups them: the
     // same queue, the same order), its map drawn from the group's lamp.
-    const MovingGroups groups = groupMovingLamps(lights);
+    const std::vector<int> cars = carLamps(lights);
+    const MovingGroups groups = groupMovingLamps(lights, cars);
     for (size_t i = 0; i < lights.size(); ++i) {
         LightGrid::Light &light = lights[i];
-        if (!light.spot || light.signal || light.emissive || (light.moving && groups.group[i] < 0))
+        // A car's own lamp (task 46 C): its map moved with its car, from
+        // the car's frame to where the car is now.
+        if (cars[i] >= 0) {
+            const quint64 key = carLampKey(light);
+            const auto entry = lampShadows.constFind(key);
+            if (entry == lampShadows.cend() || !entry->car)
+                continue;
+            // A point lamp's cube: its frame where the car is now, its near
+            // and far as drawn.
+            if (!light.spot) {
+                if (!entry->cube || !entry->cubeDrawn || entry->cubeSet < 0)
+                    continue;
+                const LampShadowSet &maps = lampShadowSets[entry->cubeSet];
+                if (maps.array == nullptr || entry->cubeSlot < 0 || entry->cubeSlot >= int(maps.cubeOwners.size())
+                        || maps.cubeOwners[size_t(entry->cubeSlot)] != key)
+                    continue;
+                cubeFrame(carBoxes()[size_t(cars[i])], light.position, ownLampNear(light), entry->range,
+                          light.shadowMatrix);
+                light.shadowLayer = maps.cubeBase + CubeFaces * entry->cubeSlot;
+                light.shadowSet = entry->cubeSet;
+                continue;
+            }
+            const int set = entry->drawn[0] && entry->layer[0] >= 0 ? 0 : entry->drawn[1] && entry->layer[1] >= 0 ? 1 : -1;
+            if (set < 0)
+                continue;
+            float inverse[16];
+            carBoxInverse(carBoxes()[size_t(cars[i])].toWorld, inverse);
+            Mat4::multiply(light.shadowMatrix, const_cast<float *>(entry->carLocal), inverse);
+            light.shadowLayer = entry->layer[set];
+            light.shadowSet = set;
+            continue;
+        }
+        if (!light.spot || light.signal || light.emissive || (light.moving && groups.group[i] < 0)
+                || light.shadows == RenderItem::Light::SHADOWS_NONE)
             continue;
         const int group = light.moving ? groups.group[i] : -1;
         const quint64 key = group >= 0 ? groups.keys[size_t(group)] : lampShadowKey(light, viewTile);

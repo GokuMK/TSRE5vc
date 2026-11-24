@@ -190,6 +190,13 @@ class MaszynaCabPose : public CabPose {
 
     bool dragged(int control) const override { return stopsOf(control) != nullptr && stopsOf(control)->size() > 2; }
 
+    bool interactive(int control) const override {
+        for (const auto &[part, k] : pickable)
+            if (k == control)
+                return true;
+        return false;
+    }
+
     // Its stops' indices, at most `samples` of them, and the one nearest
     // the value it shows.
     bool stops(const ComplexShape &cab, int control, int part, int samples, std::vector<float> &out,

@@ -379,9 +379,16 @@ vec4 pbrShade() {
     ivec2 lightCell = localLightCell(vWorldPosition);
     for (int i = 0; i < lightCell.y; ++i) {
         vec3 lightDir, radiance;
-        if (!localLight(lightCell.x + i, vWorldPosition, lightDir, radiance))
+        bool fill;
+        if (!localLight(lightCell.x + i, vWorldPosition, lightDir, radiance, fill))
             continue;
         radiance *= lamps;
+        // An ambient fill (task 46 C): diffuse, whatever way the surface
+        // faces.
+        if (fill) {
+            color += diffuseAlbedo / PbrPi * radiance;
+            continue;
+        }
         float lightNDotL = max(dot(n, lightDir), 0.0);
         if (lightNDotL > 0.0) {
             vec3 fresnel;
