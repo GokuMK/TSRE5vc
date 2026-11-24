@@ -44,6 +44,14 @@ struct OrtsProfileRoll {
     // The pivot's distance from the centre, to the curve's side (Open Rails'
     // rollOffsetM: Outside half the gauge, Inside minus it, Both 0).
     float pivot = 0.0f;
+    // Tracks task 17 step 8: the distance along its vector (the track or
+    // road database's) at the path's start, and the way the path runs along
+    // it (1 with it, -1 against); inVector false: on none (each piece counts
+    // from its own start). Repeats and distance-running texture coordinates
+    // count from it, so they run on over joints.
+    float vectorStart = 0.0f;
+    float vectorDirection = 1.0f;
+    bool inVector = false;
 
     bool empty() const { return spans.isEmpty(); }
     // The angle (radians, profile space, Open Rails' roll) and the side the

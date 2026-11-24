@@ -2506,6 +2506,87 @@ static int runOrtsProfileSuite(bool verbose) {
               && repeatMeshes[0].vertices.size() == 270,
               "repeated-template3d-spacing-and-phase");
 
+        // Tracks task 17 step 8: repeats and distance-running texture
+        // coordinates in step with the track (road) database's vector.
+        {
+            OrtsTrackProfile phased = repeatProfile;
+            phased.lods[0].items[0].templates3D[0].spacing = 0.6f;
+            phased.lods[0].items[0].templates3D[0].phase = 0.3f;
+            auto onVector = [](float start, float direction) {
+                OrtsProfileRoll roll;
+                roll.inVector = true;
+                roll.vectorStart = start;
+                roll.vectorDirection = direction;
+                return roll;
+            };
+            // Each copy's start along the piece (its mesh runs 1 m from it).
+            auto copies = [&](const OrtsProfileRoll *roll, float length) {
+                QVector<TSection> straight;
+                straight.append(TSection(0, 0, length, 0));
+                QVector<OrtsGeneratedProfileMesh> meshes;
+                OrtsTrackProfileRenderer::buildMeshes(phased, straight, meshes, nullptr, 0, 0, nullptr, 0, roll);
+                QVector<float> starts;
+                for(const OrtsGeneratedProfileMesh &mesh : meshes)
+                    for(int i = 0; i + 53 < mesh.vertices.size(); i += 54){
+                        float least = 1e9f;
+                        for(int v = 0; v < 6; v++)
+                            least = std::min(least, mesh.vertices[i + v * 9 + 2]);
+                        starts.append(least);
+                    }
+                std::sort(starts.begin(), starts.end());
+                return starts;
+            };
+            auto evenly = [](const QVector<float> &starts, float first, float spacing) {
+                for(int k = 0; k < starts.size(); k++)
+                    if(std::abs(starts[k] - (first + k * spacing)) > 0.002f)
+                        return false;
+                return true;
+            };
+            const QVector<float> alone = copies(nullptr, 10);
+            const OrtsProfileRoll a = onVector(0, 1), b = onVector(10, 1), c = onVector(20, -1);
+            const QVector<float> first = copies(&a, 10), second = copies(&b, 10), against = copies(&c, 10);
+            check(alone.size() == 17 && evenly(alone, 0.3f, 0.6f) && first == alone,
+                  "vector-phase-none-or-first-piece-as-before");
+            check(second.size() == 16 && evenly(second, 0.5f, 0.6f)
+                  && std::abs((second.first() + 10) - first.last() - 0.6f) < 0.002f,
+                  "vector-phase-next-piece-runs-on-over-the-joint");
+            bool same = against.size() == second.size();
+            for(int k = 0; same && k < against.size(); k++)
+                // Each copy's origin at the same vector distance (a sleeper
+                // mesh is centred on its origin).
+                same = std::abs((20 - against[k]) - (10 + second[second.size() - 1 - k])) < 0.002f;
+            check(same, "vector-phase-piece-against-its-vector-at-the-same-places");
+            // A copy at a joint: the next piece's alone.
+            const OrtsProfileRoll joined = onVector(10.5f, 1);
+            const QVector<float> before = copies(&a, 10.5f), after = copies(&joined, 10);
+            check(before.size() == 17 && std::abs(before.last() - 9.9f) < 0.002f
+                  && !after.isEmpty() && std::abs(after.first()) < 0.002f,
+                  "vector-phase-copy-at-a-joint-drawn-once");
+
+            // The polyline's V (DeltaTexCoord 0 1) at a joint at 10.25 m.
+            OrtsTrackProfile bed = *templateProfile;
+            bed.lods[0].items[0].templates3D.clear();
+            auto vAt = [&](const OrtsProfileRoll *roll, float length, bool atEnd) {
+                QVector<TSection> straight;
+                straight.append(TSection(0, 0, length, 0));
+                QVector<OrtsGeneratedProfileMesh> meshes;
+                OrtsTrackProfileRenderer::buildMeshes(bed, straight, meshes, nullptr, 0, 0, nullptr, 0, roll);
+                float z = atEnd ? -1e9f : 1e9f, v = 0;
+                for(const OrtsGeneratedProfileMesh &mesh : meshes)
+                    for(int i = 0; i + 8 < mesh.vertices.size(); i += 9)
+                        if(atEnd ? mesh.vertices[i + 2] > z : mesh.vertices[i + 2] < z){
+                            z = mesh.vertices[i + 2];
+                            v = mesh.vertices[i + 7];
+                        }
+                const float whole = std::floor(v);
+                return v - whole;
+            };
+            const OrtsProfileRoll startsAt = onVector(10.25f, 1), runsBack = onVector(30.25f, -1);
+            check(std::abs(vAt(&a, 10.25f, true) - 0.25f) < 0.002f && std::abs(vAt(&startsAt, 10, false) - 0.25f) < 0.002f
+                  && std::abs(vAt(&runsBack, 10, false) - 0.25f) < 0.002f && std::abs(vAt(&runsBack, 10, true) - 0.25f) < 0.002f,
+                  "vector-phase-texture-runs-on-over-joints");
+        }
+
         OrtsTrackProfile placeProfile = stretchProfile;
         OrtsProfileTemplate3D &place =
                 placeProfile.lods[0].items[0].templates3D[0];

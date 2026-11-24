@@ -292,10 +292,13 @@ void DynTrackObj::generateShape(){
         generationTimer.start();
         // Task tracks 16: its superelevation from the track database,
         // where it is shown (rail only).
-        const OrtsProfileRoll roll =
-                Game::trackCantShown() && !isRoad() && Game::trackDB != NULL
-                ? OrtsProfileRoll::forDynTrack(*Game::trackDB, x, -y, UiD, tsections)
-                : OrtsProfileRoll();
+        // Tracks task 17 step 8: and its place on its vector (the road
+        // database's for roads), its repeats in step with it.
+        TDB *db = isRoad() ? Game::roadDB : Game::trackDB;
+        OrtsProfileRoll roll = db != NULL
+                ? OrtsProfileRoll::forDynTrack(*db, x, -y, UiD, tsections) : OrtsProfileRoll();
+        if(!(Game::trackCantShown() && !isRoad()))
+            roll.spans.clear();
         if(!roll.empty())
             TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
         const bool generated = OrtsTrackProfileRenderer::generate(
@@ -303,7 +306,7 @@ void DynTrackObj::generateShape(){
                 // A small mesh-only overlap hides joints when adjoining
                 // objects change grade; the TDB/RDB endpoint stays exact.
                 OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                &pathTransform, UiD, roll.empty() ? nullptr : &roll);
+                &pathTransform, UiD, roll.empty() && !roll.inVector ? nullptr : &roll);
         const qint64 generationMs = generationTimer.elapsed();
         if(generationMs >= kSlowShapeOperationMs){
             qWarning() << "ORTS track profile generation took"

@@ -305,6 +305,13 @@ easier to test with.
   will follow Open Rails' `SwitchTrackShape` (`Viewer3D/Shapes.cs`):
   animation key 0 on the main route, 1 otherwise, over about half a
   second.
+- TSRE runs `Repeat` copies and texture coordinates that grow with
+  distance (polylines' `DeltaTexCoord`, a `Sweep`'s path-length texture)
+  on from each piece's distance along its track (road) database vector, so
+  sleepers and road markings continue evenly over the joints between
+  pieces; `Stretch` and `Place` are unchanged. Open Rails places them per
+  piece. It could do the same from its `TrackVectorSection` data; no
+  format change is involved.
 - Complex tracks in Open Rails itself (another team's task), once TSRE
   has finished and tested them. The specification is the task's design,
   sections 1 to 8. The reference implementation is TSRE's planner and

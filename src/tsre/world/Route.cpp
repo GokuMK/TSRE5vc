@@ -69,6 +69,7 @@
 #include <tsre/trains/Consist.h>
 #include <tsre/world/Skydome.h>
 #include <tsre/tdb/TRitem.h>
+#include <tsre/tdb/TRnode.h>
 #include <tsre/gui/ActionChooseDialog.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
@@ -2211,6 +2212,12 @@ void Route::computeTrackCant(bool rebuildChanged){
     if(rebuildChanged)
         trackDB->cant.queueChanged(*trackDB, before);
     trackDB->takeChanges();
+    // Tracks task 17 step 8: road objects find their place on their road
+    // vector as track objects do (repeats in step with the road database).
+    if(roadDB != NULL){
+        roadDB->cant.indexOwners(*roadDB);
+        roadDB->takeChanges();
+    }
     qInfo().noquote() << QString("Track superelevation: %1 curves, %2 standards, %3 ms")
             .arg(trackDB->cant.curves).arg(trackCant.standards.size()).arg(timer.elapsed());
     TrackCant::dumpIfAsked(*trackDB);
@@ -2228,10 +2235,27 @@ void Route::refreshTrackCant(){
         computeTrackCant(true);
     else if(!changes.nodes.empty() || speedPosts)
         TrackCant::update(*trackDB, trackCant, changes.nodes);
-    if(trackDB->cant.rebuild.empty())
-        return;
     std::set<TrackCant::Tables::Owner> owners;
     owners.swap(trackDB->cant.rebuild);
+    // Tracks task 17 step 8: the objects on edited road vectors (their
+    // repeats count from their place on the vector), the index again.
+    if(roadDB != NULL){
+        const TDB::Changes roads = roadDB->takeChanges();
+        if(!roads.nodes.empty() || roads.all){
+            roadDB->cant.indexOwners(*roadDB);
+            for(const auto &entry : roadDB->trackNodes){
+                const TRnode *node = entry.second;
+                if(node == NULL || node->typ != 1 || (!roads.all && roads.nodes.count(entry.first) == 0))
+                    continue;
+                for(int i = 0; i < node->iTrv; i++){
+                    const TrackVectorSection &s = node->trVectorSection[i];
+                    owners.insert({s.worldTileX, s.worldTileZ, s.worldObjectId});
+                }
+            }
+        }
+    }
+    if(owners.empty())
+        return;
     // Found by their UiD (getObj takes the place in a tile's list, which
     // is not it: an edited track's neighbours were never rebuilt), one
     // pass over each tile's objects.

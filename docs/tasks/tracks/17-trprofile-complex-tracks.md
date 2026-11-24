@@ -795,7 +795,7 @@ implementation. What the document says now:
   matches falls back to `RdProfile`, as road DynTracks do; `DefaultTrack`
   stays the rail fallback.
 
-### 12. Repeats in step with the track database (step 8, design)
+### 12. Repeats in step with the track database (step 8)
 
 The user (2026-11-24): plain track and roads continue their repeating parts
 over the joints between pieces, from the track (road) database, as
@@ -890,11 +890,10 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    points, a double slip, and PRUDNIK.
 8. Repeats in step with the track and road databases (section 12, the
    user 2026-11-24): `Repeat` and distance-running texture coordinates
-   from the vector distance at a path's start. Design; built on a go.
+   from the vector distance at a path's start.
 9. Switch state on the shape side (section 13, the user 2026-11-24):
    static and procedural junctions posed by a route state, tested in the
-   Shape Viewer; the simulation wiring and the usable lever later. Design;
-   built on a go.
+   Shape Viewer; the simulation wiring and the usable lever later.
 10. Later: slips' obtuse crossings, the switch state from the simulation
    (and the hand lever usable), bridge guard rails'
    curved ends, 3D bridges (bed splits: done, decision 40), steep
@@ -919,6 +918,7 @@ Each step stops for the user's visual check before the next.
 | 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
 | 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
 | 7 switch drives, indicators, buffers | built; waiting for the user's check (2026-11-24) | `ea30b5a9`; assets-gen `35481a3` |
+| 8 repeats in step with the databases | built (2026-11-24) | see step 8 below |
 | 7 bed review: beds per track, own end planes (decision 40) | built, joints checked with the user (2026-11-24) | `74c306ef`, `2848d513`; assets-gen `46c8366`, `391100d`, `81e78be` |
 
 Steps 1-3 (2026-11-23):
@@ -1134,6 +1134,28 @@ between a points' straight and its diverging track's angled end, which the
 next piece covers. Tests: the points' diverging bed ends at its own end,
 square to it; the scissors' crossing tracks' beds from end to end, square
 to them.
+
+Step 8 (2026-11-24, the user's go the same day):
+
+- `OrtsProfileRoll` keeps where its path starts along its vector
+  (`vectorStart`, `vectorDirection`, `inVector`), found with the sections
+  superelevation already looks up; static objects and DynTracks look it up
+  whenever they are procedural, roads in the road database (its object
+  index built at load like the track database's; road objects on an
+  edited road vector rebuilt, as superelevation rebuilds track objects).
+- `Repeat` copies on a vector stand where the vector distance is
+  `Phase + n * Spacing`, from the path's start up to (not at) its end: a
+  copy at a joint is the next piece's alone (1 mm either way taken as the
+  joint). Polylines' `DeltaTexCoord` and a `Sweep`'s path-length texture
+  count from the vector distance (its whole texture periods dropped), a
+  path running against its vector counting down. Without a vector entry
+  (the Shape Viewer, junctions' own pieces) as before.
+- Tests (orts-profile): without a vector or on its first piece as before;
+  the next piece runs on evenly over the joint; a piece against its
+  vector at the same places; a copy at a joint drawn once; the texture
+  runs on over joints. On PRUDNIK two 12.86 m pieces (UiD 7263, 7269)
+  crowded their sleepers at the joint before and run on evenly now; its
+  roads' dashes follow the road vector.
 
 ## Acceptance
 

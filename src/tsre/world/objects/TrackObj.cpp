@@ -232,6 +232,19 @@ namespace {
 // Tracks task 17: the route's filter for an object without its own
 // template; none when a filter names a family the route has no profile of
 // (warned about once a filter), so the object is drawn as without it.
+// Each path's place on its vector in a database (track or road; tracks
+// task 17 step 8) and, where superelevation is shown, its cant (task 16).
+QVector<OrtsProfileRoll> pathRollsOf(TDB *db, int tileX, int tileZ, unsigned int uid,
+        const TrackShape &shape, bool cant) {
+    if(db == NULL)
+        return QVector<OrtsProfileRoll>();
+    QVector<OrtsProfileRoll> rolls = OrtsProfileRoll::forObject(*db, tileX, tileZ, uid, shape);
+    if(!cant)
+        for(OrtsProfileRoll &roll : rolls)
+            roll.spans.clear();
+    return rolls;
+}
+
 const TrackProfileFilters::Filter *routeFilter(const QString &fileName,
         const QString &requested, const TrackShape *shape,
         OrtsTrackProfile::ObjectType type){
@@ -321,9 +334,8 @@ bool TrackObj::useProceduralShape(){
         if(requested.compare("DISABLED", Qt::CaseInsensitive) == 0){
             TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, true);
         } else if(requested.isEmpty() && plain){
-            const QVector<OrtsProfileRoll> rolls = Game::trackCantShown()
-                    ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *ownShape)
-                    : QVector<OrtsProfileRoll>();
+            const QVector<OrtsProfileRoll> rolls = pathRollsOf(Game::trackDB, x, -y, UiD, *ownShape,
+                    Game::trackCantShown());
             bool canted = false;
             for(const OrtsProfileRoll &roll : rolls)
                 canted = canted || !roll.empty();
@@ -451,11 +463,12 @@ bool TrackObj::useProceduralShape(){
         QStringList diagnostics;
         // Task tracks 16: each path's superelevation from the track
         // database, where it is shown (rail only).
-        const QVector<OrtsProfileRoll> pathRolls =
-                Game::trackCantShown() && !roadShape && Game::trackDB != NULL
-                ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *tsh)
-                : QVector<OrtsProfileRoll>();
-        if(!pathRolls.isEmpty())
+        // Tracks task 17 step 8: and each path's place on its vector (the
+        // road database's for roads), its repeats in step with it.
+        const bool cantShown = Game::trackCantShown() && !roadShape && Game::trackDB != NULL;
+        const QVector<OrtsProfileRoll> pathRolls = pathRollsOf(roadShape ? Game::roadDB : Game::trackDB,
+                x, -y, UiD, *tsh, cantShown);
+        if(cantShown)
             TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
         // Tracks task 17: junctions, crossings and frog pieces from the
         // family's COMPLEX member, with the filter's parts when a filter

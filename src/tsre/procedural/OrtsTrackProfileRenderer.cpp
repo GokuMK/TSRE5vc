@@ -286,7 +286,38 @@ struct GeneratedPathFrame {
     float pivot[2] = {0, 0};
     int side = 0;
     float distance = 0;
+    // Tracks task 17 step 8: the path's start along its vector and the way
+    // it runs there (OrtsProfileRoll); distance-running texture coordinates
+    // count from it.
+    float vectorStart = 0;
+    float vectorDirection = 1;
 };
+
+// Tracks task 17 step 8: a Repeat's copies on a path on a vector: where the
+// vector's distance is Phase + n * Spacing, from the path's start up to
+// (not at) its end, so a copy at a joint is the next piece's alone (1 mm
+// either way taken as the joint). `first` the first copy's distance along
+// the path, `end` the bound its copies stay below.
+bool vectorRepeat(const OrtsProfileTemplate3D &source, const OrtsProfileRoll *roll, float length,
+        float &first, float &end) {
+    if(roll == nullptr || !roll->inVector || source.spacing <= 0)
+        return false;
+    constexpr float Joint = 0.001f;
+    first = std::fmod(roll->vectorDirection * (source.phase - roll->vectorStart), source.spacing);
+    if(first < 0)
+        first += source.spacing;
+    if(first > source.spacing - Joint)
+        first -= source.spacing;
+    end = length - Joint;
+    return true;
+}
+
+// A texture coordinate growing `perMetre` with distance along a path, from
+// its vector's start: continuous over joints, kept small (the whole part
+// of the origin's share dropped).
+float runningCoordinate(float perMetre, const GeneratedPathFrame &frame, float distance) {
+    return std::fmod(perMetre * frame.vectorStart, 1.0f) + frame.vectorDirection * perMetre * distance;
+}
 
 bool normalizeVector(float *vector) {
     const float length = std::sqrt(
@@ -390,6 +421,10 @@ GeneratedPathFrame samplePathFrame(ComplexLine &line, float distance,
     result.pivot[0] = roll != nullptr ? roll->pivot * float(side) : 0.0f;
     result.pivot[1] = OrtsProfileRoll::PivotHeight;
     result.distance = distance;
+    if(roll != nullptr && roll->inVector){
+        result.vectorStart = roll->vectorStart;
+        result.vectorDirection = roll->vectorDirection;
+    }
     return result;
 }
 
@@ -465,9 +500,9 @@ GeneratedVertex transformVertex(const OrtsProfileVertex &source,
             + rolledNormalY * frame.up[2]
             + profileNormalZ * frame.forward[2];
     result.values[6] = source.texCoord[0]
-            + polyline.deltaTexCoord[0] * frame.distance;
+            + runningCoordinate(polyline.deltaTexCoord[0], frame, frame.distance);
     result.values[7] = source.texCoord[1]
-            + polyline.deltaTexCoord[1] * frame.distance;
+            + runningCoordinate(polyline.deltaTexCoord[1], frame, frame.distance);
     result.values[8] = alpha;
     return result;
 }
@@ -720,7 +755,7 @@ void appendDeformedTemplate(QVector<float> &target, const ObjFile &source,
             // This preserves texture density when a short authored mesh is
             // expanded into a longer swept span.
             transformed.values[7] = source.texYmin
-                    + (source.texYmax - source.texYmin) * pathDistance;
+                    + runningCoordinate(source.texYmax - source.texYmin, cachedFrame.value(), pathDistance);
         }
         std::copy(transformed.values, transformed.values + 9, output);
         output += 9;
@@ -838,6 +873,12 @@ void appendSharedTemplateGeometry(const OrtsTrackProfile &profile,
 
     if(source.generationMode == OrtsProfileTemplate3D::GenerationMode::Repeat){
         int copyIndex = 0;
+        float first = 0, end = 0;
+        if(vectorRepeat(source, roll, line.length, first, end)){
+            for(float distance = first; distance < end; distance += source.spacing, copyIndex++)
+                appendOccurrence(distance, copyIndex, objectIndex, false);
+            return;
+        }
         float distance = source.phase;
         while(distance < 0){
             distance += source.spacing;
@@ -1058,7 +1099,15 @@ int appendTemplateGeometry(const OrtsTrackProfile &profile,
             distance += source.spacing;
             copyIndex++;
         }
-        for(; distance <= generationEnd + 0.0001f;
+        float bound = generationEnd + 0.0001f;
+        float vectorFirst = 0, vectorEnd = 0;
+        const bool onVector = vectorRepeat(source, roll, line.length, vectorFirst, vectorEnd);
+        if(onVector){
+            distance = vectorFirst;
+            copyIndex = 0;
+            bound = vectorEnd;
+        }
+        for(; onVector ? distance < bound : distance <= bound;
                 distance += source.spacing, copyIndex++){
             const QSharedPointer<const ObjFile> mesh = loadShape(
                     copyIndex, objectIndex);
@@ -2301,10 +2350,16 @@ static bool buildMeshesForPath(const OrtsTrackProfile &profile,
     line.init(sections);
     bool truncated = false;
     // A profile without superelevation never rolls (Open Rails'
-    // SuperElevationMethod None).
+    // SuperElevationMethod None); its place on its vector stays (tracks
+    // task 17 step 8).
+    OrtsProfileRoll flat;
     if(roll != nullptr && (roll->empty()
-            || profile.superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None))
-        roll = nullptr;
+            || profile.superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None)){
+        flat.vectorStart = roll->vectorStart;
+        flat.vectorDirection = roll->vectorDirection;
+        flat.inVector = roll->inVector;
+        roll = flat.inVector ? &flat : nullptr;
+    }
     const QVector<float> distances = frameDistances(
             profile, sections, endExtension, diagnostics, &truncated, roll);
     return buildMeshesForLine(profile, line, distances, meshes,
@@ -2491,7 +2546,7 @@ bool OrtsTrackProfileRenderer::generate(const OrtsTrackProfile &profile,
             roll = pathRolls[pathIndex];
             roll.pivot = pivot;
         }
-        const OrtsProfileRoll *pathRoll = roll.empty() ? nullptr : &roll;
+        const OrtsProfileRoll *pathRoll = roll.empty() && !roll.inVector ? nullptr : &roll;
         if(!buildMeshesForPath(*activeProfile, sections, pathMeshes,
                 pathRoll, diagnostics,
                 endExtension, endDrop, activeTransform, objectIndex))
