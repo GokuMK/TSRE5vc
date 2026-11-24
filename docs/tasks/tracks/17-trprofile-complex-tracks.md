@@ -1055,21 +1055,22 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
     them; filters turn them off. No further parts imagined ahead of need;
     `Buffer` is the one already needed. Design only; built on the user's
     go.
+36. Decision 35's proposals taken (the user, 2026-11-24, "Recommendations
+    ok"):
+    - The motor's side: the sign of the family's `Offset` x gives the
+      default (+ the diverging side); a filter flips it for the shapes it
+      matches (DBTracks has both within one set: plain on the straight
+      side, `_M2` on the diverging side).
+    - Ties under the motor: the planner lengthens the ties under the motor
+      mesh's footprint on its side, as bearers are stretched (DB's 7.5°
+      points reach out under the motor alike).
+    - Drive count: `Spacing` along the blades from the first drive, as many
+      as fit with at least one `Spacing` left before the blades' heel.
 
 ## Open questions
 
-From decision 35:
-
-1. The motor's side. DBTracks has both within one set (plain: straight
-   side, `_M2`: diverging side), so a family's `Offset` sign alone cannot
-   match PRUDNIK. Proposal: the sign gives the family's default (+ the
-   diverging side) and a filter flips it for the shapes it matches.
-2. Ties under the motor: lengthened by the planner under the motor mesh,
-   or baked into the motor mesh (the user: hard to say). DB's 7.5° points
-   reach out under the motor on its side (sleeper-textured faces from 1.2
-   to 3.0 m along, to the motor's outer end; not rendered to confirm).
-3. Hand operation: the user leans to one part shared by motor and hand
-   switches, with an option for hand operation enabled or disabled; how it
-   is chosen (family, filter) is open.
-4. The drive count rule (proposal in section 2) against real long
-   switches.
+1. Hand operation (decision 35): the user leans to one part shared by
+   motor and hand switches, with an option for hand operation enabled or
+   disabled. Proposal: the drive part's template takes the motor mesh and,
+   optionally, a hand lever mesh; a filter's hand-operation option picks
+   the lever for the shapes it matches (default: motor).
