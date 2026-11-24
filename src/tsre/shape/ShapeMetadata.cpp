@@ -38,6 +38,12 @@ ShapeMetadata ShapeMetadata::from(const SFileDetail::Node &root, ShapeAxes::Axes
     out.emitters = ShapeEmitters::read(root, &out.emitterProblems);
     out.extension = ShapeLod::extensionFrom(root.child("esd_tsredistancelevelextension").scalar(0));
     out.lightSchedule = ShapeLights::scheduleFrom(root.child("esd_tsrelightschedule").scalar(0));
+    const QString selfLit = root.child("esd_tsreselflit").scalar(0);
+    out.selfLit = ShapeLights::selfLitFrom(selfLit);
+    if (out.selfLit == ShapeLights::SelfLit::Unknown) {
+        out.lightProblems << ShapeLights::selfLitProblem(selfLit);
+        out.selfLit = ShapeLights::SelfLit::On;
+    }
     out.walk = root.child("esd_tsrewalk").scalar(0).trimmed();
     out.collision = root.child("esd_tsrecollision").scalar(0).trimmed();
     out.seats = ShapeSeats::read(root, &out.seatProblems);

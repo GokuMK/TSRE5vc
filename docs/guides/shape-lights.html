@@ -329,6 +329,50 @@ fixture does not shadow its own lamp:</p>
 	)
 </code></pre></div>
 
+<h3>The shape&rsquo;s own light</h3>
+
+<p>Many interiors carry their light in their materials, painted bright: MSTS
+full and half bright light materials, MaSzyna&rsquo;s lit sections and cab
+light. Lit again by lamps placed in them, they come out
+twice as bright, and their full bright walls and seats stay bright in the
+shade by day. <code>ESD_TSRESelfLit ( Off )</code> in the <code>.sd</code>&rsquo;s <code>shape ( … )</code> block
+turns that light off: the shape is lit by the scene alone, the sun through
+its windows, the sky, its own lamps.</p>
+
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th> Shape </th>
+<th> With <code>Off</code> </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td> MSTS (<code>.s</code>) </td>
+<td> Full and half bright light materials are lit as ordinary ones. Night textures stay: they are emissive surfaces (lit windows, signs, lamp glass); the night bit of <code>ESD_Alternative_Texture</code> drops them. </td>
+</tr>
+<tr>
+<td> MaSzyna (<code>.e3d</code>, its <code>.sd</code> beside it) </td>
+<td> Its sections and cab light (switched by the ENG&rsquo;s lights) light nothing. Parts glowing of their own outside sections stay: lamps (<code>selfillum</code> 1 or more: bulbs, indicators) and dusk parts (below 1, MaSzyna&rsquo;s night textures). </td>
+</tr>
+<tr>
+<td> glTF </td>
+<td> Not read: its emissive surfaces are its lamps. </td>
+</tr>
+</tbody>
+</table></div>
+
+<p><code>On</code>, or left out, keeps the light as painted. A coach whose saloon is
+full bright (the PKP Bhp&rsquo;s walls, seats and ceiling), with a lamp of its
+own:</p>
+
+<div class="code-example" data-language="text"><span class="code-label">text</span><pre><code class="language-text">shape ( coach.s
+	ESD_Detail_Level ( 0 )
+	ESD_TSRESelfLit ( Off )
+	ESD_TSRELight ( Name ( &quot;SALOON&quot; ) Type ( Point ) Position ( 0 2.6 0 ) Intensity ( 20 ) Shadows ( Own ) Ambient ( 0.2 4 ) )
+)
+</code></pre></div>
+
 <h3>Far away</h3>
 
 <p>A light lights the scene as far as its object is drawn: up to the object
@@ -543,6 +587,8 @@ used), an <code>Ambient</code> without a range above 0 (no fill);</li>
 <li>an <code>ESD_TSREDistanceLevelExtension</code> (glTF:
 <code>TSRE_distanceLevelExtension</code>) that is none of <code>None</code>, <code>MeshOnly</code>, <code>All</code>
 and <code>Default</code> (ignored);</li>
+<li>an <code>ESD_TSRESelfLit</code> that is neither <code>On</code> nor <code>Off</code> (<code>On</code> used; told
+with the shape&rsquo;s lights);</li>
 <li>for an ENG: a light&rsquo;s <code>ShapeHierarchy</code> naming a matrix (not placed there
 yet) or nothing of the shape, and the cones left without a beam when it
 binds others;</li>
@@ -552,8 +598,8 @@ car&rsquo;s name (section 6).</li>
 
 </section><section id="8-open-rails" class="doc-section"><h2><a class="anchor" href="#8-open-rails">8. Open Rails</a></h2><p>Open Rails skips <code>ESD_TSRELight</code> blocks without a message: the shape works
 there unchanged, without the lights. It skips <code>ESD_TSREDistanceLevelExtension</code>
-alike, and draws a shape&rsquo;s last level on as TSRE&rsquo;s default does. Saving a material in TSRE&rsquo;s Shape
-Viewer keeps them. An ENG binding a glTF model&rsquo;s light by its
+alike, and draws a shape&rsquo;s last level on as TSRE&rsquo;s default does, and
+<code>ESD_TSRESelfLit</code>: there the shape keeps its full bright parts. Saving a material in TSRE&rsquo;s Shape Viewer keeps them. An ENG binding a glTF model&rsquo;s light by its
 <code>OPENRAILS_light_name</code> binds the same light in Open Rails (which lights
 only the first lit cone&rsquo;s).</p>
 </section><section id="9-example" class="doc-section"><h2><a class="anchor" href="#9-example">9. Example</a></h2><p><a href="../examples/shape-lights/README.md">Shape light example</a>: a street lamp&rsquo;s

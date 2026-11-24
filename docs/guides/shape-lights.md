@@ -164,6 +164,34 @@ fixture does not shadow its own lamp:
 	)
 ```
 
+### The shape's own light
+
+Many interiors carry their light in their materials, painted bright: MSTS
+full and half bright light materials, MaSzyna's lit sections and cab
+light. Lit again by lamps placed in them, they come out
+twice as bright, and their full bright walls and seats stay bright in the
+shade by day. `ESD_TSRESelfLit ( Off )` in the `.sd`'s `shape ( … )` block
+turns that light off: the shape is lit by the scene alone, the sun through
+its windows, the sky, its own lamps.
+
+| Shape | With `Off` |
+| --- | --- |
+| MSTS (`.s`) | Full and half bright light materials are lit as ordinary ones. Night textures stay: they are emissive surfaces (lit windows, signs, lamp glass); the night bit of `ESD_Alternative_Texture` drops them. |
+| MaSzyna (`.e3d`, its `.sd` beside it) | Its sections and cab light (switched by the ENG's lights) light nothing. Parts glowing of their own outside sections stay: lamps (`selfillum` 1 or more: bulbs, indicators) and dusk parts (below 1, MaSzyna's night textures). |
+| glTF | Not read: its emissive surfaces are its lamps. |
+
+`On`, or left out, keeps the light as painted. A coach whose saloon is
+full bright (the PKP Bhp's walls, seats and ceiling), with a lamp of its
+own:
+
+```
+shape ( coach.s
+	ESD_Detail_Level ( 0 )
+	ESD_TSRESelfLit ( Off )
+	ESD_TSRELight ( Name ( "SALOON" ) Type ( Point ) Position ( 0 2.6 0 ) Intensity ( 20 ) Shadows ( Own ) Ambient ( 0.2 4 ) )
+)
+```
+
 ### Far away
 
 A light lights the scene as far as its object is drawn: up to the object
@@ -340,6 +368,8 @@ again after the shape is reloaded:
 - an `ESD_TSREDistanceLevelExtension` (glTF:
   `TSRE_distanceLevelExtension`) that is none of `None`, `MeshOnly`, `All`
   and `Default` (ignored);
+- an `ESD_TSRESelfLit` that is neither `On` nor `Off` (`On` used; told
+  with the shape's lights);
 - for an ENG: a light's `ShapeHierarchy` naming a matrix (not placed there
   yet) or nothing of the shape, and the cones left without a beam when it
   binds others;
@@ -350,8 +380,8 @@ again after the shape is reloaded:
 
 Open Rails skips `ESD_TSRELight` blocks without a message: the shape works
 there unchanged, without the lights. It skips `ESD_TSREDistanceLevelExtension`
-alike, and draws a shape's last level on as TSRE's default does. Saving a material in TSRE's Shape
-Viewer keeps them. An ENG binding a glTF model's light by its
+alike, and draws a shape's last level on as TSRE's default does, and
+`ESD_TSRESelfLit`: there the shape keeps its full bright parts. Saving a material in TSRE's Shape Viewer keeps them. An ENG binding a glTF model's light by its
 `OPENRAILS_light_name` binds the same light in Open Rails (which lights
 only the first lit cone's).
 

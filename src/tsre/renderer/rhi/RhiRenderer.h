@@ -103,6 +103,14 @@ public:
     bool farShadowInAir() const override;
     bool cabShadows() const override { return true; }
     int cabShadowSize() const override;
+    void setCarShadowMap(bool car) override;
+    int cabShadowWidth() const override;
+    int cabShadowHeight() const override;
+    bool cabShadowCache() const override { return true; }
+    void renderTrainShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                  const float *viewProjection) override;
+    int renderPassingShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                   const float *viewProjection) override;
     bool beginSkyEnclosure(int size, int map = 0) override;
     void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
                             const float *ground = nullptr, int groundSize = 0) override;
@@ -179,6 +187,19 @@ private:
     int skinnedSelectionProgram = -1;
     int skinnedShadowProgram = -1;
     int skinnedLampShadowProgram = -1;
+    // Opaque casters' shadow programs, the sun's and a lamp's (task renderer
+    // 49): without the alpha test's discard, so the GPU tests and writes
+    // depth before the fragment shader (early depth) and skips what lies
+    // behind; -1 until made.
+    int opaqueShadowProgram = -1;
+    int opaqueLampShadowProgram = -1;
+    // The environment cube's lit programs (task renderer 50): TSRE_SHADOW_
+    // CHEAP, one filtered tap of each shadow map; -1 until made.
+    int cubeMainProgram = -1;
+    int cubeTerrainProgram = -1;
+    int cubePbrProgram = -1;
+    int cubeWaterProgram = -1;
+    int cubeSkinnedPbrProgram = -1;
     struct PipelineKeyHash { size_t operator()(const PipelineKey &key) const; };
     // Textures and samplers of a draw: one resource set per distinct key.
     struct BindingKey {
@@ -267,7 +288,7 @@ private:
     // Targets by Renderer::Target, then the near sky enclosure map,
     // selection, an environment map face, the water reflection, the far sky
     // enclosure map and both seen from below, then the shadow maps' caches.
-    static constexpr int TargetEnclosure = TARGET_SHADOW_CAB + 1;
+    static constexpr int TargetEnclosure = TARGET_SHADOW_PASSING + 1;
     static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
@@ -1625,6 +1646,24 @@ private:
     Attachments shadowMaps[3];
     // The cab's sun shadow map (TARGET_SHADOW_CAB), cabShadowSize() square.
     Attachments cabShadowMap;
+    // A car's (task renderer 49), made the first time the camera is in a
+    // car: four times as wide as high, the target's while carShadow.
+    Attachments carShadowMap;
+    bool carShadow = false;
+    // The trains passing through the cab's or car's map's column (task
+    // renderer 50, TARGET_SHADOW_PASSING): half its texels each way, made
+    // when one first passes, made again for another size.
+    Attachments passingShadowMap;
+    // Where each dynamic map (near, middle, far) holds something (task
+    // renderer 48's early-out, 2026-11-24): a 32 x 32 grid over its square,
+    // a bit a cell, set around every caster drawn into it when it was last
+    // drawn (a caster's shadow lies within its own outline in the light's
+    // view); the lit shaders skip its taps elsewhere (dynamicShadowCells),
+    // and inside a cached cab's or car's box. TSRE_DYNAMIC_SHADOW_CELLS=0:
+    // every cell set; TSRE_DYNAMIC_SHADOW_CELLS_LOG=1 logs the counts.
+    static constexpr int DynamicCellsSide = 32;
+    quint32 dynamicCells[3][DynamicCellsSide * DynamicCellsSide / 32] = {};
+    void markDynamicCells(int map, const float *viewProjection);
     // The static maps: the cached static casters (task 37; 0 to 2 the main
     // maps', 3 to 5 vegetation's), read by the lit shaders as they are
     // (task 48), at staticSizes.

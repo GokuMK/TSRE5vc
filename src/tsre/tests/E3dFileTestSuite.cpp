@@ -1004,6 +1004,26 @@ int TsreTests::runE3dShapeSuite(bool verbose) {
         model.reload();
         model.load();
         test.check(near(glow(drawn(model, lit), 0), 0.15f), "a reload keeps the lights");
+
+        // Its own light off (task renderer 49: ESD_TSRESelfLit ( Off ) in
+        // the .sd beside it): no lit sections, no cab light; the lamp and
+        // the dusk part (its night texture) glow still.
+        QFile::copy(folder + "/m.e3d", folder + "/off.e3d");
+        writeFile(folder + "/off.sd", "SIMISA@@@@@@@@@@JINX0t1t______\r\n\r\nshape ( off.e3d\r\n"
+                                      "\tESD_TSRESelfLit ( Off )\r\n)\r\n");
+        E3dShape off(folder + "/off.e3d", "off.e3d", folder);
+        off.setLoadOptions(VehicleLookups);
+        off.load();
+        const unsigned offDark = off.newState(), offLit = off.newState();
+        const QVector<RenderItem *> offUnlit = drawn(off, offDark);
+        off.setClassLight(offLit, "cab1", 0.6f);
+        off.setClassLight(offLit, QString(), 0.4f);
+        const QVector<RenderItem *> offShown = drawn(off, offLit);
+        const RenderItem *offLamp = packet(offUnlit, 6), *offDusk = packet(offUnlit, 12);
+        test.check(offUnlit.size() == 5 && offLamp != nullptr && near(offLamp->pbr.emissive[0], 0.5f)
+                           && offLamp->pbr.emissiveExposure == 0.0f && offDusk != nullptr && near(offDusk->pbr.emissive[0], 0.5f)
+                           && offDusk->pbr.emissiveExposure == 1.0f && offShown == offUnlit,
+                   "its own light off: sections and the cab light light nothing, lamps and dusk parts glow");
     }
 
     // TSRE's rules (task shapes 18): a model that is not a .mmd vehicle's

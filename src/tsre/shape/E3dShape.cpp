@@ -507,6 +507,12 @@ void E3dShape::matchLights(State &s) const {
     s.lightsStale = false;
     s.classLight.assign(size_t(model->sections.size()), 0.0f);
     s.litClasses = 0;
+    s.wholeLight = 0.0f;
+    // None with its .sd's ESD_TSRESelfLit ( Off ) (task renderer 49): its
+    // interior lit by the lamps placed in it (dusk parts and lamps glow
+    // still).
+    if (metadata.selfLit == ShapeLights::SelfLit::Off)
+        return;
     s.wholeLight = s.lights.value(QString(), 0.0f);
     for (auto light = s.lights.cbegin(); light != s.lights.cend(); ++light) {
         const qsizetype section = model->sections.indexOf(light.key());

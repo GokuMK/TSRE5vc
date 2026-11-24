@@ -80,6 +80,10 @@ float specularPower(int lightMaterial);
 // A light material's night strength (RenderItem::Material::nightStrength):
 // half bright (-11) less than 1, the others 1.
 float nightStrength(int lightMaterial);
+// A light material as a shape draws it with its own light on or off
+// (ShapeLights::SelfLit, task renderer 49): off, full and half bright (-8,
+// -11) are lit as -5; the others as they are.
+int lightMaterial(int lightMaterial, bool selfLit);
 // A packet's lighting for a light material, as the shapes draw it: lit down
 // to -7, half bright at -12, vegetation for the cruciform -9 and -10, the
 // specular power, and full and half bright their own night textures.

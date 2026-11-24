@@ -129,6 +129,19 @@ enum class Schedule : unsigned char { Default, Night, Always, Unknown };
 Schedule scheduleFrom(const QString &name);
 // Its name as written (empty for Default and Unknown).
 QString scheduleName(Schedule schedule);
+// Whether a shape shows the light its own materials carry (task renderer
+// 49): On, as its author painted it (MSTS full and half bright light
+// materials; MaSzyna's lit sections and cab light); Off, those lit by the
+// scene alone (the sun, the sky, its .sd's lamps: an interior lit by the
+// lamps placed in it, not twice). Emissive surfaces stay: night textures
+// (the .sd's night bit drops those), MaSzyna's dusk parts and lamps (1 or
+// more outside sections), glTF's emission. Its .sd's ESD_TSRESelfLit ( On
+// | Off ); Unknown: none of these, as On, told to the author.
+enum class SelfLit : unsigned char { On, Off, Unknown };
+// A value's name (any case; empty: On).
+SelfLit selfLitFrom(const QString &name);
+// Told to the author (the shape's light problems) for an unknown one.
+QString selfLitProblem(const QString &name);
 // Whether lights on the Night schedule are on now: set by the view each
 // frame (on until it does).
 void setNight(bool night);

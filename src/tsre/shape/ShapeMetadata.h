@@ -55,6 +55,9 @@ struct ShapeMetadata {
     QStringList emitterProblems;
     ShapeLod::Extension extension = ShapeLod::Extension::Default;
     ShapeLights::Schedule lightSchedule = ShapeLights::Schedule::Default;
+    // ESD_TSRESelfLit ( On | Off ): its materials' own light shown or not
+    // (task renderer 49); an unknown value as On, in lightProblems.
+    ShapeLights::SelfLit selfLit = ShapeLights::SelfLit::On;
     // ESD_TSREWalk ( Floor | Solid | Ground | Ignore ): its role in walk
     // areas (task humans 04), as written; empty: its object's type decides.
     QString walk;

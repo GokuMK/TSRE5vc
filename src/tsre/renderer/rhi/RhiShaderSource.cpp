@@ -54,7 +54,7 @@ const QHash<QString, int> &samplerBindings() {
         {"exhaustParticles", ExhaustParticlesBinding}, {"localLightShadows", LampShadowBinding},
         {"localLightShadowsCoarse", LampShadowCoarseBinding}, {"cabShadowMap", CabShadowBinding},
         {"dynamicShadow0", DynamicShadowBinding}, {"dynamicShadow1", DynamicShadowBinding + 1},
-        {"dynamicShadow2", DynamicShadowBinding + 2}};
+        {"dynamicShadow2", DynamicShadowBinding + 2}, {"cabPassingMap", PassingShadowBinding}};
     return bindings;
 }
 

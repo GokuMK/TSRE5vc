@@ -1054,6 +1054,23 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "Same size"
                 QT_TRID_NOOP("settings.core.rendering.shadow.dynamic.map.size.option.1")}})).inGroup("rendering").inSubgroup("shadows"),
         "", "", "RouteEditorGLWidget", false, "renderer-restart");
+    // The sun's shadows inside a 3D cab or a car from their own map (tasks
+    // renderer 49 and 50; the user, 2026-11-24): its filter, one tap, a tent
+    // over 3 texels or over 7; the map 2048 at every setting for now.
+    ADD(SettingsDefinition::enumeration("core.rendering.shadow.interiorQuality", 3)
+            .withNameId(
+                //% "Interior shadows"
+                QT_TRID_NOOP("settings.core.rendering.shadow.interior.quality.name")).withDescriptionId(
+                //% "How soft the sun's shadows are inside a 3D cab or a car, which have a shadow map of their own: Low samples it once (the sharpest edges, some stepped), Medium softens the edges a little, High most, at the most GPU time. QRhi renderer."
+                QT_TRID_NOOP("settings.core.rendering.shadow.interior.quality.description"))
+            .withOptions(numericChoices({{1,
+                //% "Low"
+                QT_TRID_NOOP("settings.core.rendering.shadow.interior.quality.option.low")}, {2,
+                //% "Medium"
+                QT_TRID_NOOP("settings.core.rendering.shadow.interior.quality.option.medium")}, {3,
+                //% "High"
+                QT_TRID_NOOP("settings.core.rendering.shadow.interior.quality.option.high")}})).inGroup("rendering").inSubgroup("shadows"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
     ADD(SettingsDefinition::enumeration("core.rendering.blendedParts", 1)
             .withNameId(
                 //% "Blended shape parts"

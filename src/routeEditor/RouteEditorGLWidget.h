@@ -448,9 +448,30 @@ protected:
     float shadowForward[2] = {0.0f, 1.0f};
     bool shadowSnapped = false;
     // The cab's sun shadow map (cabShadows()): on while the camera rides a
-    // 3D cab, fading in from when it started.
-    bool cabShadowOn = false;
+    // 3D cab, fading in from when it started; or a car's (task renderer 49),
+    // while the camera is in one with the walking character: what it is for
+    // (none, the cab, a car), fading in again when that changes.
+    const void *cabShadowFor = nullptr;
     QElapsedTimer cabShadowSince;
+    // The cab's or car's map holding the train alone, cached (task renderer
+    // 50, computeShadowMatrices): what it was drawn for, its clip space from
+    // the vehicle's frame, and the cab's centre in it; drawn this frame when
+    // trainShadowRedraw; the train's cars (Eng::viewerTrain).
+    struct TrainShadowCache {
+        const void *vehicle = nullptr;
+        bool car = false;
+        int width = 0;
+        int height = 0;
+        quint64 content = 0;
+        float sunLocal[3] = {0.0f, 0.0f, 0.0f};
+        float local[16] = {};
+        float centreLocal[3] = {0.0f, 0.0f, 0.0f};
+        bool centred = false;
+        bool valid = false;
+    };
+    TrainShadowCache trainShadowCache;
+    bool trainShadowRedraw = false;
+    std::vector<const void *> trainShadowCars;
     // Cached static shadow casters (task renderer 37): each map's cache and
     // what it was drawn for.
     struct ShadowCache {
@@ -872,6 +893,10 @@ private:
     // lampsByDay; core.rendering.movingLampShadows too (trains' head lamps).
     int lampShadows = 2;
     int movingLampShadows = 1;
+    // core.rendering.shadow.interiorQuality (1 low, 2 medium, 3 high: the
+    // cab's and car's map read with one tap, a tent over 3 texels or over
+    // 7), kept as lampsByDay.
+    int interiorShadows = 3;
     // core.rendering.warmth, the view's white balance, kept as lampsByDay.
     float warmth = 0.0f;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay

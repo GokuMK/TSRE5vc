@@ -170,6 +170,10 @@ struct SFileComplex::Data {
     // When its lights are on: the .sd's ESD_TSRELightSchedule (task
     // renderer 46).
     ShapeLights::Schedule lightSchedule = ShapeLights::Schedule::Default;
+    // Its materials' own light shown: the .sd's ESD_TSRESelfLit (task
+    // renderer 49); off, full and half bright lit as the rest (night
+    // textures stay).
+    bool selfLit = true;
     bool metadataEdited = false;
     std::vector<Lod> lods;
     std::vector<Animation> animations;
