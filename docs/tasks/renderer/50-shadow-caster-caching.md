@@ -442,6 +442,11 @@ loop a map, without dynamic or vegetation maps).
 
 ## Ideas to weigh
 
+- The main view's shadow lookups (later, the user, 2026-11-24): 8.7 to 18
+  ms of the view at 1920 x 1080 (above, "The environment cube's shadow
+  lookups"); one tap is not enough there. Fewer taps in a better pattern,
+  and what of the cost is the large maps' cache misses.
+- The near map in tiles, with a fade before it ends: task 51.
 - A vehicle's own map in its frame (as its lamps' since task 46 C): drawn
   once for the sun's direction in that frame and kept until that direction
   turns by more than a threshold (curves), the vehicle's content changes
