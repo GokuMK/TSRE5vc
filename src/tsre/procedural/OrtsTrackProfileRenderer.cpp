@@ -1520,19 +1520,27 @@ QVector<GeneratedVertex> placeOnTrack(const OrtsProfilePolyline &polyline,
         const QVector<const OrtsProfilePolyline*> &bed, const ComplexTrackPlan::BedSlice &slice,
         int k, float alpha) {
     const int count = slice.tracks.size();
-    const float centre = count == 0 ? slice.left : slice.tracks[k];
+    const float offset = count == 0 ? slice.left : slice.tracks[k];
     const float open = std::numeric_limits<float>::max();
-    const float leftLimit = k > 0 && k < count ? (centre - slice.tracks[k - 1]) / 2 : open;
-    const float rightLimit = k + 1 < count ? (slice.tracks[k + 1] - centre) / 2 : open;
-    const GeneratedPathFrame frame = complexFrame(slice.position[0], slice.position[1], slice.heading,
+    const float leftLimit = k > 0 && k < count ? (offset - slice.tracks[k - 1]) / 2 : open;
+    const float rightLimit = k + 1 < count ? (slice.tracks[k + 1] - offset) / 2 : open;
+    // At a track's end its own part of the cross-section lies on its own
+    // end plane (decision 40), so the next piece's bed on that track meets
+    // it; what is cut or pressed at a midpoint stays on the slice, where
+    // the neighbour's edge is.
+    const ComplexTrackPlan::BedSlice::TrackEnd end = slice.trackEnds.value(k);
+    const GeneratedPathFrame sliceFrame = complexFrame(slice.position[0], slice.position[1], slice.heading,
             slice.distance);
+    const GeneratedPathFrame endFrame = end.valid
+            ? complexFrame(end.position[0], end.position[1], end.heading, slice.distance) : sliceFrame;
     QVector<GeneratedVertex> vertices;
     const QVector<OrtsProfileVertex> &source = polyline.vertices;
     for(int i = 0; i < source.size(); i++){
         OrtsProfileVertex vertex = source[i];
         const float x = vertex.position[0];
         const float limit = x < 0 ? leftLimit : rightLimit;
-        if(std::abs(x) > limit){
+        const bool clamped = std::abs(x) > limit;
+        if(clamped){
             const float edge = x < 0 ? -limit : limit;
             bool cut = false;
             for(int j : {i - 1, i + 1}){
@@ -1550,8 +1558,12 @@ QVector<GeneratedVertex> placeOnTrack(const OrtsProfilePolyline &polyline,
                 vertex.position[1] = bedHeight(bed, edge);
             }
         }
-        vertex.position[0] += centre;
-        vertices.append(transformVertex(vertex, polyline, frame, alpha));
+        if(end.valid && !clamped){
+            vertices.append(transformVertex(vertex, polyline, endFrame, alpha));
+            continue;
+        }
+        vertex.position[0] += offset;
+        vertices.append(transformVertex(vertex, polyline, sliceFrame, alpha));
     }
     return vertices;
 }

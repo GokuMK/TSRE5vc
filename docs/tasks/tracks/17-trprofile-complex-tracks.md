@@ -618,12 +618,21 @@ overlap.
 ### 6. Ballast bed
 
 The group's bed is swept along the reference line, on cross-sections every
-0.5 m and where a track starts or ends (2 mm inside it): each track's bed
-begins and stops at its own ends, so the next piece's bed meets it. On each
-cross-section, every track whose ballast footprint (a strip of the bed's
-width, ended by the path's own start and end planes) crosses it lays the
-bed polylines as its own cross-section, each side reaching to the midpoint
-between it and its neighbour there (decision 40): a polyline crossing the
+0.5 m and where a track starts or ends (2 mm inside it). Each track's bed
+begins and stops at its own ends, on its own end planes (square to the
+track there, decision 40): the next piece's bed on that track starts on the
+same plane, whatever the two pieces' reference lines (a double-track frog
+piece's angled track meets the half switch or points it continues into).
+Only the track's own part of its end cross-section lies on that plane; what
+is cut at a midpoint between tracks stays on the cross-section, where the
+neighbour's edge is. A track reaching up to 1 m past the reference line's
+ends (the angled tracks of double-track frog pieces start 0.107 m before
+their straights) takes the cross-sections on with it; farther, its own bed
+(below). No track's bed is carried past its end any more (the 0.5 m
+`reachingPlanes` of step 4, which carried a points' diverging track 0.1 m
+on to the straight's end). On each cross-section, every track crossing it
+lays the bed polylines as its own cross-section, each side reaching to the
+midpoint between it and its neighbour there: a polyline crossing the
 midpoint is cut there, one wholly past it pressed onto it at the bed's
 height. With the assets-gen ballast: tracks 1.6 m apart meet at about the
 crib's height, 3.3 m apart at the shoulders (0.12 m), and tracks more than
@@ -1049,6 +1058,19 @@ are gone. Tests in track-shape-analysis (the scissors' straights' bed from
 meeting at the crib's height). From above the scissors middle is still one
 band: its crossing tracks fill the space between the straights.
 
+Then, on PRUDNIK's double-track frog pieces (`DB/DB3f_A2tFrog7_5dLft/Rgt`,
+the user the same day): the angled track's bed was cut square to the
+straights and 0.107 m short at each end, so a strip of terrain showed at
+both joints. Each track's bed now ends on its own end planes and reaches
+its ends (section 6); the joints meet the double slip's half switch and the
+points (assets-gen `reports/complex-tracks/step7/a2tfrog-joints.jpg`). A
+faint seam remains where two pieces' beds overlap, with a small flickering
+patch in one spot; in the Shape Viewer alone a few centimetres stay open
+between a points' straight and its diverging track's angled end, which the
+next piece covers. Tests: the points' diverging bed ends at its own end,
+square to it; the scissors' crossing tracks' beds from end to end, square
+to them.
+
 ## Acceptance
 
 - PRUDNIK in `Forced` with a filter file: its DB track procedural apart
@@ -1223,7 +1245,12 @@ band: its crossing tracks fill the space between the straights.
     track but each track's own up to the midpoint between neighbours
     (section 6), and cross-sections fall where tracks start and end (the
     0.5 m grid alone began and ended a track's bed up to 0.5 m from its
-    ends: the terrain showed through at joints as dark wedges). Built;
+    ends: the terrain showed through at joints as dark wedges). Then (the
+    user, the same day, on PRUDNIK's double-track frog pieces: "ballast of
+    the middle angled track isn't angled at the ends and doesn't meet the
+    switch, small gap is visible"): each track's bed ends on its own end
+    planes, and a track reaching up to 1 m past the piece's span keeps its
+    bed to its end (the angled track lost 0.107 m at each end). Built;
     waiting for the user's look.
 
 ## Open questions

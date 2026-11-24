@@ -355,7 +355,9 @@ QVector<ComplexTrackPlan::BedSlice> slicesAlong(const Line &line, float from, fl
     return slices;
 }
 
-// A point's distance along a line: where its nearest point on the line is.
+// A point's distance along a line: where its nearest point on the line is;
+// before the first point or past the last, on along the end segments
+// (negative, or more than the line's length).
 float distanceAlong(const Line &line, const Point &p) {
     float best = std::numeric_limits<float>::max();
     float distance = 0;
@@ -364,8 +366,10 @@ float distanceAlong(const Line &line, const Point &p) {
         const Point &b = line[i];
         const float dx = b.x - a.x, dz = b.z - a.z;
         const float length2 = dx * dx + dz * dz;
-        const float t = length2 > 1e-12f
-                ? std::clamp(((p.x - a.x) * dx + (p.z - a.z) * dz) / length2, 0.0f, 1.0f) : 0.0f;
+        float t = length2 > 1e-12f ? ((p.x - a.x) * dx + (p.z - a.z) * dz) / length2 : 0.0f;
+        const float least = i == 1 ? -std::numeric_limits<float>::max() : 0.0f;
+        const float most = i + 1 == line.size() ? std::numeric_limits<float>::max() : 1.0f;
+        t = std::clamp(t, least, most);
         const float gap = std::hypot(a.x + t * dx - p.x, a.z + t * dz - p.z);
         if(gap < best){
             best = gap;
@@ -375,38 +379,15 @@ float distanceAlong(const Line &line, const Point &p) {
     return distance;
 }
 
-// A path ending (or starting) less than half a metre short of the reference
-// line's end plane, carried on straight to it: the next piece's bed starts
-// at that plane (points' diverging track ends 0.1 m before the straight's).
-Line reachingPlanes(const Line &line, const Line &reference) {
-    constexpr float Reach = 0.5f;
-    Line result = line;
-    const Point &first = reference.first();
-    const Point &last = reference.last();
-    auto along = [](const Point &p, const Point &plane) {
-        return (p.x - plane.x) * std::sin(plane.heading) + (p.z - plane.z) * std::cos(plane.heading);
-    };
-    const float shortAtEnd = -along(line.last(), last);
-    if(shortAtEnd > 1e-4f && shortAtEnd <= Reach){
-        Point p = line.last();
-        const float cosine = std::max(0.2f, std::cos(p.heading - last.heading));
-        const float d = shortAtEnd / cosine + 0.01f;
-        p.x += d * std::sin(p.heading);
-        p.z += d * std::cos(p.heading);
-        p.distance += d;
-        result.append(p);
-    }
-    const float shortAtStart = along(line.first(), first);
-    if(shortAtStart > 1e-4f && shortAtStart <= Reach){
-        Point p = line.first();
-        const float cosine = std::max(0.2f, std::cos(p.heading - first.heading));
-        const float d = shortAtStart / cosine + 0.01f;
-        p.x -= d * std::sin(p.heading);
-        p.z -= d * std::cos(p.heading);
-        p.distance -= d;
-        result.prepend(p);
-    }
-    return result;
+// A line's point at a distance; before its start or past its end, on along
+// its first or last heading.
+Point pointAlong(const Line &line, float distance) {
+    Point p = TrackShapeAnalysis::at(line, distance);
+    const float past = distance < 0 ? distance : std::max(0.0f, distance - line.last().distance);
+    p.x += past * std::sin(p.heading);
+    p.z += past * std::cos(p.heading);
+    p.distance = distance;
+    return p;
 }
 
 void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
@@ -423,22 +404,38 @@ void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
         return;
     }
     const Line &reference = group.reference.line;
-    QHash<int, Line> bedLines;
-    for(int i : bedPaths)
-        bedLines.insert(i, reachingPlanes(plan.paths[i].line, reference));
-    // Cross-sections every BedStep and where a track starts or ends (2 mm
-    // inside it): each track's bed begins and stops at its own ends, so the
-    // next piece's bed meets it.
-    QVector<float> distances;
-    for(const ComplexTrackPlan::BedSlice &slice : slicesAlong(reference, 0, reference.last().distance))
-        distances.append(slice.distance);
+    const float length = reference.last().distance;
+    // Each track's ends along the reference line. Its bed begins and stops
+    // there, on its own end planes (decision 40): the next piece's bed on
+    // that track starts on the same plane, whatever its reference line. A
+    // track reaching up to Overhang past the reference line's ends (the
+    // angled tracks of double-track frog pieces start 0.107 m before their
+    // straights) takes the bed on with it; farther, its own bed (below).
+    constexpr float Overhang = 1.0f;
+    QHash<int, QPair<float, float>> ends;
+    float from = 0, to = length;
     for(int i : bedPaths){
-        const Line &line = bedLines[i];
+        const Line &line = plan.paths[i].line;
         const float first = distanceAlong(reference, line.first());
         const float last = distanceAlong(reference, line.last());
+        ends.insert(i, qMakePair(first, last));
+        for(float d : {first, last}){
+            if(d < 0 && d >= -Overhang)
+                from = std::min(from, d);
+            if(d > length && d <= length + Overhang)
+                to = std::max(to, d);
+        }
+    }
+    // Cross-sections every BedStep and 2 mm inside each track's ends.
+    QVector<float> distances;
+    const int steps = std::max(1, int(std::ceil((to - from) / BedStep)));
+    for(int k = 0; k <= steps; k++)
+        distances.append(from + (to - from) * k / steps);
+    for(int i : bedPaths){
+        const float first = ends[i].first, last = ends[i].second;
         const float inward = first < last ? 0.002f : -0.002f;
         for(float d : {first + inward, last - inward})
-            if(d > 0 && d < reference.last().distance)
+            if(d > from && d < to)
                 distances.append(d);
     }
     std::sort(distances.begin(), distances.end());
@@ -446,7 +443,7 @@ void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
     for(float d : distances){
         if(!candidates.isEmpty() && d - candidates.last().distance < 1e-3f)
             continue;
-        const Point p = TrackShapeAnalysis::at(reference, d);
+        const Point p = pointAlong(reference, d);
         ComplexTrackPlan::BedSlice slice;
         slice.position[0] = p.x;
         slice.position[1] = p.z;
@@ -454,42 +451,65 @@ void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
         slice.distance = d;
         candidates.append(slice);
     }
+    struct Track {
+        float offset;
+        int path;
+    };
     for(const ComplexTrackPlan::BedSlice &candidate : candidates){
         const float nx = std::cos(candidate.heading);
         const float nz = -std::sin(candidate.heading);
         float left = std::numeric_limits<float>::max();
         float right = -std::numeric_limits<float>::max();
         // Each path's crossing nearest the reference line: its track there.
-        QVector<QPair<float, int>> tracks;
+        QVector<Track> tracks;
         for(int i : bedPaths){
             float nearest = std::numeric_limits<float>::max();
             for(const ComplexTrackPlan::Hit &hit
                     : ComplexTrackPlan::lineHits(candidate.position[0], candidate.position[1], nx, nz,
-                                                 bedLines[i])){
+                                                 plan.paths[i].line)){
                 left = std::min(left, hit.t);
                 right = std::max(right, hit.t);
                 if(std::abs(hit.t) < std::abs(nearest))
                     nearest = hit.t;
             }
             if(nearest != std::numeric_limits<float>::max())
-                tracks.append(qMakePair(nearest, i));
+                tracks.append(Track{nearest, i});
         }
         if(left > right)
             continue;
-        std::sort(tracks.begin(), tracks.end());
+        std::sort(tracks.begin(), tracks.end(), [](const Track &a, const Track &b) { return a.offset < b.offset; });
         ComplexTrackPlan::BedSlice slice = candidate;
         slice.left = left;
         slice.right = right;
-        for(const QPair<float, int> &track : tracks){
-            slice.tracks.append(track.first);
-            slice.trackPaths.append(track.second);
+        for(const Track &track : tracks){
+            slice.tracks.append(track.offset);
+            slice.trackPaths.append(track.path);
+            // A cross-section at a track's end: that track's on its own end
+            // plane, square to it at its end point.
+            ComplexTrackPlan::BedSlice::TrackEnd end;
+            const Line &line = plan.paths[track.path].line;
+            const QPair<float, float> e = ends[track.path];
+            const float inward = e.first < e.second ? 0.002f : -0.002f;
+            for(int which = 0; which < 2; which++){
+                if(std::abs(slice.distance - (which == 0 ? e.first + inward : e.second - inward)) > 1e-4f)
+                    continue;
+                const Point &p = which == 0 ? line.first() : line.last();
+                end.valid = true;
+                end.position[0] = p.x;
+                end.position[1] = p.z;
+                // Square to the track; the cross-section's right as the
+                // slice's (a track running against the reference turned).
+                end.heading = std::cos(p.heading - slice.heading) >= 0 ? p.heading : p.heading + Pi;
+            }
+            slice.trackEnds.append(end);
         }
         group.bed.append(slice);
     }
-    // A path's parts before the reference line's start or past its end: its
-    // own bed there.
-    const Point &first = reference.first();
-    const Point &last = reference.last();
+    // A path's parts before the first cross-section's plane or past the
+    // last one's (more than Overhang past the reference line): its own bed
+    // there.
+    const Point first = pointAlong(reference, from);
+    const Point last = pointAlong(reference, to);
     for(int i : bedPaths){
         const Line &line = plan.paths[i].line;
         QVector<bool> inside(line.size(), true);

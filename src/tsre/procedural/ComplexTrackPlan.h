@@ -181,6 +181,15 @@ public:
         // midpoint. Empty: one track at 0 (a path's own bed).
         QVector<float> tracks;
         QVector<int> trackPaths;
+        // A cross-section at a track's start or end (decision 40): that
+        // track's cross-section lies on its own end plane, square to the
+        // track at its end point (heading turned to run with the slice's).
+        struct TrackEnd {
+            bool valid = false;
+            float position[2] = {0, 0};
+            float heading = 0;
+        };
+        QVector<TrackEnd> trackEnds;
     };
 
     // A switch (step 7): two paths starting together and parting, with

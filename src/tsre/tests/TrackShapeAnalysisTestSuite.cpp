@@ -638,13 +638,28 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                 onFirst += fastener.tie == 0;
             check(group.ties.size() == 42 && onFirst == 2,
                     "points: 42 bearers; two fastenings on the first, not four (rails on each other)");
+            // Decision 40: the diverging track's bed ends at its own end (0.1 m
+            // before the straight's), on its own end plane.
+            const ComplexTrackPlan::BedSlice *divergingEnd = nullptr;
+            for(const ComplexTrackPlan::BedSlice &slice : group.bed)
+                for(int k = 0; k < slice.tracks.size(); k++)
+                    if(slice.trackPaths[k] == 0 && slice.trackEnds.value(k).valid && slice.distance > 20)
+                        divergingEnd = &slice;
+            const TrackShapeAnalysis::Point &curveEnd = paths[0].line.last();
             check(group.bed.size() > 40 && near(group.bed.first().left, 0, 0.01f) && near(group.bed.first().right, 0, 0.01f)
-                    && group.bed.last().left < -1.5f && near(group.bed.last().right, 0, 0.01f)
-                    && group.pathBeds.isEmpty(),
-                    QString("the bed widens to the diverging track, one bed (%1 slices, first %2..%3, last %4..%5, %6 path beds)")
+                    && divergingEnd != nullptr && divergingEnd->left < -1.5f && near(divergingEnd->right, 0, 0.01f)
+                    && near(group.bed.last().distance, 25, 0.01f) && group.pathBeds.isEmpty(),
+                    QString("the bed widens to the diverging track, one bed (%1 slices, first %2..%3, the diverging end %4..%5, %6 path beds)")
                         .arg(group.bed.size()).arg(group.bed.value(0).left).arg(group.bed.value(0).right)
-                        .arg(group.bed.isEmpty() ? 0 : group.bed.last().left)
-                        .arg(group.bed.isEmpty() ? 0 : group.bed.last().right).arg(group.pathBeds.size()));
+                        .arg(divergingEnd ? divergingEnd->left : 0).arg(divergingEnd ? divergingEnd->right : 0)
+                        .arg(group.pathBeds.size()));
+            if(divergingEnd != nullptr){
+                const int k = divergingEnd->trackPaths.indexOf(0);
+                const ComplexTrackPlan::BedSlice::TrackEnd &end = divergingEnd->trackEnds[k];
+                check(near(end.position[0], curveEnd.x, 1e-3f) && near(end.position[1], curveEnd.z, 1e-3f)
+                        && near(end.heading, curveEnd.heading, 1e-4f) && std::abs(end.heading) > radians(7),
+                        QString("its bed ends square to it at its end (%1 deg)").arg(end.heading * 180 / Pi));
+            }
         }
 
         // A 7.5 degree diamond (phase 2): frogs at both ends; in the middle
@@ -1005,6 +1020,26 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
             check(scissorsPlan.groups.size() == 1 && near(firstFour, 0, 0.005f) && near(lastFour, 12.865f, 0.005f),
                     QString("scissors middle: the straights' bed from their start to their end (%1 to %2 m)")
                         .arg(firstFour).arg(lastFour));
+            // Its crossing tracks start 0.107 m before the straights and end
+            // 0.107 m past them: their beds reach their own ends, square to
+            // them (7.5 degrees to the straights' ends).
+            int angledEnds = 0;
+            if(scissorsPlan.groups.size() == 1)
+                for(const ComplexTrackPlan::BedSlice &slice : scissorsPlan.groups[0].bed)
+                    for(int k = 0; k < slice.tracks.size(); k++){
+                        const ComplexTrackPlan::BedSlice::TrackEnd &end = slice.trackEnds.value(k);
+                        const int path = slice.trackPaths[k];
+                        if(!end.valid || (path != 1 && path != 2))
+                            continue;
+                        const TrackShapeAnalysis::Point &a = scissorsPaths[path].line.first();
+                        const TrackShapeAnalysis::Point &b = scissorsPaths[path].line.last();
+                        const bool atStart = near(end.position[0], a.x, 1e-3f) && near(end.position[1], a.z, 1e-3f);
+                        const bool atEnd = near(end.position[0], b.x, 1e-3f) && near(end.position[1], b.z, 1e-3f);
+                        if((atStart || atEnd) && near(std::abs(end.heading), radians(7.5f), 1e-3f))
+                            angledEnds++;
+                    }
+            check(angledEnds == 4, QString("scissors middle: its crossing tracks' beds from end to end, cut square to "
+                                           "them (%1 of 4 ends)").arg(angledEnds));
 
             // Two straights 5 m apart, a crossing track leaving the left one
             // at the start: open ground between the straights there, one bed
