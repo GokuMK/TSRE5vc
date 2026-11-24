@@ -485,10 +485,33 @@ view; the early-out's structure (`cascadeTaps`, two loops, the maps as
 function arguments, the cells' tests) costs it about 3 ms again, though
 inside the cab's box only the static loop runs: the early-out made Prudnik
 5 to 10 ms faster and the cab slower (as the cube's branch, task 50 above:
-the cab's programs compile worse with more code there). Next: variants of
-the current shader in the cab and at Prudnik: the near map's loop inline
-again, the cells' tests only for the map in use, the early-out for the
-middle and far maps alone.
+the cab's programs compile worse with more code there).
+
+Variants of the current shader (the user's go), the view's pass, ms (the
+cab's two views; Prudnik's forest, freight station), back to back:
+
+| Variant | ET22 cab | Forest | Freight |
+| --- | --- | --- | --- |
+| Now (three runs) | 34.6, 38.6 to 39.0 | 26.2 to 27.0 | 43.1 to 43.8 |
+| A: the near and middle loops inline again | 37.3, 43.9 | 26.3 | 43.4 |
+| B: each map's cell tested in its own branch | 34.1, 38.2 to 38.4 | 25.7, 26.2 | 41.8, 42.0 |
+| A and B | 38.7, 44.9 | 25.8 | 42.5 |
+| C: the near map always both lookups (17cf5862's loop) | 36.1, 40.4 | 27.5 | 46.3 |
+| E: B with the dynamic taps in a loop of their own | 34.1, 38.2 | 25.6 | 42.0 |
+| 17cf5862 (before the early-out) | 31.6, 35.5 | 27.2 | 46.4 |
+
+Diagnostics on B in the cab: the cells' test always true 34.6 and 39.0
+(not the uniform array's read); the box's skip off 35.4 and 39.7 (it
+helps); no dynamic taps at all 28.6 and 32.1, 3 ms under 17cf5862, which
+took them everywhere. E (no wave paying for both loops) gained nothing,
+so the cab's cost is the code's (its programs compiled with the loops'
+branches), not the taps.
+
+Done: B (the same images; cab 0.5 ms less, Prudnik up to 1.7). Left: the
+cab about 2.6 ms over 17cf5862's view. To weigh: the cab's own parts
+(inside the box, where the dynamic taps are skipped anyway) drawn with a
+program variant without the dynamic maps' code: towards the 28.6 and 32.1
+above.
 
 ## Ideas to weigh
 
@@ -497,9 +520,10 @@ middle and far maps alone.
   lookups"); one tap is not enough there. Fewer taps in a better pattern,
   and what of the cost is the large maps' cache misses.
 - The near map in tiles, with a fade before it ends: task 51.
-- The ET22 cab's view 1.1 to 1.6 ms slower than main's: the early-out's
-  shader structure, about 3 ms in the cab ("Against main before the
-  merge"); the shadow phase's CPU 0.4 ms more at Prudnik.
+- The ET22 cab's view slower than main's: the early-out's shader code,
+  about 2.6 ms in the cab after variant B ("Against main before the
+  merge"); the cab's parts in a program without the dynamic maps' code to
+  weigh; the shadow phase's CPU 0.4 ms more at Prudnik.
 - A vehicle's own map in its frame (as its lamps' since task 46 C): drawn
   once for the sun's direction in that frame and kept until that direction
   turns by more than a threshold (curves), the vehicle's content changes
