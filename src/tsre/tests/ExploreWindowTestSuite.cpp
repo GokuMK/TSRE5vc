@@ -33,6 +33,7 @@
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QThread>
+#include <cmath>
 
 namespace {
 
@@ -58,10 +59,10 @@ bool settleUntil(const std::function<bool()> &done, int ms) {
     return done();
 }
 
-void key(QWidget *view, int key) {
-    QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier);
+void key(QWidget *view, int key, const QString &text = QString()) {
+    QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, text);
     QApplication::sendEvent(view, &press);
-    QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier);
+    QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, text);
     QApplication::sendEvent(view, &release);
     settle(120);
 }
@@ -195,7 +196,8 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     check(makeRoute(rootA, "R1", "Route One") && makeRoute(rootA, "R2", "Route Two"), "two routes made");
     Game::root = rootA;
     Explore::Panel::setRememberedFile(workspace.filePath("explore.json"));
-    settings.setSessionValue("core.explore.resolution", "1024x768");
+    // 16:9: the window beside the menu.
+    settings.setSessionValue("core.explore.resolution", "1280x720");
     settings.setSessionValue("core.explore.fillScreen", false);
     Explore::Window *window = new Explore::Window("SOMEROUTE");
     bool exited = false;
@@ -203,10 +205,10 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     window->open();
     RouteEditorGLWidget *view = window->view();
     QScreen *screen = window->screen();
-    const QSize expected = Explore::Window::logicalSize(QSize(1024, 768), screen->devicePixelRatio(),
+    const QSize expected = Explore::Window::logicalSize(QSize(1280, 720), screen->devicePixelRatio(),
                                                         screen->availableGeometry().size());
     settleUntil([window] { return window->menu() != nullptr; }, 5000);
-    check(window->size() == expected, QString("the window 1024 x 768 screen pixels (%1 x %2, expected %3 x %4)")
+    check(window->size() == expected, QString("the window 1280 x 720 screen pixels (%1 x %2, expected %3 x %4)")
               .arg(window->width()).arg(window->height()).arg(expected.width()).arg(expected.height()));
     check(window->chosenRoute() == "SOMEROUTE", "the route to choose first kept");
 
@@ -266,22 +268,27 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
           "Left from a route: back to the menu's item, the window still shown (" + menu->focused() + ")");
     key(view, Qt::Key_Right);
     check(menu->focused() == "routes:item", "Right on the marked item: into its window (" + menu->focused() + ")");
-    // Across the columns (RmlUi's arrows stay in a list); Enter goes on.
+    // The route page (task explore 05): Enter on a route goes to its pages'
+    // buttons; a route of only a TRK has no activities and no timetables,
+    // their buttons greyed and passed.
     key(view, Qt::Key_Return);
-    settleUntil([menu] { return menu->focused() == "runs:item"; }, 1000);
-    check(menu->focused() == "runs:item", "Enter on a route: its runs (" + menu->focused() + ")");
-    key(view, Qt::Key_Return);
-    settleUntil([menu] { return menu->focused() == "pick-start"; }, 1000);
-    check(menu->focused() == "pick-start", "Enter on Explore the route: its choices (" + menu->focused() + ")");
-    key(view, Qt::Key_Right);
-    check(menu->focused() == "go", "Right from the choices: Explore (" + menu->focused() + ")");
-    check(menu->panel() != nullptr && !menu->panel()->ready(), "no path, no consist: Explore greyed");
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->focused() == "open-explore" && menu->panel() != nullptr && menu->panel()->page() == "route",
+          "Enter on a route: its pages' buttons, Explore the route (" + menu->focused() + ")");
+    check(menu->panel() != nullptr && menu->panel()->text("route-counts").contains("0"),
+          "the route's counts shown (" + (menu->panel() != nullptr ? menu->panel()->text("route-counts") : QString()) + ")");
     key(view, Qt::Key_Left);
-    check(menu->focused() == "pick-start", "Left: the choices (" + menu->focused() + ")");
-    // Drive or Walk above the choices (task explore 04): Up reaches it, Right
-    // Walk, Enter walks; Left and Enter drive again, Down the choices.
-    key(view, Qt::Key_Up);
-    check(menu->focused() == "mode-drive", "Up from the first choice: Drive (" + menu->focused() + ")");
+    check(menu->focused() == "routes:item", "Left past the greyed buttons: the routes (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    check(menu->focused() == "open-explore", "Right: the buttons again (" + menu->focused() + ")");
+    // Explore the route's page: no paths, no consists, the keys on its bar.
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->focused() == "mode-drive"; }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->page() == "explore" && menu->focused() == "mode-drive",
+          "Enter on Explore the route: its page, no path to choose: the bar's Drive (" + menu->focused() + ")");
+    check(menu->panel() != nullptr && !menu->panel()->ready(), "no path, no consist: Start greyed");
+    // Drive or Walk (task explore 04): Right Walk, Enter walks; Left and
+    // Enter drive again.
     key(view, Qt::Key_Right);
     check(menu->focused() == "mode-walk", "Right: Walk (" + menu->focused() + ")");
     key(view, Qt::Key_Return);
@@ -291,9 +298,42 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     check(menu->focused() == "mode-drive" && menu->panel() != nullptr && !menu->panel()->choice().walk,
           "Left, Enter: Drive again (" + menu->focused() + ")");
     key(view, Qt::Key_Down);
-    check(menu->focused() == "pick-start", "Down: the choices (" + menu->focused() + ")");
+    check(menu->focused() == "pick-day", "Down: the bar's second row, the day (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    check(menu->focused() == "pick-month", "Right: the month (" + menu->focused() + ")");
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->panel() != nullptr && menu->panel()->picking(); }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->picking(), "Enter: the month's picker");
+    key(view, Qt::Key_Escape);
+    settleUntil([menu] { return menu->focused() == "pick-month"; }, 1000);
+    check(menu->panel() != nullptr && !menu->panel()->picking() && menu->focused() == "pick-month",
+          "Esc: the picker closed, the month again (" + menu->focused() + ")");
+    // A filter takes the letters typed though the menu has the keys (task
+    // explore 05; the screen gave text only to a field outside a menu).
+    check(menu->click("path-filter"), "a click on the paths' filter");
+    key(view, Qt::Key_A, "a");
+    key(view, Qt::Key_B, "b");
+    check(menu->focused() == "path-filter" && menu->panel() != nullptr && menu->panel()->text("path-filter") == "ab",
+          "typed into it: '" + (menu->panel() != nullptr ? menu->panel()->text("path-filter") : QString()) + "'");
+    // Esc: back to the route page, its button; Left from the first column
+    // too.
+    key(view, Qt::Key_Escape);
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->page() == "route" && menu->focused() == "open-explore",
+          "Esc on a page: the route page, Explore the route's button (" + menu->focused() + ", "
+                  + (menu->panel() != nullptr ? menu->panel()->page() : QString()) + ")");
+    key(view, Qt::Key_Return);
+    settleUntil([menu] { return menu->focused() == "mode-drive"; }, 1000);
     key(view, Qt::Key_Left);
-    check(menu->focused() == "runs:item", "Left: the runs (" + menu->focused() + ")");
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->panel() != nullptr && menu->panel()->page() == "route" && menu->focused() == "open-explore",
+          "Left from a page's first column: the route page (" + menu->focused() + ")");
+    // Out to the menu and in again: the button of the page last used.
+    key(view, Qt::Key_Escape);
+    check(menu->focused() == "explore", "Esc on the route page: the menu's item (" + menu->focused() + ")");
+    key(view, Qt::Key_Right);
+    settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+    check(menu->focused() == "open-explore", "Right: in again, on the page last used (" + menu->focused() + ")");
     key(view, Qt::Key_Left);
     check(menu->focused() == "routes:item", "Left: the routes (" + menu->focused() + ")");
     key(view, Qt::Key_Escape);
@@ -305,6 +345,92 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     key(view, Qt::Key_Down);
     check(menu->focused() == "exit", "Down from Explore with the window shown: Exit (" + menu->focused() + ")");
     key(view, Qt::Key_Up);
+
+    // Narrow and wide views (task explore 05): the window at most 1450 dp
+    // wide (its 16:9 width), centred right of the menu; at 3:2 and narrower
+    // over the menu, hidden while the keys are on the menu. In dp: the view
+    // is 1080 tall; 8 dp spare for a small view's pixels. The window sized
+    // as its frame dragged would (the resolutions offered are 4:3 and 16:9),
+    // small enough for the offscreen screen (800 x 600).
+    {
+        const auto viewAt = [window](int width, int height) {
+            window->resize(width, height);
+            settle(400);
+        };
+        const auto near = [](double a, double b) { return std::fabs(a - b) < 8.0; };
+        const QRectF items = menu->box("items");
+        QRectF canvas = menu->box(QString());
+        QRectF box = menu->box("explore-window");
+        const auto boxText = [&canvas, &box] {
+            return QString("the view %1 dp wide, the window %2 to %3").arg(canvas.width(), 0, 'f', 0)
+                    .arg(box.left(), 0, 'f', 0).arg(box.right(), 0, 'f', 0);
+        };
+        const auto measure = [&] {
+            canvas = menu->box(QString());
+            box = menu->box("explore-window");
+        };
+        check(items.right() > 300 && items.right() < 430, QString("the menu's items end at %1 dp").arg(items.right()));
+        check(!menu->covering() && menu->windowShown() && near(box.left(), 430) && near(box.right(), canvas.width() - 40)
+                      && !menu->shows("to-menu") && menu->shows("items"),
+              "16:9: the window beside the menu, no Main menu button (" + boxText() + ")");
+        viewAt(784, 336);
+        measure();
+        const double leftGap = box.left() - 430, rightGap = canvas.width() - 40 - box.right();
+        check(!menu->covering() && menu->windowShown() && box.width() < 1458 && box.width() > 1440 && leftGap > 250
+                      && near(leftGap, rightGap),
+              "21:9: at most 1450 dp wide, centred right of the menu (" + boxText() + ")");
+        viewAt(768, 480);
+        measure();
+        check(!menu->covering() && menu->windowShown() && near(box.left(), 430) && near(box.right(), canvas.width() - 40),
+              "16:10: beside the menu (" + boxText() + ")");
+        // 4:3, the keys on the menu: the window over it is hidden.
+        viewAt(640, 480);
+        check(menu->covering() && !menu->windowShown() && menu->focused() == "explore",
+              "4:3 with the keys on the menu: the window hidden (" + menu->focused() + ")");
+        key(view, Qt::Key_Right);
+        settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+        settle(100);
+        measure();
+        check(menu->windowShown() && menu->focused() == "open-explore" && near(box.left(), 40)
+                      && near(box.right(), canvas.width() - 40) && box.left() < items.left() && menu->shows("to-menu"),
+              "Right: the window over the menu, the Main menu button (" + menu->focused() + ", " + boxText() + ")");
+        check(!menu->shows("items"), "the menu's items under it hidden");
+        key(view, Qt::Key_Escape);
+        check(menu->focused() == "explore" && !menu->windowShown() && menu->shows("items"),
+              "Esc on the route page: the menu, the window hidden (" + menu->focused() + ")");
+        key(view, Qt::Key_Right);
+        settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+        key(view, Qt::Key_Left);
+        check(menu->windowShown() && menu->focused() == "routes:item",
+              "Right, Left: the routes, the window shown (" + menu->focused() + ")");
+        key(view, Qt::Key_Left);
+        check(menu->focused() == "explore" && !menu->windowShown(),
+              "Left from the routes: the menu, the window hidden (" + menu->focused() + ")");
+        check(menu->click("explore") && menu->windowShown(), "a click on Explore: the window again");
+        settleUntil([menu] { return menu->focused() != "explore"; }, 1000);
+        check(menu->click("to-menu") && menu->focused() == "explore" && !menu->windowShown(),
+              "a click on Main menu: the menu, the window hidden (" + menu->focused() + ")");
+        // Made wider with the window hidden: beside the menu again.
+        viewAt(expected.width(), expected.height());
+        check(!menu->covering() && menu->windowShown() && menu->focused() == "explore",
+              "16:9 again: the window shown beside the menu, the keys on it (" + menu->focused() + ")");
+        key(view, Qt::Key_Right);
+        settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+        viewAt(600, 480);
+        measure();
+        check(menu->covering() && menu->windowShown() && near(box.left(), 40) && near(box.right(), canvas.width() - 40),
+              "5:4 with the keys in the window: over the menu, shown (" + boxText() + ")");
+        viewAt(720, 480);
+        measure();
+        const double gap = box.left() - 40;
+        check(menu->covering() && menu->windowShown() && box.width() < 1458 && box.width() > 1440 && gap > 30
+                      && near(gap, canvas.width() - 40 - box.right()),
+              "3:2: over the menu, at most 1450 dp wide, centred (" + boxText() + ")");
+        key(view, Qt::Key_Escape);
+        viewAt(expected.width(), expected.height());
+        check(!menu->covering() && menu->windowShown() && menu->focused() == "explore",
+              "back to 16:9 (" + menu->focused() + ")");
+    }
     menu->open(Explore::Menu::Page::Main);
     check(menu->click("explore") && menu->page() == Explore::Menu::Page::Explore, "a click: the Explore window");
     check(menu->click("options") && menu->page() == Explore::Menu::Page::Explore && !exited,

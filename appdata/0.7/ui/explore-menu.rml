@@ -10,7 +10,9 @@
      (src/explore/ExploreMenu.cpp): explore shows the Explore window, exit
      quits. Items with the class "later" are not built yet: they take no keys
      or clicks. The Explore window is the data model "explore"
-     (src/explore/ExplorePanel.cpp); a choice's button is "pick-<choice>". -->
+     (src/explore/ExplorePanel.cpp), in pages (task explore 05): the route
+     page, then an activity's, a timetable's or exploring's page with the bar
+     under it; a choice's button is "pick-<choice>". -->
 <body class="page" data-model="explore">
     <div id="items">
         <button id="explore">ui.explore.explore</button>
@@ -21,125 +23,175 @@
     <div id="version"></div>
 
     <div id="explore-window" class="window" data-class-picking="picking != ''">
-        <div id="routes-column" class="column">
-            <h2>ui.explore.routes</h2>
-            <div id="routes" class="list">
-                <button data-for="r : routes" class="item" data-class-chosen="it_index == route"
-                        data-event-click="chooseRoute(it_index)">{{r.name}}</button>
+        <!-- 1. The route page (task explore 05): the routes, the chosen
+             route's picture, facts and description, and its pages. -->
+        <div id="route-page" data-if="page == 'route'">
+            <div id="routes-column" class="column">
+                <h2><button id="to-menu"><span class="arrow">&lt;</span>ui.explore.main.menu</button>ui.explore.routes</h2>
+                <div id="routes" class="list">
+                    <button data-for="r : routes" class="item" data-class-chosen="it_index == route"
+                            data-event-click="chooseRoute(it_index)">{{r.name}}</button>
+                </div>
+            </div>
+            <div id="route-column" class="column">
+                <h2>{{routeName}}</h2>
+                <div id="route-info">
+                    <img data-if="picture != ''" data-attr-src="picture"/>
+                    <p id="route-facts" class="facts">{{routeFacts}}</p>
+                    <p id="route-counts" class="facts">{{routeCounts}}</p>
+                    <p id="route-description" class="text">{{routeDescription}}</p>
+                    <p class="hint" data-if="routeName == ''">ui.explore.choose.route</p>
+                </div>
+                <div id="page-buttons" class="page-buttons" data-if="routeName != ''">
+                    <button id="open-activity" class="page-button" data-class-disabled="activityCount == 0"
+                            data-event-click="openPage('activity')">ui.explore.activities<span class="count">{{activityCount}}</span></button>
+                    <button id="open-timetable" class="page-button" data-class-disabled="setCount == 0"
+                            data-event-click="openPage('timetable')">ui.explore.timetables<span class="count">{{setCount}}</span></button>
+                    <button id="open-explore" class="page-button" data-event-click="openPage('explore')">ui.explore.explore.route</button>
+                </div>
             </div>
         </div>
-        <div id="runs-column" class="column">
-            <h2>{{routeName}}</h2>
-            <div id="runs" class="list">
-                <div data-for="x : runs">
-                    <h3 data-if="x.heading">{{x.name}}</h3>
-                    <button data-if="!x.heading" class="item" data-class-chosen="it_index == run"
-                            data-event-click="chooseRun(it_index)">{{x.name}}</button>
+
+        <!-- A run's page: its heading, back to the route page. -->
+        <div class="heading" data-if="page != 'route'">
+            <button id="back" data-event-click="back()">&lt; {{routeName}}</button>
+            <span class="title">{{pageTitle}}</span>
+        </div>
+
+        <!-- 2. The activities: the list, the chosen one's details. -->
+        <div id="activity-page" class="pagebox" data-if="page == 'activity'">
+            <div id="activity-left">
+                <div class="table-head">
+                    <span class="cell c-act-name">ui.explore.activity</span>
+                    <span class="cell c-act-difficulty">ui.explore.difficulty</span>
+                    <span class="cell c-act-time">ui.explore.time</span>
                 </div>
+                <div id="activity-list" class="list rows">
+                    <button data-for="a : activities" class="item row" data-class-chosen="it_index == activity"
+                            data-event-click="chooseActivity(it_index)"><span class="cell c-act-name">{{a.name}}</span><span class="cell c-act-difficulty">{{a.difficulty}}</span><span class="cell c-act-time">{{a.duration}}</span></button>
+                </div>
+            </div>
+            <div id="activity-details">
+                <h3 id="activity-name">{{actName}}</h3>
+                <p id="activity-facts" class="facts">{{actFacts}}</p>
+                <p id="activity-description" class="text lead">{{actDescription}}</p>
+                <h4 data-if="actBriefing != ''">ui.explore.briefing</h4>
+                <div class="box" data-if="actBriefing != ''">
+                    <p id="activity-briefing" class="text">{{actBriefing}}</p>
+                </div>
+                <h4>ui.explore.your.train</h4>
+                <p id="activity-train" class="fact-line">{{actTrain}}</p>
+                <p id="activity-path" class="fact-line">{{actPath}}</p>
+                <div class="stops" data-if="actStops.size > 0">
+                    <div class="stop head"><span class="cell c-stop-station">ui.explore.station</span><span class="cell c-stop-time">ui.explore.arrives</span><span class="cell c-stop-time">ui.explore.departs</span></div>
+                    <div class="stop" data-for="s : actStops"><span class="cell c-stop-station">{{s.station}}</span><span class="cell c-stop-time">{{s.arrival}}</span><span class="cell c-stop-time">{{s.departure}}</span></div>
+                </div>
+                <p id="activity-traffic" class="fact-line">{{actTraffic}}</p>
             </div>
         </div>
-        <div id="details-column" class="column">
-            <!-- The route, until a run is chosen. -->
-            <div data-if="kind == ''" class="route">
-                <img data-if="picture != ''" data-attr-src="picture"/>
-                <p class="text">{{routeDescription}}</p>
-                <p class="hint" data-if="routeName == ''">ui.explore.choose.route</p>
+
+        <!-- 3. A timetable set: its trains the window's width, the chosen
+             train's calls under them. -->
+        <div id="timetable-page" class="pagebox" data-if="page == 'timetable'">
+            <div id="trains-tools" class="tools">
+                <button id="pick-set" class="choice set" data-if="manySets" data-event-click="pick('set')">{{setName}}</button>
+                <span class="set-name" data-if="!manySets">{{setName}}</span>
+                <span class="label gap">{{setTrains}}</span>
+                <span class="label gap">ui.explore.filter</span>
+                <input id="filter" type="text" data-value="filter"/>
+                <button id="drivable" class="toggle" data-if="!walk" data-class-on="drivableOnly" data-event-click="toggleDrivable()">ui.explore.drivable.only</button>
             </div>
-            <!-- Exploring the route: a path, a consist, a time, a day; walking
-                 (task explore 04): a station, the train or none. -->
-            <div data-if="kind == 'explore'" class="choices">
-                <div class="tools modes">
-                    <button id="mode-drive" class="toggle" data-class-on="!walk" data-event-click="setWalk(false)">ui.explore.drive</button>
-                    <button id="mode-walk" class="toggle" data-class-on="walk" data-event-click="setWalk(true)">ui.explore.walk</button>
-                </div>
-                <button id="pick-start" class="choice" data-event-click="pick('start')"><span class="label">ui.explore.start.at</span><span class="value">{{startName}}</span></button>
-                <button id="pick-heading" class="choice" data-if="exploreTrain" data-event-click="pick('heading')"><span class="label">ui.explore.heading.to</span><span class="value">{{headingName}}</span></button>
-                <p class="hint" data-if="consistsLoading &amp;&amp; exploreTrain">ui.explore.reading.consists</p>
-                <button id="pick-loco" class="choice" data-if="!consistsLoading &amp;&amp; exploreTrain" data-event-click="pick('loco')"><span class="label">ui.explore.locomotive</span><span class="value">{{locoName}}</span></button>
-                <button id="pick-consist" class="choice" data-if="!consistsLoading &amp;&amp; exploreTrain" data-event-click="pick('consist')"><span class="label">ui.explore.consist</span><span class="value">{{consistName}}</span></button>
-                <p class="hint" data-if="walk &amp;&amp; stationsLoading">ui.explore.reading.stations</p>
-                <button id="pick-station" class="choice" data-if="walk &amp;&amp; !stationsLoading" data-event-click="pick('station')"><span class="label">ui.explore.station</span><span class="value">{{stationName}}</span></button>
-                <div class="pair">
-                    <button id="pick-hour" class="choice half" data-event-click="pick('hour')"><span class="label">ui.explore.time</span><span class="value">{{time}}</span></button>
-                    <button id="pick-minute" class="choice small" data-event-click="pick('minute')">ui.explore.minutes</button>
-                </div>
-                <div class="pair">
-                    <button id="pick-day" class="choice half" data-event-click="pick('day')"><span class="label">ui.explore.day</span><span class="value">{{day}}</span></button>
-                    <button id="pick-month" class="choice small" data-event-click="pick('month')">ui.explore.month</button>
-                </div>
-                <p class="fact"><span class="label">ui.explore.season</span><span class="value">{{season}}</span></p>
-                <button id="pick-weather" class="choice" data-event-click="pick('weather')"><span class="label">ui.explore.weather</span><span class="value">{{weather}}</span></button>
+            <div class="table-head">
+                <button class="cell c-name" data-class-sorted="sortColumn == 'name'" data-class-down="!sortUp" data-event-click="sortBy('name')">ui.explore.train</button>
+                <button class="cell c-start" data-class-sorted="sortColumn == 'start'" data-class-down="!sortUp" data-event-click="sortBy('start')">ui.explore.starts</button>
+                <button class="cell c-end" data-class-sorted="sortColumn == 'end'" data-class-down="!sortUp" data-event-click="sortBy('end')">ui.explore.ends</button>
+                <button class="cell c-from" data-class-sorted="sortColumn == 'from'" data-class-down="!sortUp" data-event-click="sortBy('from')">ui.explore.from</button>
+                <button class="cell c-to" data-class-sorted="sortColumn == 'to'" data-class-down="!sortUp" data-event-click="sortBy('to')">ui.explore.to</button>
+                <button class="cell c-category" data-if="hasCategory" data-class-sorted="sortColumn == 'category'" data-class-down="!sortUp" data-event-click="sortBy('category')">ui.explore.category</button>
+                <button class="cell c-number" data-if="hasNumber" data-class-sorted="sortColumn == 'number'" data-class-down="!sortUp" data-event-click="sortBy('number')">ui.explore.number</button>
+                <button class="cell c-line" data-if="hasLine" data-class-sorted="sortColumn == 'line'" data-class-down="!sortUp" data-event-click="sortBy('line')">ui.explore.line</button>
+                <button class="cell c-engine" data-class-sorted="sortColumn == 'engine'" data-class-down="!sortUp" data-event-click="sortBy('engine')">ui.explore.engine</button>
+                <button class="cell c-stops" data-class-sorted="sortColumn == 'stops'" data-class-down="!sortUp" data-event-click="sortBy('stops')">ui.explore.stops</button>
             </div>
-            <!-- An activity: shown as it is, its day chosen. -->
-            <div data-if="kind == 'activity'" class="choices">
-                <div class="tools modes">
-                    <button id="mode-drive" class="toggle" data-class-on="!walk" data-event-click="setWalk(false)">ui.explore.drive</button>
-                    <button id="mode-walk" class="toggle" data-class-on="walk" data-event-click="setWalk(true)">ui.explore.walk</button>
-                </div>
-                <p class="hint" data-if="walk &amp;&amp; stationsLoading">ui.explore.reading.stations</p>
-                <button id="pick-station" class="choice" data-if="walk &amp;&amp; !stationsLoading" data-event-click="pick('station')"><span class="label">ui.explore.station</span><span class="value">{{stationName}}</span></button>
-                <div class="pair" data-if="walk">
-                    <button id="pick-hour" class="choice half" data-event-click="pick('hour')"><span class="label">ui.explore.time</span><span class="value">{{time}}</span></button>
-                    <button id="pick-minute" class="choice small" data-event-click="pick('minute')">ui.explore.minutes</button>
-                </div>
-                <p class="fact"><span class="label">ui.explore.start.time</span><span class="value">{{actStart}}</span></p>
-                <p class="fact"><span class="label">ui.explore.season</span><span class="value">{{actSeason}}</span></p>
-                <p class="fact"><span class="label">ui.explore.weather</span><span class="value">{{actWeather}}</span></p>
-                <p class="fact"><span class="label">ui.explore.duration</span><span class="value">{{actDuration}}</span></p>
-                <p class="fact"><span class="label">ui.explore.difficulty</span><span class="value">{{actDifficulty}}</span></p>
-                <p class="fact"><span class="label">ui.explore.consist</span><span class="value">{{actConsist}}</span></p>
-                <p class="fact"><span class="label">ui.explore.path</span><span class="value">{{actPath}}</span></p>
-                <div class="pair">
-                    <button id="pick-day" class="choice half" data-event-click="pick('day')"><span class="label">ui.explore.day</span><span class="value">{{day}}</span></button>
-                    <button id="pick-month" class="choice small" data-event-click="pick('month')">ui.explore.month</button>
-                </div>
-                <p class="text">{{actDescription}}</p>
-                <p class="text">{{actBriefing}}</p>
+            <div id="trains" class="list rows">
+                <button id="no-train" class="item row" data-if="walk" data-class-chosen="noTrain" data-event-click="chooseNoTrain()"><span class="cell c-name">ui.explore.no.train</span></button>
+                <button data-for="t : trains" class="item row" data-class-chosen="it_index == train"
+                        data-class-undrivable="!t.drivable" data-event-click="chooseTrain(it_index)"><span class="cell c-name">{{t.name}}</span><span class="cell c-start">{{t.start}}</span><span class="cell c-end">{{t.end}}</span><span class="cell c-from">{{t.from}}</span><span class="cell c-to">{{t.to}}</span><span class="cell c-category" data-if="hasCategory">{{t.category}}</span><span class="cell c-number" data-if="hasNumber">{{t.number}}</span><span class="cell c-line" data-if="hasLine">{{t.line}}</span><span class="cell c-engine">{{t.engine}}</span><span class="cell c-stops">{{t.stops}}</span></button>
             </div>
-            <!-- A timetable set: its trains, sorted and filtered, a day. -->
-            <div data-if="kind == 'timetable'" class="timetable" data-class-walking="walk">
-                <div class="tools">
-                    <button id="mode-drive" class="toggle first" data-class-on="!walk" data-event-click="setWalk(false)">ui.explore.drive</button>
-                    <button id="mode-walk" class="toggle" data-class-on="walk" data-event-click="setWalk(true)">ui.explore.walk</button>
+            <div id="train-info">
+                <p id="train-comment" class="info-line strong" data-if="trainChosen">{{trainComment}}</p>
+                <p id="train-briefing" class="info-line" data-if="trainBriefing != ''">{{trainBriefing}}</p>
+                <p id="train-details" class="info-line" data-if="trainChosen">{{trainDetails}}</p>
+                <p id="train-calls" class="calls" data-if="trainChosen"><span data-for="c : calls" class="call" data-class-pass="c.pass">{{c.text}}</span></p>
+            </div>
+        </div>
+
+        <!-- 4. Exploring the route: a path and a train, each a list with a
+             filter. -->
+        <div id="explore-page" class="pagebox" data-if="page == 'explore'">
+            <div id="path-half" class="half">
+                <div id="path-tools" class="tools">
+                    <span class="label">ui.explore.path</span>
                     <span class="label gap">ui.explore.filter</span>
-                    <input id="filter" type="text" data-value="filter"/>
-                    <button id="drivable" class="toggle" data-if="!walk" data-class-on="drivableOnly" data-event-click="toggleDrivable()">ui.explore.drivable.only</button>
+                    <input id="path-filter" class="filter" type="text" data-value="pathFilter"/>
                 </div>
                 <div class="table-head">
-                    <button class="cell c-name" data-class-sorted="sortColumn == 'name'" data-class-down="!sortUp" data-event-click="sortBy('name')">ui.explore.train</button>
-                    <button class="cell c-start" data-class-sorted="sortColumn == 'start'" data-class-down="!sortUp" data-event-click="sortBy('start')">ui.explore.starts</button>
-                    <button class="cell c-from" data-class-sorted="sortColumn == 'from'" data-class-down="!sortUp" data-event-click="sortBy('from')">ui.explore.from</button>
-                    <button class="cell c-to" data-class-sorted="sortColumn == 'to'" data-class-down="!sortUp" data-event-click="sortBy('to')">ui.explore.to</button>
-                    <button class="cell c-category wide" data-if="hasCategory" data-class-sorted="sortColumn == 'category'" data-class-down="!sortUp" data-event-click="sortBy('category')">ui.explore.category</button>
-                    <button class="cell c-number wide" data-if="hasNumber" data-class-sorted="sortColumn == 'number'" data-class-down="!sortUp" data-event-click="sortBy('number')">ui.explore.number</button>
-                    <button class="cell c-line wide" data-if="hasLine" data-class-sorted="sortColumn == 'line'" data-class-down="!sortUp" data-event-click="sortBy('line')">ui.explore.line</button>
-                    <button class="cell c-engine" data-class-sorted="sortColumn == 'engine'" data-class-down="!sortUp" data-event-click="sortBy('engine')">ui.explore.engine</button>
+                    <span class="cell c-path">ui.explore.start.at</span>
+                    <span class="cell c-path">ui.explore.heading.to</span>
+                    <span class="cell c-path-name">ui.explore.path</span>
                 </div>
-                <div id="trains" class="list rows">
-                    <button id="no-train" class="item row" data-if="walk" data-class-chosen="noTrain" data-event-click="chooseNoTrain()"><span class="cell c-name">ui.explore.no.train</span></button>
-                    <button data-for="t : trains" class="item row" data-class-chosen="it_index == train"
-                            data-class-undrivable="!t.drivable" data-event-click="chooseTrain(it_index)"><span class="cell c-name">{{t.name}}</span><span class="cell c-start">{{t.start}}</span><span class="cell c-from">{{t.from}}</span><span class="cell c-to">{{t.to}}</span><span class="cell c-category wide" data-if="hasCategory">{{t.category}}</span><span class="cell c-number wide" data-if="hasNumber">{{t.number}}</span><span class="cell c-line wide" data-if="hasLine">{{t.line}}</span><span class="cell c-engine">{{t.engine}}</span></button>
+                <div id="path-list" class="list rows">
+                    <button id="no-path-train" class="item row" data-if="walk" data-class-chosen="!exploreTrain" data-event-click="chooseNoPathTrain()"><span class="cell c-path">ui.explore.no.train</span></button>
+                    <button data-for="p : paths" class="item row" data-class-chosen="it_index == pathRow"
+                            data-event-click="choosePathRow(it_index)"><span class="cell c-path">{{p.start}}</span><span class="cell c-path">{{p.end}}</span><span class="cell c-path-name">{{p.name}}</span></button>
                 </div>
-                <div class="under">
-                    <button id="pick-station" class="choice" data-if="walk" data-event-click="pick('station')"><span class="label">ui.explore.station</span><span class="value">{{stationName}}</span></button>
-                    <div class="pair" data-if="walk">
-                        <button id="pick-hour" class="choice half" data-event-click="pick('hour')"><span class="label">ui.explore.time</span><span class="value">{{time}}</span></button>
-                        <button id="pick-minute" class="choice small" data-event-click="pick('minute')">ui.explore.minutes</button>
-                    </div>
-                    <div class="pair">
-                        <button id="pick-day" class="choice half" data-event-click="pick('day')"><span class="label">ui.explore.day</span><span class="value">{{day}}</span></button>
-                        <button id="pick-month" class="choice small" data-event-click="pick('month')">ui.explore.month</button>
-                    </div>
-                    <div class="pair">
-                        <p class="fact half"><span class="label">ui.explore.season</span><span class="value">{{season}}</span></p>
-                        <button id="pick-weather" class="choice small" data-event-click="pick('weather')">{{weather}}</button>
-                    </div>
+                <p id="path-note" class="list-note">{{pathNote}}</p>
+            </div>
+            <div id="consist-half" class="half" data-class-greyed="!exploreTrain">
+                <div id="consist-tools" class="tools">
+                    <span class="label">ui.explore.train</span>
+                    <span class="label gap">ui.explore.filter</span>
+                    <input id="consist-filter" class="filter" type="text" data-value="consistFilter"/>
                 </div>
+                <div class="table-head">
+                    <span class="cell c-consist">ui.explore.consist</span>
+                    <span class="cell c-consist-engine">ui.explore.engine</span>
+                </div>
+                <div id="consist-list" class="list rows">
+                    <p class="hint" data-if="consistsLoading">ui.explore.reading.consists</p>
+                    <button data-for="c : consists" class="item row" data-class-chosen="it_index == consistRow"
+                            data-event-click="chooseConsistRow(it_index)"><span class="cell c-consist">{{c.name}}</span><span class="cell c-consist-engine">{{c.engine}}</span></button>
+                </div>
+                <p id="consist-note" class="list-note">{{consistNote}}</p>
             </div>
         </div>
-        <div id="bottom">
-            <span id="status">{{status}}</span>
-            <button id="go" data-class-disabled="!ready" data-event-click="go()">ui.explore.explore</button>
+
+        <!-- The run pages' bar: Drive or Walk, walking's station and time,
+             the day, the season, the weather, Start (greyed until the run
+             is complete). -->
+        <div id="bar" data-if="page != 'route'">
+            <div class="bar-row">
+                <button id="mode-drive" class="toggle" data-class-on="!walk" data-event-click="setWalk(false)">ui.explore.drive</button>
+                <button id="mode-walk" class="toggle" data-class-on="walk" data-event-click="setWalk(true)">ui.explore.walk</button>
+                <span class="bar-label" data-if="walk">ui.explore.station</span>
+                <span class="hint" data-if="walk &amp;&amp; stationsLoading">ui.explore.reading.stations</span>
+                <button id="pick-station" class="choice wide" data-if="walk &amp;&amp; !stationsLoading" data-event-click="pick('station')">{{stationName}}</button>
+                <span class="bar-label" data-if="showTime">ui.explore.time</span>
+                <button id="pick-hour" class="choice" data-if="showTime" data-event-click="pick('hour')">{{time}}</button>
+                <button id="pick-minute" class="choice" data-if="showTime" data-event-click="pick('minute')">ui.explore.minutes</button>
+            </div>
+            <div class="bar-row">
+                <span class="bar-label first">ui.explore.day</span>
+                <button id="pick-day" class="choice" data-event-click="pick('day')">{{day}}</button>
+                <button id="pick-month" class="choice" data-event-click="pick('month')">ui.explore.month</button>
+                <span class="bar-label" data-if="page != 'activity'">ui.explore.season</span>
+                <span class="bar-value" data-if="page != 'activity'">{{season}}</span>
+                <span class="bar-label" data-if="page != 'activity'">ui.explore.weather</span>
+                <button id="pick-weather" class="choice" data-if="page != 'activity'" data-event-click="pick('weather')">{{weather}}</button>
+                <span class="bar-value gap" data-if="page == 'activity'">{{actSeasonWeather}}</span>
+                <span id="status">{{status}}</span>
+                <button id="go" data-class-disabled="!ready" data-event-click="go()">ui.explore.start</button>
+            </div>
         </div>
         <!-- A choice's values, over the window until one is chosen (Esc
              closes it). -->

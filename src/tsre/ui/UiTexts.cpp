@@ -215,10 +215,6 @@ namespace {
     QT_TRID_NOOP("ui.explore.month"),
     //% "Season"
     QT_TRID_NOOP("ui.explore.season"),
-    //% "Start time"
-    QT_TRID_NOOP("ui.explore.start.time"),
-    //% "Duration"
-    QT_TRID_NOOP("ui.explore.duration"),
     //% "Difficulty"
     QT_TRID_NOOP("ui.explore.difficulty"),
     //% "Path"
@@ -250,6 +246,31 @@ namespace {
     QT_TRID_NOOP("ui.explore.walk"),
     //% "Reading the stations…"
     QT_TRID_NOOP("ui.explore.reading.stations"),
+    // The Explore window's pages (task explore 05).
+    //% "Start"
+    QT_TRID_NOOP("ui.explore.start"),
+    //% "Activity"
+    QT_TRID_NOOP("ui.explore.activity"),
+    //% "Briefing"
+    QT_TRID_NOOP("ui.explore.briefing"),
+    //% "Your train"
+    QT_TRID_NOOP("ui.explore.your.train"),
+    //% "Arrives"
+    QT_TRID_NOOP("ui.explore.arrives"),
+    //% "Departs"
+    QT_TRID_NOOP("ui.explore.departs"),
+    //% "Ends"
+    QT_TRID_NOOP("ui.explore.ends"),
+    //% "Stops"
+    QT_TRID_NOOP("ui.explore.stops"),
+    //% "No train"
+    QT_TRID_NOOP("ui.explore.no.train"),
+    //% "Start at"
+    QT_TRID_NOOP("ui.explore.start.at"),
+    //% "Heading to"
+    QT_TRID_NOOP("ui.explore.heading.to"),
+    //% "Consist"
+    QT_TRID_NOOP("ui.explore.consist"),
     //% "Resume"
     QT_TRID_NOOP("ui.explore.resume"),
     //% "Main menu"

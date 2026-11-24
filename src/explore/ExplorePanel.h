@@ -27,12 +27,15 @@ class ElementDocument;
 
 namespace Explore {
 
-// The Explore window's content (task explore 02): the routes, the chosen
-// route's runs (exploring it, its activities, its timetable sets) and the
-// chosen run's details and choices, as the RmlUi data model `explore` of
-// explore-menu.rml. Its lists are read from the game root (Lists), the
-// consists on a worker; its choices are remembered in the profile's
-// explore.json. Explore gives the run chosen to `start`.
+// The Explore window's content (task explore 02), in pages (task explore
+// 05): the route page (the routes, the chosen route's picture, facts and
+// description, its Activities, Timetables and Explore the route), then the
+// page of one of those with the run's details and choices, and one bar
+// under them (Drive or Walk, the walk's station and time, the day, the
+// weather, Start); the RmlUi data model `explore` of explore-menu.rml. Its
+// lists are read from the game root (Lists), the consists and the route's
+// stations on workers; its choices are remembered in the profile's
+// explore.json. Start gives the run chosen to `start`.
 class Panel {
 public:
     // One the documents use; the context outlives it. `root`: the game
@@ -53,9 +56,26 @@ public:
 
     // What the checks drive, as the clicks and keys do.
     QStringList routeNames() const;
+    // Explore the route, the activities' names, the timetable sets' names.
     QStringList runNames() const;
     bool chooseRoute(const QString &name);
+    // A run's page with it chosen: "explore", an activity's or a set's name
+    // or file.
     bool chooseRun(const QString &name);
+    // The page shown: "route", "explore", "activity", "timetable"; one
+    // opened by name (false: the route has none of it); back to the route
+    // page (false: on it already).
+    QString page() const;
+    bool openPage(const QString &name);
+    bool back();
+    // The explore page's lists (their filters, the files shown).
+    void setPathFilter(const QString &text);
+    void setConsistFilter(const QString &text);
+    QStringList pathFiles() const;
+    QStringList consistFiles() const;
+    // An element's text, by its id, as the document shows it now (the
+    // first shown of that id; a text field's value); empty for none.
+    QString text(const QString &id) const;
     // Exploring: a path by file, a consist by file.
     bool choosePath(const QString &file);
     bool chooseConsist(const QString &file);
@@ -80,11 +100,11 @@ public:
     void chooseNoTrain();
     void setExploreTrain(bool on);
     bool stationsRead() const;
-    // Explore can start: the run is complete.
+    // Start can be pressed: the run is complete.
     bool ready() const;
     // The run chosen now.
     RunChoice choice() const;
-    // Explore: the run given to start.
+    // Start: the run given to start.
     bool go();
     // A line under the window: why a run did not start.
     void setStatus(const QString &text);
@@ -92,14 +112,24 @@ public:
     bool picking() const;
     void closePicker();
 
-    // The element to focus when the window is entered: the chosen route's,
-    // else the first route's.
+    // The element to focus when the window is entered: on the route page
+    // the button of the page last used on the route (the remembered run's
+    // at first), else the chosen route's (else the first route's); on a run
+    // page its first column's chosen row (the first column with one).
     Rml::Element *entry() const;
-    // Left or Right from the focused element across the window's columns
-    // (routes, runs, the details, Explore): RmlUi's arrows stay in a list.
-    // False when it is not one to move across (a text field, a button with
-    // a neighbour that way), or Left from the routes (the menu's item).
+    // Left or Right from the focused element across the page's columns
+    // (the route page's routes and buttons; a run page's lists and the bar):
+    // RmlUi's arrows stay in a list. False when it is not one to move across
+    // (a text field, a button with a neighbour that way), or Left from the
+    // routes (the menu's item); Left from a run page's first column goes
+    // back to the route page.
     bool moveAcross(Rml::Element *focus, bool right);
+    // Up from a list's first row to its filter, Down from the filter's row
+    // to the list; false for any other.
+    bool moveUpDown(Rml::Element *focus, bool down);
+    // Page Up or Page Down: the page's text scrolled (the route's
+    // description, an activity's details); false when none is shown.
+    bool scrollDetails(bool down);
 
     // Where the choices are remembered: the profile's explore.json, unless
     // the checks name another file (empty: the profile's again).
