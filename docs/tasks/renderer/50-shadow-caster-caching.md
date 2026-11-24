@@ -255,7 +255,10 @@ misses the cache as the first of 16 did (the other 15 found its lines).
 Tried: the cube from the middle map on, without the near one (4096 at 80
 m: its texels far finer than a face's): 10.1 to 9.0 at the forest, 12.1 to
 9.6 at the freight station, 11.4 and 12.1 to 10.4 and 10.9 in the cab (a
-run of its own); the view's images the same. Left to the user.
+run of its own); the view's images the same. At the default 2048 near map
+less: 9.3 to 8.5, 10.4 to 9.6, 11.2 and 11.8 to 10.1 and 10.7 (0.25 to 0.37
+ms a frame at two faces). Done (the user: the near map's shadows hardly
+show at a face's size; `t0` 0 in the cube's programs).
 
 The main view with one tap (static items; measuring): the forest 27.3 to
 23.1 ms (18.6 without lookups), the freight station 44.4 to 36.6 (26.4),

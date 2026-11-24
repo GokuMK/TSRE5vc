@@ -561,6 +561,13 @@ float shadowedVisibility(float cosTheta) {
     camdist2 = clamp(camdist2, 0, 1.0);
     vec4 shadow0Pos2 = shadow0Pos*0.5+0.5;
     float t0 = 1.0 - floor(clamp(length(shadow0Pos.xyz), 0, 1.0));
+#ifdef TSRE_SHADOW_CHEAP
+    // The cube's programs from the middle map on (task renderer 50): the
+    // near map's texels are far finer than a face's, and its lookups missed
+    // the cache most (the whole cube 0.7 to 1.1 ms less at a 2048 near map,
+    // 1.1 to 2.5 at 4096; the view's images the same).
+    t0 = 0.0;
+#endif
     float shadow0Res = shadow1Res*shadowMapScale.x;
     float shadowMidRes = shadow1Res*shadowMapScale.y;
     // Without normals keep the tuned bias.
