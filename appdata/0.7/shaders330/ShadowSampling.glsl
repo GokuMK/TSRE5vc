@@ -210,6 +210,19 @@ uniform sampler2DShadow dynamicShadow0;
 uniform sampler2DShadow dynamicShadow1;
 uniform sampler2DShadow dynamicShadow2;
 uniform vec3 dynamicShadowBias;
+// Where each dynamic map holds something (32 x 32 cells over its square, a
+// bit a cell, near, middle, far: RhiRenderer::markDynamicCells): its taps
+// elsewhere are skipped (an empty map's everywhere).
+uniform uvec4 dynamicShadowCells[24];
+bool dynamicCell(int map, vec2 uv) {
+    ivec2 c = ivec2(clamp(uv, 0.0, 0.99999)*32.0);
+    int bit = c.y*32 + c.x;
+    int word = bit >> 5;
+    uvec4 v = dynamicShadowCells[map*8 + (word >> 2)];
+    int lane = word & 3;
+    uint w = lane == 0 ? v.x : lane == 1 ? v.y : lane == 2 ? v.z : v.w;
+    return ((w >> uint(bit & 31)) & 1u) != 0u;
+}
 #endif
 // The cab's sun shadow map (TARGET_SHADOW_CAB, while the view rides a cab;
 // a car's, four times as wide as high, while the camera is in one: task
@@ -499,6 +512,15 @@ float shadowedVisibility(float cosTheta) {
 #ifdef TSRE_RHI
     vec3 cab = cabShadowPos.xyz*0.5+0.5;
     vec2 gradientCab = receiverPlaneGradient(cab);
+    // The dynamic maps' taps where they hold something; not at all inside
+    // a cached cab's or car's box once faded in (the static maps' share
+    // and its own map make it there: task renderer 50).
+    vec2 cabEdge = abs(cab.xy - 0.5)*2.0;
+    bool cabWhole = cabShadowWorld.x > 0.5 && cabShadowParams.x >= 1.0 && max(cabEdge.x, cabEdge.y) <= 0.85
+            && cab.z >= 0.0 && cab.z <= 1.0;
+    bool dynamic0Taps = !cabWhole && dynamicCell(0, shadow0Pos2.xy);
+    bool dynamicMidTaps = !cabWhole && dynamicCell(1, shadowPos2.xy);
+    bool dynamic2Taps = !cabWhole && dynamicCell(2, shadow2Pos2.xy);
 #endif
     // Up to a slope of about 70 degrees across the filter.
     float limit0 = 3.0*shadowDepthBias.x;
@@ -536,7 +558,8 @@ float shadowedVisibility(float cosTheta) {
             float lit = texture(shadow0, tap);
 #ifdef TSRE_RHI
             occludedStatic += (1.0 - lit)/16.0;
-            lit *= texture(dynamicShadow0, vec3(tap.xy, tap.z - dynamic0));
+            if (dynamic0Taps)
+                lit *= texture(dynamicShadow0, vec3(tap.xy, tap.z - dynamic0));
 #endif
             occluded += (1.0 - lit)/16.0;
 #ifdef TSRE_RHI
@@ -558,7 +581,8 @@ float shadowedVisibility(float cosTheta) {
             float lit = texture(shadow1, tap);
 #ifdef TSRE_RHI
             occludedStatic += (1.0 - lit)/16.0;
-            lit *= texture(dynamicShadow1, vec3(tap.xy, tap.z - dynamicMid));
+            if (dynamicMidTaps)
+                lit *= texture(dynamicShadow1, vec3(tap.xy, tap.z - dynamicMid));
 #endif
             occluded += (1.0 - lit)/16.0;
 #ifdef TSRE_RHI
@@ -579,7 +603,8 @@ float shadowedVisibility(float cosTheta) {
             float lit = texture(shadow2, tap);
 #ifdef TSRE_RHI
             occludedStatic += (1.0 - lit)/2.0;
-            lit *= texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
+            if (dynamic2Taps)
+                lit *= texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
 #endif
             occluded += (1.0 - lit)/2.0;
 #ifdef TSRE_RHI

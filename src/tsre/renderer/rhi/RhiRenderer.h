@@ -1647,6 +1647,16 @@ private:
     // renderer 50, TARGET_SHADOW_PASSING): half its texels each way, made
     // when one first passes, made again for another size.
     Attachments passingShadowMap;
+    // Where each dynamic map (near, middle, far) holds something (task
+    // renderer 48's early-out, 2026-11-24): a 32 x 32 grid over its square,
+    // a bit a cell, set around every caster drawn into it when it was last
+    // drawn (a caster's shadow lies within its own outline in the light's
+    // view); the lit shaders skip its taps elsewhere (dynamicShadowCells),
+    // and inside a cached cab's or car's box. TSRE_DYNAMIC_SHADOW_CELLS=0:
+    // every cell set; TSRE_DYNAMIC_SHADOW_CELLS_LOG=1 logs the counts.
+    static constexpr int DynamicCellsSide = 32;
+    quint32 dynamicCells[3][DynamicCellsSide * DynamicCellsSide / 32] = {};
+    void markDynamicCells(int map, const float *viewProjection);
     // The static maps: the cached static casters (task 37; 0 to 2 the main
     // maps', 3 to 5 vegetation's), read by the lit shaders as they are
     // (task 48), at staticSizes.

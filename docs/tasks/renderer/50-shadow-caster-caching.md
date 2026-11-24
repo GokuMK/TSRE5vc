@@ -203,6 +203,42 @@ Results (the Deck, the user's profile):
 Not yet: a real train passing seen from a cab (no such scene at hand); a
 finer cached map with a cheaper filter (next, for the user's eye).
 
+## The dynamic maps' early-out (done 2026-11-24)
+
+The user's go (2026-11-24, its own commit). Each dynamic map keeps a 32 x
+32 grid of cells over its square (`RhiRenderer::markDynamicCells`, a bit a
+cell), set around every caster drawn into it when it was drawn: in the
+light's view a caster's shadow lies within its own outline, so the bounding
+sphere, 1.5 m wider for the filter and the normal offset, marks where the
+map can hold anything. The lit shaders test the cell under the point
+(`dynamicShadowCells`) and take the dynamic taps only there; an empty map is
+skipped everywhere, and inside a cached cab's or car's box (faded in) none
+are taken (its own map and the static maps make it there).
+
+A caster without bounds (an animated MSTS shape's moving parts:
+`SFileLegacy::pushPosed` gives its posed packets none, so the renderer cannot
+cull them either) marks 50 m round its object's origin: the first version
+set every cell for one, and Prudnik's four animated objects filled the
+middle and far maps. Giving posed packets their bounds in the shape
+backends would be the proper fix (open).
+
+Results (1920 x 1080, the Deck, early-out off and on, every timed pass,
+ms; the Deck ran slower this late session than in the earlier tables, so
+only the pairs compare):
+
+| View | Off | On |
+| --- | --- | --- |
+| ET22 cab, two views | 56.4, 61.9 | 54.5, 60.8 |
+| Bhp coach, lower and upper deck | 39.1, 32.7 | 32.6, 31.0 |
+| Prudnik forest | 43.5 | 42.7 |
+| Prudnik freight station | 75.7 | 66.0 (the cube 11.3 to 8.9) |
+
+At Prudnik the maps marked 10, 29 and 62 of 1,024 cells (the freight
+station), 14 and 19 (the forest). The forest gained less than a shader
+without the dynamic taps did earlier (4.2 ms): to look into (the branch
+may be flattened there). Images as before (Prudnik pixel for pixel, the
+coach and cab within 2 levels).
+
 ## Ideas to weigh
 
 - A vehicle's own map in its frame (as its lamps' since task 46 C): drawn

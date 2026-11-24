@@ -585,6 +585,7 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
                     gluu->cabShadowFilter[2], gluu->cabShadowFilter[3]);
     program->setVec("cabShadowWorld", gluu->cabShadowWorld[0], gluu->cabShadowWorld[1],
                     gluu->cabShadowWorld[2], gluu->cabShadowWorld[3]);
+    program->set("dynamicShadowCells", dynamicCells, int(sizeof(dynamicCells)));
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     // Sharper or softer textures (core.rendering.textureLodBias); with TAA
@@ -3715,8 +3716,74 @@ void RhiRenderer::renderShadowCasters(float range, int statsSlot, const float *v
         return;
     // Casters in range and inside the light view, instanced by packet.
     planShadowCasters(range, viewProjection, false, 0.0f, casters, set, cover);
+    // The dynamic maps (task 48): where they hold something.
+    if (currentTarget >= TARGET_SHADOW_NEAR && currentTarget <= TARGET_SHADOW_FAR)
+        markDynamicCells(currentTarget - TARGET_SHADOW_NEAR, viewProjection);
     waitingDraws += quint64(plannedShapesWaiting);
     recordCasters(statsSlot);
+}
+
+// The cells of a dynamic map its planned casters cover: each caster's
+// bounding sphere in the map's square (its outline from the sun), 1.5 m
+// wider for the lit shaders' filter and normal offset. A caster without
+// bounds (an animated MSTS shape's moving parts: posed packets keep none)
+// marks UnboundedReach metres round its object's origin; none at all, or no
+// projection, sets them all.
+void RhiRenderer::markDynamicCells(int map, const float *viewProjection) {
+    static const bool cellsOn = qEnvironmentVariable("TSRE_DYNAMIC_SHADOW_CELLS") != "0";
+    // TSRE_DYNAMIC_SHADOW_CELLS_LOG=1: a map's casters and cells set, once a
+    // second.
+    static const bool cellsLog = qEnvironmentVariableIsSet("TSRE_DYNAMIC_SHADOW_CELLS_LOG");
+    constexpr float UnboundedReach = 50.0f;
+    quint32 *cells = dynamicCells[map];
+    constexpr int Words = DynamicCellsSide * DynamicCellsSide / 32;
+    std::fill(cells, cells + Words, 0u);
+    if (shadowCasters.empty())
+        return;
+    if (!cellsOn || viewProjection == nullptr) {
+        std::fill(cells, cells + Words, ~0u);
+        return;
+    }
+    const float *m = viewProjection;
+    // Clip x and y a metre along the world's axes: the rows' lengths.
+    const float scaleX = std::sqrt(m[0] * m[0] + m[4] * m[4] + m[8] * m[8]);
+    const float scaleY = std::sqrt(m[1] * m[1] + m[5] * m[5] + m[9] * m[9]);
+    constexpr float Margin = 1.5f;
+    int unbounded = 0;
+    for (const DrawInstance *instance : shadowCasters) {
+        float center[3];
+        float radius = 0.0f;
+        if (!instanceBounds(*instance, center, radius)) {
+            const float *w = instanceMatrix(instance->matrix);
+            std::copy(w + 12, w + 15, center);
+            radius = UnboundedReach;
+            ++unbounded;
+        }
+        const float x = m[0] * center[0] + m[4] * center[1] + m[8] * center[2] + m[12];
+        const float y = m[1] * center[0] + m[5] * center[1] + m[9] * center[2] + m[13];
+        const float rx = (radius + Margin) * scaleX, ry = (radius + Margin) * scaleY;
+        // Clip [-1, 1] to cells.
+        auto cell = [](float clip) {
+            return int(std::floor((clip * 0.5f + 0.5f) * float(DynamicCellsSide)));
+        };
+        const int x0 = std::max(0, cell(x - rx)), x1 = std::min(DynamicCellsSide - 1, cell(x + rx));
+        const int y0 = std::max(0, cell(y - ry)), y1 = std::min(DynamicCellsSide - 1, cell(y + ry));
+        for (int cy = y0; cy <= y1; ++cy)
+            for (int cx = x0; cx <= x1; ++cx) {
+                const int bit = cy * DynamicCellsSide + cx;
+                cells[bit >> 5] |= 1u << (bit & 31);
+            }
+    }
+    static QElapsedTimer every[3];
+    if (cellsLog && (!every[map].isValid() || every[map].elapsed() >= 1000)) {
+        every[map].start();
+        int set = 0;
+        for (int i = 0; i < Words; ++i)
+            set += qPopulationCount(cells[i]);
+        qInfo().noquote() << QString("Dynamic shadow cells: map %1, %2 casters (%3 without bounds), %4 of %5 cells")
+                                 .arg(map).arg(shadowCasters.size()).arg(unbounded).arg(set)
+                                 .arg(DynamicCellsSide * DynamicCellsSide);
+    }
 }
 
 void RhiRenderer::recordCasters(int statsSlot) {
