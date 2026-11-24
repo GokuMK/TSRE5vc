@@ -1,7 +1,10 @@
 # Task 50 - Caching what casts shadows
 
 Status: step 1 done (2026-11-24, `feature/car-interiors`): the cab's and a
-car's maps cached (B below, with the small map for passing trains).
+car's maps cached (B below, with the small map for passing trains); with
+it the dynamic maps' early-out, the setting Interior shadows and the
+environment cube's own programs; merged into `main` 2026-11-24. Open: the
+ideas below, task 51.
 
 The user (2026-11-24, after task 49's car map): "Caching shadow geometry is
 one big task on itself as it would help us greatly."
@@ -440,6 +443,30 @@ shader); one run of the coach's upper aisle stood the camera elsewhere, run
 again identical. The OpenGL renderer's shaders compile (its path keeps one
 loop a map, without dynamic or vegetation maps).
 
+## Against main before the merge (2026-11-24)
+
+Main (5cd1889a) and the branch with main merged in, both built; main's
+profile with the frame cap lifted (30 to 1000) for both; each scene's two
+builds back to back, the first one alternating. Frame-log medians (ms):
+
+| Scene | Main | Branch |
+| --- | --- | --- |
+| bbb's start view, live 20 s: GPU | 14.5 | 12.6 |
+| bbb's circle, the ET22 cab 60 s from 07:00:05: GPU, CPU | 26.6, 12.6 | 25.5, 12.8 |
+| CMK's ride (file2.act): GPU, CPU | 24.4, 15.0 | 20.9, 14.6 |
+| Prudnik's freight station, still, two runs: GPU | 42.7, 42.2 | 39.7, 38.5 |
+| The same: CPU | 40.4, 41.0 | 41.6, 40.8 |
+
+Every timed pass, 1920 x 1080, two runs: the ET22 cab 41.7 and 46.0
+against 41.8 to 42.2 and 46.2 to 46.4; the Bhp coach 35.0 and 28.6 against
+35.8 and 29.5 (the car's map, new in task 49). In the cab: its map 3.0 to
+3.3 ms less (cached), the cube 1.0 to 1.2 less (its own programs), the
+dynamic near map 1.2 more (the viewer's train drawn into it each frame,
+standing too: never standing, so the static maps the box reads leave it
+out), the view 1.1 to 1.6 more: not the cache (off: 35.3 and 39.9) nor the
+cells (off: 34.8 and 39.1); open. The shadow phase's CPU at Prudnik 0.4 to
+0.5 ms more (the frame's within its spread); open.
+
 ## Ideas to weigh
 
 - The main view's shadow lookups (later, the user, 2026-11-24): 8.7 to 18
@@ -447,6 +474,8 @@ loop a map, without dynamic or vegetation maps).
   lookups"); one tap is not enough there. Fewer taps in a better pattern,
   and what of the cost is the large maps' cache misses.
 - The near map in tiles, with a fade before it ends: task 51.
+- The ET22 cab's view 1.1 to 1.6 ms slower than main's and the shadow
+  phase's CPU 0.4 ms more at Prudnik ("Against main before the merge").
 - A vehicle's own map in its frame (as its lamps' since task 46 C): drawn
   once for the sun's direction in that frame and kept until that direction
   turns by more than a threshold (curves), the vehicle's content changes

@@ -1,6 +1,6 @@
 # Task 49 - Car interiors: their own light off, the sun's map inside
 
-Status: in progress (`feature/car-interiors`, 2026-11-24).
+Status: done (`feature/car-interiors`, merged into `main` 2026-11-24).
 
 The user (2026-11-23): "on bbb route I prepared test activity with su42 and
 bhp cars that do have interior. What we can do now is: implement and test
@@ -196,5 +196,5 @@ group of casters).
 ## Open
 
 - The car's own geometry cached in its frame (as its lamps' maps), only the
-  world's casters drawn each frame: task 50.
+  world's casters drawn each frame: done in task 50 (step 1).
 - Lamps of the Bhp's own (`.sd` lights) for the night: the user's.
