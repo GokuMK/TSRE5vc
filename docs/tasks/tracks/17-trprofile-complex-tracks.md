@@ -1,8 +1,14 @@
 # Task 17 - TrProfile Complex Tracks
 
-Status: steps 1-3 built on `feature/complex-tracks` (2026-11-23, the
-user's go the same day), waiting for the user's check before step 4; see
-"Progress". Review and the user's answers (decisions 1-31) 2026-11-23.
+Status: steps 1 to 9 merged into main from `feature/complex-tracks`
+(2026-11-24, the user's go "Let's first merge then"): filters, shape
+analysis, the `COMPLEX` member, ties and beds (beds per track, decision
+40), rails, blades, frogs and check rails, switch drives and indicators,
+buffers by a buffer family, repeats in step with the track and road
+databases, switch state on the shape side. Left: step 10's list; instancing
+of junctions' small parts to be rethought (memory and load time measured
+first). See "Progress". Review and the user's answers (decisions 1-40)
+2026-11-23 and 24.
 
 ## Objective
 
