@@ -40,7 +40,34 @@ struct OrtsProfileTemplate3D {
         Sweep,
         Stretch,
         Repeat,
-        Place
+        Place,
+        // Tracks task 17: the parts of a COMPLEX member, laid by the complex
+        // track planner, read only in COMPLEX members (design section 2).
+        // The rail section swept along every rail line.
+        Rail,
+        // A sleeper laid by the tie planner.
+        Tie,
+        // A shared tie's mesh; without one the Tie mesh is stretched.
+        Bearer,
+        // Placed where a rail crosses a tie or bearer.
+        Fastener,
+        // A third or fourth rail at Offset's x, cut where it would cross
+        // another track.
+        ConductorRail,
+        // The rack in the middle of the track, cut the same way.
+        RackRail,
+        // Phase 2: a check rail opposite every crossing nose (a bridge's
+        // guard rails are ordinary profile items).
+        CheckRail,
+        // Step 7 (decisions 35, 36, 38): a switch's drive, a static mesh
+        // placed from each switch's toe by Offset (x out from the track
+        // centre, its sign the default side: + the diverging side); more
+        // along the blades by Spacing. HandOperated marks the part a
+        // switch operated by hand draws instead.
+        SwitchDrive,
+        // One per switch from its toe by Offset; its Shape list follows the
+        // switch's routes, main route first.
+        SwitchIndicator
     };
     enum class ShapeSelectionMode {
         First,
@@ -78,7 +105,27 @@ struct OrtsProfileTemplate3D {
     float spacing = 0;
     float phase = 0;
     QVector<Placement> placements;
+    // Tie, Bearer: the band of x that stretches when the mesh is laid
+    // longer (vertices outside it keep their distance from their end);
+    // (0 0) by default: x < 0 follows the left end, x > 0 the right.
+    float stretchZone[2] = {0, 0};
+    // SwitchDrive: the part a switch operated by hand draws (a lever) in
+    // place of the unmarked ones (a motor).
+    bool handOperated = false;
     bool valid = true;
+
+    // One of the COMPLEX member's parts (Rail to SwitchIndicator).
+    bool complexPart() const {
+        return generationMode == GenerationMode::Rail
+                || generationMode == GenerationMode::Tie
+                || generationMode == GenerationMode::Bearer
+                || generationMode == GenerationMode::Fastener
+                || generationMode == GenerationMode::ConductorRail
+                || generationMode == GenerationMode::RackRail
+                || generationMode == GenerationMode::CheckRail
+                || generationMode == GenerationMode::SwitchDrive
+                || generationMode == GenerationMode::SwitchIndicator;
+    }
 };
 
 struct OrtsProfileLodItem {
@@ -127,6 +174,28 @@ struct OrtsProfileLod {
     QVector<OrtsProfileLodItem> items;
 };
 
+// Tracks task 17: a COMPLEX member's ComplexTrack block (design section 2).
+struct OrtsProfileComplexTrack {
+    // Ties along the reference line, as Repeat's Spacing and Phase.
+    float tieSpacing = 0.6f;
+    float tiePhase = 0.3f;
+    // The least gap between two tie ends.
+    float tieGap = 0.1f;
+    // The longest shared tie before tracks get their own ties.
+    float maxBearerLength = 4.8f;
+    // Degrees: crossings steeper than this keep the first track's ties
+    // through (decision 9).
+    float maxSharedAngle = 60.0f;
+    // The least distance kept between a conductor or rack rail and another
+    // track's running rails (decision 24).
+    float conductorClearance = 0.2f;
+    // Phase 2: the flangeway beside noses, wing and check rails; an open
+    // switch blade's tip from its stock rail; a check rail's length.
+    float flangeway = 0.045f;
+    float bladeOpening = 0.16f;
+    float checkRailLength = 4.8f;
+};
+
 struct OrtsTrackProfile {
     enum class ObjectType {
         Track,
@@ -138,7 +207,11 @@ struct OrtsTrackProfile {
         Single,
         Left,
         Middle,
-        Right
+        Right,
+        // Tracks task 17: the family's member for shapes whose paths share
+        // ties (junctions, crossings, frog pieces); chosen by the shape's
+        // geometry, never by hand.
+        Complex
     };
     enum class LodMethod {
         ComponentAdditive,
@@ -174,6 +247,8 @@ struct OrtsTrackProfile {
     QStringList excludedTextures;
     float trackGauge = 1.435f;
     SuperElevationMethod superElevationMethod = SuperElevationMethod::Outside;
+    // COMPLEX members only.
+    OrtsProfileComplexTrack complexTrack;
     QVector<OrtsProfileLod> lods;
     QStringList diagnostics;
     bool valid = false;
@@ -230,6 +305,9 @@ public:
     static QString profileId(const QString &familyId,
             OrtsTrackProfile::ObjectRole role);
     static QString routePath();
+    // Grows with every load (tracks task 17: shared complex track meshes
+    // are made again after a reload).
+    static int generation();
 
     // Task tracks 16. The built-in default track profile: the Track Main
     // profile of the content's GLOBAL/TRACKPROFILES/TrProfile.xml or .stf

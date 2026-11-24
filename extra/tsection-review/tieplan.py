@@ -255,6 +255,13 @@ def plan(shape, secs, own_ties=True):
                     else:
                         merged.append(c)
                 for c in merged:
+                    # past a path's end the cut line may still cross one of its rails:
+                    # such a rail rides on another track's tie, but alone lays none
+                    rails_of = {}
+                    for hp in c:
+                        rails_of[hp[1]] = rails_of.get(hp[1], 0) + 1
+                    if max(rails_of.values()) < 2:
+                        continue
                     t0, t1 = c[0][0] - OVERHANG, c[-1][0] + OVERHANG
                     pathset = sorted({hp[1] for hp in c})
                     tc = (t0 + t1) / 2

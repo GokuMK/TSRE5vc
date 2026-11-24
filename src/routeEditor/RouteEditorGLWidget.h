@@ -229,6 +229,9 @@ public:
     // What a debug id the last selection pass gave was (TSRE_SELECT_DEBUG,
     // Renderer::selectionDebugInfo); empty for other ids.
     QString selectionDebugInfo(quint32 id) const;
+    // A picked world object's file and, for a track object, where its
+    // procedural profile came from (tracks task 17); empty for other ids.
+    QString selectionObjectInfo(quint32 id) const;
     // Renders a frame with the mouse at a device-pixel point and returns
     // the 3D pointer position read from the depth there.
     QVector3D probePointer(const QPoint &devicePoint);

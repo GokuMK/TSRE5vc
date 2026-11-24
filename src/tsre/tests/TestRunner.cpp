@@ -20,6 +20,7 @@
 #include <tsre/tests/SimulationTestSuite.h>
 #include <tsre/tests/NewRouteTestSuite.h>
 #include <tsre/tests/TrackCantTestSuite.h>
+#include <tsre/tests/TrackShapeAnalysisTestSuite.h>
 #include <tsre/tests/ServerTestSuite.h>
 #include <tsre/tests/RouteSwitchTestSuite.h>
 #include <tsre/tests/ExploreWindowTestSuite.h>
@@ -2506,6 +2507,87 @@ static int runOrtsProfileSuite(bool verbose) {
               && repeatMeshes[0].vertices.size() == 270,
               "repeated-template3d-spacing-and-phase");
 
+        // Tracks task 17 step 8: repeats and distance-running texture
+        // coordinates in step with the track (road) database's vector.
+        {
+            OrtsTrackProfile phased = repeatProfile;
+            phased.lods[0].items[0].templates3D[0].spacing = 0.6f;
+            phased.lods[0].items[0].templates3D[0].phase = 0.3f;
+            auto onVector = [](float start, float direction) {
+                OrtsProfileRoll roll;
+                roll.inVector = true;
+                roll.vectorStart = start;
+                roll.vectorDirection = direction;
+                return roll;
+            };
+            // Each copy's start along the piece (its mesh runs 1 m from it).
+            auto copies = [&](const OrtsProfileRoll *roll, float length) {
+                QVector<TSection> straight;
+                straight.append(TSection(0, 0, length, 0));
+                QVector<OrtsGeneratedProfileMesh> meshes;
+                OrtsTrackProfileRenderer::buildMeshes(phased, straight, meshes, nullptr, 0, 0, nullptr, 0, roll);
+                QVector<float> starts;
+                for(const OrtsGeneratedProfileMesh &mesh : meshes)
+                    for(int i = 0; i + 53 < mesh.vertices.size(); i += 54){
+                        float least = 1e9f;
+                        for(int v = 0; v < 6; v++)
+                            least = std::min(least, mesh.vertices[i + v * 9 + 2]);
+                        starts.append(least);
+                    }
+                std::sort(starts.begin(), starts.end());
+                return starts;
+            };
+            auto evenly = [](const QVector<float> &starts, float first, float spacing) {
+                for(int k = 0; k < starts.size(); k++)
+                    if(std::abs(starts[k] - (first + k * spacing)) > 0.002f)
+                        return false;
+                return true;
+            };
+            const QVector<float> alone = copies(nullptr, 10);
+            const OrtsProfileRoll a = onVector(0, 1), b = onVector(10, 1), c = onVector(20, -1);
+            const QVector<float> first = copies(&a, 10), second = copies(&b, 10), against = copies(&c, 10);
+            check(alone.size() == 17 && evenly(alone, 0.3f, 0.6f) && first == alone,
+                  "vector-phase-none-or-first-piece-as-before");
+            check(second.size() == 16 && evenly(second, 0.5f, 0.6f)
+                  && std::abs((second.first() + 10) - first.last() - 0.6f) < 0.002f,
+                  "vector-phase-next-piece-runs-on-over-the-joint");
+            bool same = against.size() == second.size();
+            for(int k = 0; same && k < against.size(); k++)
+                // Each copy's origin at the same vector distance (a sleeper
+                // mesh is centred on its origin).
+                same = std::abs((20 - against[k]) - (10 + second[second.size() - 1 - k])) < 0.002f;
+            check(same, "vector-phase-piece-against-its-vector-at-the-same-places");
+            // A copy at a joint: the next piece's alone.
+            const OrtsProfileRoll joined = onVector(10.5f, 1);
+            const QVector<float> before = copies(&a, 10.5f), after = copies(&joined, 10);
+            check(before.size() == 17 && std::abs(before.last() - 9.9f) < 0.002f
+                  && !after.isEmpty() && std::abs(after.first()) < 0.002f,
+                  "vector-phase-copy-at-a-joint-drawn-once");
+
+            // The polyline's V (DeltaTexCoord 0 1) at a joint at 10.25 m.
+            OrtsTrackProfile bed = *templateProfile;
+            bed.lods[0].items[0].templates3D.clear();
+            auto vAt = [&](const OrtsProfileRoll *roll, float length, bool atEnd) {
+                QVector<TSection> straight;
+                straight.append(TSection(0, 0, length, 0));
+                QVector<OrtsGeneratedProfileMesh> meshes;
+                OrtsTrackProfileRenderer::buildMeshes(bed, straight, meshes, nullptr, 0, 0, nullptr, 0, roll);
+                float z = atEnd ? -1e9f : 1e9f, v = 0;
+                for(const OrtsGeneratedProfileMesh &mesh : meshes)
+                    for(int i = 0; i + 8 < mesh.vertices.size(); i += 9)
+                        if(atEnd ? mesh.vertices[i + 2] > z : mesh.vertices[i + 2] < z){
+                            z = mesh.vertices[i + 2];
+                            v = mesh.vertices[i + 7];
+                        }
+                const float whole = std::floor(v);
+                return v - whole;
+            };
+            const OrtsProfileRoll startsAt = onVector(10.25f, 1), runsBack = onVector(30.25f, -1);
+            check(std::abs(vAt(&a, 10.25f, true) - 0.25f) < 0.002f && std::abs(vAt(&startsAt, 10, false) - 0.25f) < 0.002f
+                  && std::abs(vAt(&runsBack, 10, false) - 0.25f) < 0.002f && std::abs(vAt(&runsBack, 10, true) - 0.25f) < 0.002f,
+                  "vector-phase-texture-runs-on-over-joints");
+        }
+
         OrtsTrackProfile placeProfile = stretchProfile;
         OrtsProfileTemplate3D &place =
                 placeProfile.lods[0].items[0].templates3D[0];
@@ -3500,6 +3582,151 @@ static int runOrtsProfileSuite(bool verbose) {
           "static-path-left-middle-right-resolution-and-fallback");
     check(familyDiagnosticsOk, "duplicate-object-type-first-wins");
     check(routeOverrideOk, "route-profile-overrides-global-template");
+
+    // Tracks task 17: a family's COMPLEX member, its ComplexTrack values,
+    // the part generation modes (read only there) and StretchZone.
+    {
+        auto vertex = [](const char *x) {
+            return QString("   Vertex ( Position ( %1 0.2 0 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) )\n").arg(x);
+        };
+        const QString polyline = "  Polyline ( Name ( \"bed\" ) DeltaTexCoord ( 0 0.2 )\n"
+                + vertex("-2") + vertex("2") + "  )\n";
+        const QString family =
+                "SIMISA@@@@@@@@@@JINX0p0t______\n"
+                "TrProfile ( Name ( \"Main\" ) ObjectType ( TRACK MAIN )\n"
+                " ComplexTrack ( TieSpacing ( 0.7 ) )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"rails\" ) TexName ( \"r.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline +
+                "  Template3D ( GenerationMode ( Rail ) Shape ( \"rail.obj\" ) )\n"
+                " ) ) )\n"
+                "TrProfile ( Name ( \"Complex\" ) ObjectType ( TRACK COMPLEX )\n"
+                " ComplexTrack ( TieSpacing ( 0.65 ) TiePhase ( 0.325 ) TieGap ( 0.12 ) MaxBearerLength ( 5 )"
+                "  MaxSharedAngle ( 55 ) ConductorClearance ( 25cm ) )\n"
+                " LOD ( CutoffRadius ( 150 ) LODItem ( Name ( \"parts\" ) TexName ( \"p.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline +
+                "  Template3D ( GenerationMode ( Rail ) Shape ( \"rail.obj\" ) Offset ( 0 0.153 0 ) )\n"
+                "  Template3D ( GenerationMode ( Tie ) Shape ( \"tie.obj\" ) StretchZone ( -0.3 0.3 ) )\n"
+                "  Template3D ( GenerationMode ( bearer ) Shape ( \"bearer.obj\" ) )\n"
+                "  Template3D ( GenerationMode ( Fastener ) Shape ( \"clip.obj\" ) )\n"
+                "  Template3D ( GenerationMode ( ConductorRail ) Shape ( \"third.obj\" ) Offset ( 1.2 0.2 0 ) )\n"
+                "  Template3D ( GenerationMode ( RackRail ) Shape ( \"rack.obj\" ) StretchZone ( 0 1 ) )\n"
+                "  Template3D ( GenerationMode ( Bearer ) Shape ( \"bearer.obj\" ) StretchZone ( 1 0 ) )\n"
+                " ) ) )\n";
+        QStringList diagnostics;
+        const QVector<QSharedPointer<OrtsTrackProfile>> members =
+                OrtsTrackProfileParser::parseStfProfiles(family, "Fam", &diagnostics);
+        const OrtsTrackProfile *mainMember = members.size() == 2 ? members[0].data() : nullptr;
+        const OrtsTrackProfile *complexMember = members.size() == 2 ? members[1].data() : nullptr;
+        check(complexMember != nullptr && complexMember->valid
+                && complexMember->objectRole == OrtsTrackProfile::ObjectRole::Complex
+                && complexMember->id == "Fam_complex", "complex-member-role-and-id");
+        if(complexMember != nullptr){
+            const OrtsProfileComplexTrack &values = complexMember->complexTrack;
+            check(std::abs(values.tieSpacing - 0.65f) < 1e-5f && std::abs(values.tiePhase - 0.325f) < 1e-5f
+                    && std::abs(values.tieGap - 0.12f) < 1e-5f && std::abs(values.maxBearerLength - 5) < 1e-5f
+                    && std::abs(values.maxSharedAngle - 55) < 1e-4f
+                    && std::abs(values.conductorClearance - 0.25f) < 1e-5f,
+                    "complex-track-values");
+            const QVector<OrtsProfileTemplate3D> &parts = complexMember->lods[0].items[0].templates3D;
+            using Mode = OrtsProfileTemplate3D::GenerationMode;
+            check(parts.size() == 7 && parts[0].generationMode == Mode::Rail
+                    && parts[1].generationMode == Mode::Tie && parts[2].generationMode == Mode::Bearer
+                    && parts[3].generationMode == Mode::Fastener
+                    && parts[4].generationMode == Mode::ConductorRail
+                    && parts[5].generationMode == Mode::RackRail
+                    && parts[0].complexPart() && std::abs(parts[4].offset[0] - 1.2f) < 1e-5f,
+                    "complex-part-generation-modes");
+            check(parts.size() == 7 && parts[1].stretchZone[0] == -0.3f && parts[1].stretchZone[1] == 0.3f
+                    && parts[5].stretchZone[0] == 0 && parts[5].stretchZone[1] == 0
+                    && parts[6].stretchZone[0] == 0 && parts[6].stretchZone[1] == 0,
+                    "stretch-zone-on-ties-only");
+        }
+        check(mainMember != nullptr && mainMember->valid
+                && mainMember->lods[0].items[0].templates3D.isEmpty()
+                && std::abs(mainMember->complexTrack.tieSpacing - 0.6f) < 1e-5f,
+                "complex-parts-and-values-ignored-outside-complex");
+        const QString words = diagnostics.join(" | ");
+        check(diagnostics.size() == 4
+                && words.contains("ComplexTrack is read only in a COMPLEX member")
+                && words.contains("GenerationMode Rail is read only in a COMPLEX member")
+                && words.contains("StretchZone is read only on Tie and Bearer")
+                && words.contains("StretchZone needs ( x0 x1 )"),
+                "complex-member-diagnostics");
+        if(diagnostics.size() != 4)
+            qWarning() << "[tests:orts-profile] complex member diagnostics:" << diagnostics;
+
+        QStringList rangeWords;
+        const QSharedPointer<OrtsTrackProfile> outOfRange = OrtsTrackProfileParser::parseStf(
+                "SIMISA@@@@@@@@@@JINX0p0t______\n"
+                "TrProfile ( ObjectType ( ROAD COMPLEX ) ComplexTrack ( TieSpacing ( 0 ) MaxSharedAngle ( 95 ) Foo ( 1 ) )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"bed\" ) TexName ( \"b.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline + " ) ) )\n", "Road", &rangeWords);
+        check(outOfRange != nullptr && outOfRange->valid
+                && outOfRange->objectType == OrtsTrackProfile::ObjectType::Road
+                && outOfRange->objectRole == OrtsTrackProfile::ObjectRole::Complex
+                && std::abs(outOfRange->complexTrack.tieSpacing - 0.6f) < 1e-5f
+                && std::abs(outOfRange->complexTrack.maxSharedAngle - 60) < 1e-5f
+                && rangeWords.size() == 3, "complex-track-out-of-range-defaults");
+
+        // Step 7: switch drives and indicators (decisions 35, 36, 38).
+        QStringList switchWords;
+        const QVector<QSharedPointer<OrtsTrackProfile>> switchMembers = OrtsTrackProfileParser::parseStfProfiles(
+                "SIMISA@@@@@@@@@@JINX0p0t______\n"
+                "TrProfile ( ObjectType ( TRACK MAIN )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"main\" ) TexName ( \"b.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline +
+                "  Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"motor.obj\" ) ) ) ) )\n"
+                "TrProfile ( ObjectType ( TRACK COMPLEX )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"switch\" ) TexName ( \"s.ace\" ) ShaderName ( TexDiff )\n"
+                "  Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"motor.obj\" ) Offset ( 1.55 0.15 -0.25 ) Spacing ( 5 ) )\n"
+                "  Template3D ( GenerationMode ( switchdrive ) Shape ( \"lever.obj\" ) Offset ( 1.6 0.15 -0.3 ) HandOperated ( 1 ) )\n"
+                "  Template3D ( GenerationMode ( SwitchIndicator ) Shape ( \"main.obj\" ) Shape ( \"diverging.obj\" )"
+                " Offset ( -1.8 0 -0.85 ) )\n"
+                "  Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"m.obj\" ) Spacing ( -1 ) HandOperated ( 2 ) )\n"
+                "  Template3D ( GenerationMode ( Tie ) Shape ( \"tie.obj\" ) HandOperated ( 1 ) ) ) ) )\n",
+                "Sw", &switchWords);
+        const OrtsTrackProfile *switchMember = switchMembers.size() == 2 ? switchMembers[1].data() : nullptr;
+        if(switchMember != nullptr && switchMember->valid && switchMember->lods[0].items[0].templates3D.size() == 5){
+            const QVector<OrtsProfileTemplate3D> &parts = switchMember->lods[0].items[0].templates3D;
+            using Mode = OrtsProfileTemplate3D::GenerationMode;
+            check(parts[0].generationMode == Mode::SwitchDrive && !parts[0].handOperated
+                    && std::abs(parts[0].spacing - 5) < 1e-5f && std::abs(parts[0].offset[2] + 0.25f) < 1e-5f
+                    && parts[1].generationMode == Mode::SwitchDrive && parts[1].handOperated
+                    && parts[2].generationMode == Mode::SwitchIndicator && parts[2].shapes.size() == 2
+                    && parts[0].complexPart() && parts[2].complexPart()
+                    && parts[3].spacing == 0 && !parts[3].handOperated && !parts[4].handOperated,
+                    "switch-parts");
+        } else
+            check(false, "switch-parts");
+        check(switchMembers.size() == 2 && switchMembers[0]->lods[0].items[0].templates3D.isEmpty(),
+                "switch-parts-only-in-complex");
+        const QString switchText = switchWords.join(" | ");
+        check(switchWords.size() == 4
+                && switchText.contains("GenerationMode SwitchDrive is read only in a COMPLEX member")
+                && switchText.contains("HandOperated needs ( 0 ) or ( 1 )")
+                && switchText.contains("SwitchDrive Spacing below 0, one drive")
+                && switchText.contains("HandOperated is read only on SwitchDrive"),
+                "switch-parts-diagnostics");
+        if(switchWords.size() != 4)
+            qWarning() << "[tests:orts-profile] switch part diagnostics:" << switchWords;
+
+        // The per-path renderer never sweeps the parts; the bed alone.
+        if(complexMember != nullptr){
+            OrtsTrackProfile bedOnly = *complexMember;
+            bedOnly.lods[0].items[0].templates3D.clear();
+            QVector<TSection> straight;
+            straight.append(TSection(0, 0, 10.0f, 0));
+            QVector<OrtsGeneratedProfileMesh> withParts, without;
+            OrtsTrackProfileRenderer::buildMeshes(*complexMember, straight, withParts);
+            OrtsTrackProfileRenderer::buildMeshes(bedOnly, straight, without);
+            int partVertices = 0, bedVertices = 0;
+            for(const OrtsGeneratedProfileMesh &mesh : withParts)
+                partVertices += mesh.vertices.size();
+            for(const OrtsGeneratedProfileMesh &mesh : without)
+                bedVertices += mesh.vertices.size();
+            check(bedVertices > 0 && partVertices == bedVertices, "complex-parts-not-swept-per-path");
+        }
+    }
 
     qInfo() << "[tests:orts-profile] cases=" << (passed + failed)
             << "passed=" << passed << "failed=" << failed;
@@ -4509,6 +4736,8 @@ QStringList TsreTests::listSuites() {
         "tdb-ordering",
         "tdb-editing",
         "track-cant",
+        "track-shape-analysis",
+        "track-profile-filters",
         "track-cant-benchmark",
         "server",
         "route-switch",
@@ -4843,6 +5072,10 @@ int TsreTests::run(const TestRunOptions &opts) {
 
     if (suite == "track-cant")
         return runTrackCantSuite(opts.verbose);
+    if (suite == "track-shape-analysis")
+        return runTrackShapeAnalysisSuite(opts.verbose);
+    if (suite == "track-profile-filters")
+        return runTrackProfileFiltersSuite(opts.verbose);
     if (suite == "server")
         return runServerSuite(opts.verbose);
     if (suite == "route-switch")

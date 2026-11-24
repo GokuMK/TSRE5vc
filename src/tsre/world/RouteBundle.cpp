@@ -183,6 +183,8 @@ Bundle gatherFixed(const QString &root, const QString &route, const QString &loa
                 add(bundle, root, folder + "/" + name);
     }
     addFolder(bundle, root, folder + "/TRACKPROFILES", {"*.stf", "*.xml"}, false);
+    // The route's track profile filters (tracks task 17).
+    add(bundle, root, folder + "/trackprofiles.dat");
     // The default track profile of every route (OrtsTrackProfileCatalog's).
     addFolder(bundle, root, "GLOBAL/TRACKPROFILES", {"TrProfile.xml", "TrProfile.stf"}, false);
     addFolder(bundle, root, folder + "/PROCEDURAL", {}, false);

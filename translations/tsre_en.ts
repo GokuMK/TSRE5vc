@@ -2324,15 +2324,15 @@ Consist with this file name already exist. Overwrite?
     </message>
     <message id="route.editor.load.window.button.explore">
         <location filename="../src/routeEditor/LoadWindow.cpp" line="55"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="177"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="179"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="178"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="180"/>
         <source>Explore</source>
         <translation>Explore</translation>
     </message>
     <message id="route.editor.load.window.button.edit">
         <location filename="../src/routeEditor/LoadWindow.cpp" line="62"/>
         <location filename="../src/routeEditor/LoadWindow.cpp" line="265"/>
-        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="180"/>
+        <location filename="../src/tsre/tests/ExploreWindowTestSuite.cpp" line="181"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -2923,127 +2923,127 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7777"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7800"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4977"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4978"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.glwidget.walk.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1039"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1040"/>
         <source>Walk</source>
         <translation>Walk</translation>
     </message>
     <message id="route.editor.glwidget.walk.no.place">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1041"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1042"/>
         <source>No place to stand near the camera: within the route&apos;s reach of a track, on a floor where a person fits. Fly nearer to a track.</source>
         <translation>No place to stand near the camera: within the route&apos;s reach of a track, on a floor where a person fits. Fly nearer to a track.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4982"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4983"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4988"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="4989"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5485"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5486"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5488"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5489"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5490"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5491"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5542"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5543"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7706"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7729"/>
         <source>Undo</source>
         <translation>Undo</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7708"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7731"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>The last change is to the activity: it can be undone when the simulation stops.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7783"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7806"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7789"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7812"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7795"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7818"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7801"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7824"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7807"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7830"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7813"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7836"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7819"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7842"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7825"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7848"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7831"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7854"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7837"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7860"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7843"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7866"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7855"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7878"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7873"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7896"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
@@ -3221,7 +3221,7 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7891"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="7914"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -6415,7 +6415,7 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
     <message id="route.editor.properties.profile.tooltip.route.profile.subtype">
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="81"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="188"/>
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="93"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="98"/>
         <source>Select a route profile subtype.</source>
         <translation>Select a route profile subtype.</translation>
     </message>
@@ -6429,8 +6429,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="422"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="191"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="362"/>
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="96"/>
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="605"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="101"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="610"/>
         <source>NOT SET</source>
         <translation>NOT SET</translation>
     </message>
@@ -6439,8 +6439,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="425"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="194"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="365"/>
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="99"/>
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="608"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="104"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="613"/>
         <source>DEFAULT</source>
         <translation>DEFAULT</translation>
     </message>
@@ -6449,8 +6449,8 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <location filename="../src/routeEditor/properties/PropertiesDyntrack.cpp" line="428"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="197"/>
         <location filename="../src/routeEditor/properties/PropertiesRuler.cpp" line="368"/>
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="102"/>
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="611"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="107"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="616"/>
         <source>DISABLED</source>
         <translation>DISABLED</translation>
     </message>
@@ -8678,219 +8678,259 @@ All includes Base, Snow and seasonal directories present in TERRTEX.</translatio
         <translation>Shape Template:</translation>
     </message>
     <message id="route.editor.properties.track.obj.tooltip.not.set.uses.static.shape.in.enabled">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="105"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="110"/>
         <source>NOT SET uses the static shape in Enabled mode; DEFAULT explicitly requests the default procedural template.</source>
         <translation>NOT SET uses the static shape in Enabled mode; DEFAULT explicitly requests the default procedural template.</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.label.2">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="113"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="118"/>
         <source>Position &amp; Rotation:</source>
         <translation>Position &amp; Rotation:</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.x">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="122"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="127"/>
         <source>X:</source>
         <translation>X:</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.y">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="125"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="130"/>
         <source>Y:</source>
         <translation>Y:</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.z">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="128"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="133"/>
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.rot">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="133"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="138"/>
         <source>Rot:</source>
         <translation>Rot:</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.copy.pos">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="141"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="146"/>
         <source>Copy Pos</source>
         <translation>Copy Pos</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.paste.pos">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="146"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="151"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.copy.qrot">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="151"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="156"/>
         <source>Copy Rot</source>
         <translation>Copy Rot</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.paste.qrot">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="156"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="161"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.copy.pos.rot">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="161"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="166"/>
         <source>Copy Pos+Rot</source>
         <translation>Copy Pos+Rot</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.paste.pos.rot">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="166"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="171"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.reset.qrot">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="171"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="176"/>
         <source>Reset Rot</source>
         <translation>Reset Rot</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.q.rot90">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="176"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="181"/>
         <source>Rot Y 90°</source>
         <translation>Rot Y 90°</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.transform">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="181"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="186"/>
         <source>Transform ...</source>
         <translation>Transform ...</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.label.3">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="198"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="203"/>
         <source>Detail Level:</source>
         <translation>Detail Level:</translation>
     </message>
     <message id="route.editor.properties.track.obj.text.custom">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="206"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="211"/>
         <source>Custom</source>
         <translation>Custom</translation>
     </message>
     <message id="route.editor.properties.track.obj.option.default.detail.level.label">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="209"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="214"/>
         <source>Default</source>
         <translation>Default</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.label.4">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="229"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="234"/>
         <source>Flags:</source>
         <translation>Flags:</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.copy.flags">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="241"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="246"/>
         <source>Copy Flags</source>
         <translation>Copy Flags</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.paste.flags">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="246"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="251"/>
         <source>Paste</source>
         <translation>Paste</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.label.5">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="255"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="260"/>
         <source>Elevation:</source>
         <translation>Elevation:</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.value">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="270"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="275"/>
         <source>Value: </source>
         <translation>Value: </translation>
     </message>
     <message id="route.editor.properties.track.obj.item.permille">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="273"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="278"/>
         <source>Permille ‰</source>
         <translation>Permille ‰</translation>
     </message>
     <message id="route.editor.properties.track.obj.item.percent">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="276"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="281"/>
         <source>Percent %</source>
         <translation>Percent %</translation>
     </message>
     <message id="route.editor.properties.track.obj.item.1.in.x.m">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="279"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="284"/>
         <source>1 in &apos;X&apos; m</source>
         <translation>1 in &apos;X&apos; m</translation>
     </message>
     <message id="route.editor.properties.track.obj.item.angle">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="282"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="287"/>
         <source>Angle º</source>
         <translation>Angle º</translation>
     </message>
     <message id="route.editor.properties.track.obj.text.1.in.x.m">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="294"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="299"/>
         <source>1 in &apos;x&apos; m</source>
         <translation>1 in &apos;x&apos; m</translation>
     </message>
     <message id="route.editor.properties.track.obj.text.value">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="301"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="306"/>
         <source>º</source>
         <translation>º</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.step">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="312"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="317"/>
         <source>Step:</source>
         <translation>Step:</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.label.6">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="323"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="328"/>
         <source>MSTS Collision:</source>
         <translation>MSTS Collision:</translation>
     </message>
     <message id="route.editor.properties.track.obj.item.disabled.2">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="332"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="337"/>
         <source>Disabled</source>
         <translation>Disabled</translation>
     </message>
     <message id="route.editor.properties.track.obj.item.immovable">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="335"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="340"/>
         <source>Immovable</source>
         <translation>Immovable</translation>
     </message>
     <message id="route.editor.properties.track.obj.item.buffer">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="338"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="343"/>
         <source>Buffer</source>
         <translation>Buffer</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.label.7">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="349"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="354"/>
         <source>Advanced:</source>
         <translation>Advanced:</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.hacks">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="356"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="361"/>
         <source>Hacks</source>
         <translation>Hacks</translation>
     </message>
     <message id="route.editor.properties.track.obj.title.track.obj.hacks">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="455"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="460"/>
         <source>TrackObj Hacks</source>
         <translation>TrackObj Hacks</translation>
     </message>
     <message id="route.editor.properties.track.obj.label.label.8">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="459"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="464"/>
         <source>These functions will damage your route if you don&apos;t know what you are doing.</source>
         <translation>These functions will damage your route if you don&apos;t know what you are doing.</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.fix.jnode.posn">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="466"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="471"/>
         <source>Fix JNodePosn</source>
         <translation>Fix JNodePosn</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.hax.remove.tdbvector">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="473"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="478"/>
         <source>Remove TDB Vector ( remove TrItems first )</source>
         <translation>Remove TDB Vector ( remove TrItems first )</translation>
     </message>
     <message id="route.editor.properties.track.obj.button.hax.remove.tdbtree">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="480"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="485"/>
         <source>Remove TDB Tree ( remove TrItems first; max 1000 nodes )</source>
         <translation>Remove TDB Tree ( remove TrItems first; max 1000 nodes )</translation>
     </message>
     <message id="route.editor.properties.track.obj.text.null">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="513"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="518"/>
         <source>NULL</source>
         <translation>NULL</translation>
     </message>
     <message id="route.properties.track.object.type">
-        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="521"/>
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="526"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.unknown">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="664"/>
+        <source>Profile: not drawn yet</source>
+        <translation>Profile: not drawn yet</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.static">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="668"/>
+        <source>Profile: none, the static shape</source>
+        <translation>Profile: none, the static shape</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.object.disabled">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="672"/>
+        <source>Profile: none, DISABLED on the object</source>
+        <translation>Profile: none, DISABLED on the object</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.filter.disabled">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="676"/>
+        <source>Profile: none, DISABLED by trackprofiles.dat %1</source>
+        <translation>Profile: none, DISABLED by trackprofiles.dat %1</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.object.template">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="680"/>
+        <source>Profile: %1, the object&apos;s template</source>
+        <translation>Profile: %1, the object&apos;s template</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.filter">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="684"/>
+        <source>Profile from trackprofiles.dat %1</source>
+        <translation>Profile from trackprofiles.dat %1</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.guess">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="688"/>
+        <source>Profile: %1, Open Rails&apos; guess</source>
+        <translation>Profile: %1, Open Rails&apos; guess</translation>
+    </message>
+    <message id="route.editor.properties.track.obj.profile.source.default">
+        <location filename="../src/routeEditor/properties/PropertiesTrackObj.cpp" line="692"/>
+        <source>Profile: %1, the default</source>
+        <translation>Profile: %1, the default</translation>
     </message>
     <message id="route.editor.properties.transfer.label.info.label">
         <location filename="../src/routeEditor/properties/PropertiesTransfer.cpp" line="24"/>
@@ -13154,37 +13194,37 @@ Profile used at application startup: %1</translation>
         <translation>Images (*.png *.bmp *.tga)</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.flip">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1124"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1140"/>
         <source>&amp;Flip</source>
         <translation>&amp;Flip</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.left">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1128"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1144"/>
         <source>&amp;Move Left</source>
         <translation>&amp;Move Left</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.move.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1132"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1148"/>
         <source>&amp;Move right</source>
         <translation>&amp;Move right</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.delete">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1136"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1152"/>
         <source>&amp;Delete</source>
         <translation>&amp;Delete</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.copy">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1140"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1156"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="shape.viewer.shape.viewer.glwidget.action.paste.right">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1144"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1160"/>
         <source>&amp;Paste Right</source>
         <translation>&amp;Paste Right</translation>
     </message>
     <message id="shape.viewer.context.selected.unit">
-        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1158"/>
+        <location filename="../src/shapeViewer/ShapeViewerGLWidget.cpp" line="1174"/>
         <source>Selected Unit</source>
         <translation>Selected Unit</translation>
     </message>
@@ -13695,12 +13735,12 @@ Now TSRE will download app data.</translation>
         <translation>&amp;Reverse Selected</translation>
     </message>
     <message id="tsre.world.route.dialog.title.procedural.terrain">
-        <location filename="../src/tsre/world/Route.cpp" line="332"/>
+        <location filename="../src/tsre/world/Route.cpp" line="333"/>
         <source>Procedural terrain</source>
         <translation>Procedural terrain</translation>
     </message>
     <message id="tsre.world.route.title.tdb.error">
-        <location filename="../src/tsre/world/Route.cpp" line="567"/>
+        <location filename="../src/tsre/world/Route.cpp" line="568"/>
         <source>TDB Error</source>
         <translation>TDB Error</translation>
     </message>
@@ -19161,176 +19201,180 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>Sit down</translation>
     </message>
     <message id="ui.explore.season.spring">
-        <location filename="../src/explore/ExplorePanel.cpp" line="103"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="104"/>
         <source>Spring</source>
         <translation>Spring</translation>
     </message>
     <message id="ui.explore.season.summer">
-        <location filename="../src/explore/ExplorePanel.cpp" line="106"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="107"/>
         <source>Summer</source>
         <translation>Summer</translation>
     </message>
     <message id="ui.explore.season.autumn">
-        <location filename="../src/explore/ExplorePanel.cpp" line="109"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="110"/>
         <source>Autumn</source>
         <translation>Autumn</translation>
     </message>
     <message id="ui.explore.season.winter">
-        <location filename="../src/explore/ExplorePanel.cpp" line="112"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="113"/>
         <source>Winter</source>
         <translation>Winter</translation>
     </message>
     <message id="ui.explore.weather.clear">
-        <location filename="../src/explore/ExplorePanel.cpp" line="122"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="123"/>
         <source>Clear</source>
         <translation>Clear</translation>
     </message>
     <message id="ui.explore.weather.snow">
-        <location filename="../src/explore/ExplorePanel.cpp" line="125"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="126"/>
         <source>Snow</source>
         <translation>Snow</translation>
     </message>
     <message id="ui.explore.weather.rain">
-        <location filename="../src/explore/ExplorePanel.cpp" line="128"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="129"/>
         <source>Rain</source>
         <translation>Rain</translation>
     </message>
     <message id="ui.explore.difficulty.easy">
-        <location filename="../src/explore/ExplorePanel.cpp" line="137"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="138"/>
         <source>Easy</source>
         <translation>Easy</translation>
     </message>
     <message id="ui.explore.difficulty.medium">
-        <location filename="../src/explore/ExplorePanel.cpp" line="140"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="141"/>
         <source>Medium</source>
         <translation>Medium</translation>
     </message>
     <message id="ui.explore.difficulty.hard">
-        <location filename="../src/explore/ExplorePanel.cpp" line="143"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="144"/>
         <source>Hard</source>
         <translation>Hard</translation>
     </message>
     <message id="ui.explore.minutes.only">
-        <location filename="../src/explore/ExplorePanel.cpp" line="154"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="155"/>
         <source>%1 min</source>
         <translation>%1 min</translation>
     </message>
     <message id="ui.explore.hours.minutes">
-        <location filename="../src/explore/ExplorePanel.cpp" line="156"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="157"/>
         <source>%1 h %2 min</source>
         <translation>%1 h %2 min</translation>
     </message>
     <message id="ui.explore.kilometres">
-        <location filename="../src/explore/ExplorePanel.cpp" line="178"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="179"/>
         <source>Kilometres</source>
         <translation>Kilometres</translation>
     </message>
     <message id="ui.explore.miles">
-        <location filename="../src/explore/ExplorePanel.cpp" line="180"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="181"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="210"/>
         <source>Miles</source>
         <translation>Miles</translation>
     </message>
     <message id="ui.explore.electrified.kv">
-        <location filename="../src/explore/ExplorePanel.cpp" line="183"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="184"/>
         <source>Electrified, %1 kV</source>
         <translation>Electrified, %1 kV</translation>
     </message>
     <message id="ui.explore.electrified.v">
-        <location filename="../src/explore/ExplorePanel.cpp" line="186"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="187"/>
         <source>Electrified, %1 V</source>
         <translation>Electrified, %1 V</translation>
     </message>
     <message id="ui.explore.electrified">
-        <location filename="../src/explore/ExplorePanel.cpp" line="189"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="190"/>
         <source>Electrified</source>
         <translation>Electrified</translation>
     </message>
     <message id="ui.explore.not.electrified">
-        <location filename="../src/explore/ExplorePanel.cpp" line="192"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="193"/>
         <source>Not electrified</source>
         <translation>Not electrified</translation>
     </message>
     <message id="ui.explore.speed.limit.kmh">
-        <location filename="../src/explore/ExplorePanel.cpp" line="196"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="197"/>
         <source>Speed limit %1 km/h</source>
         <translation>Speed limit %1 km/h</translation>
     </message>
     <message id="ui.explore.speed.limit.mph">
-        <location filename="../src/explore/ExplorePanel.cpp" line="198"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="199"/>
         <source>Speed limit %1 mph</source>
         <translation>Speed limit %1 mph</translation>
     </message>
     <message id="ui.explore.passes">
-        <location filename="../src/explore/ExplorePanel.cpp" line="424"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="425"/>
         <source>passes %1</source>
         <translation>passes %1</translation>
     </message>
     <message id="ui.explore.timetable">
-        <location filename="../src/explore/ExplorePanel.cpp" line="841"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="842"/>
         <source>Timetable</source>
         <translation>Timetable</translation>
     </message>
     <message id="ui.explore.count.activities">
-        <location filename="../src/explore/ExplorePanel.cpp" line="975"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="976"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="212"/>
         <source>Activities: %1</source>
         <translation>Activities: %1</translation>
     </message>
     <message id="ui.explore.count.timetables">
-        <location filename="../src/explore/ExplorePanel.cpp" line="977"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="978"/>
         <source>Timetables: %1</source>
         <translation>Timetables: %1</translation>
     </message>
     <message id="ui.explore.count.paths">
-        <location filename="../src/explore/ExplorePanel.cpp" line="979"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="980"/>
         <source>Player paths: %1</source>
         <translation>Player paths: %1</translation>
     </message>
     <message id="ui.explore.count.stations">
-        <location filename="../src/explore/ExplorePanel.cpp" line="982"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="983"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="214"/>
         <source>Stations: %1</source>
         <translation>Stations: %1</translation>
     </message>
     <message id="ui.explore.explore.route">
-        <location filename="../src/explore/ExplorePanel.cpp" line="992"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="1581"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="1601"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="993"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1583"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1603"/>
         <location filename="../src/explore/ExploreRun.cpp" line="400"/>
         <location filename="../src/explore/ExploreRun.cpp" line="433"/>
         <source>Explore the route</source>
         <translation>Explore the route</translation>
     </message>
     <message id="ui.explore.activities">
-        <location filename="../src/explore/ExplorePanel.cpp" line="996"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="997"/>
         <source>Activities</source>
         <translation>Activities</translation>
     </message>
     <message id="ui.explore.timetables">
-        <location filename="../src/explore/ExplorePanel.cpp" line="1000"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1001"/>
         <source>Timetables</source>
         <translation>Timetables</translation>
     </message>
     <message id="ui.explore.other.trains">
-        <location filename="../src/explore/ExplorePanel.cpp" line="1026"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1027"/>
         <source>Other trains: %1</source>
         <translation>Other trains: %1</translation>
     </message>
     <message id="ui.explore.count.trains">
-        <location filename="../src/explore/ExplorePanel.cpp" line="1048"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1049"/>
         <source>Trains: %1</source>
         <translation>Trains: %1</translation>
     </message>
     <message id="ui.explore.consist.is">
-        <location filename="../src/explore/ExplorePanel.cpp" line="1074"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1075"/>
         <source>Consist: %1</source>
         <translation>Consist: %1</translation>
     </message>
     <message id="ui.explore.path.is">
-        <location filename="../src/explore/ExplorePanel.cpp" line="1077"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1078"/>
         <source>Path: %1</source>
         <translation>Path: %1</translation>
     </message>
     <message id="ui.explore.cars">
-        <location filename="../src/explore/ExplorePanel.cpp" line="1115"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="1116"/>
+        <location filename="../src/tsre/tests/ExploreListsTestSuite.cpp" line="250"/>
         <source>Cars: %1</source>
         <translation>Cars: %1</translation>
     </message>
@@ -19345,7 +19389,7 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>No train</translation>
     </message>
     <message id="ui.explore.station">
-        <location filename="../src/explore/ExplorePanel.cpp" line="832"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="833"/>
         <source>Station</source>
         <translation>Station</translation>
     </message>
@@ -19360,19 +19404,19 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>Consist</translation>
     </message>
     <message id="ui.explore.time">
-        <location filename="../src/explore/ExplorePanel.cpp" line="850"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="858"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="851"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="859"/>
         <source>Time</source>
         <translation>Time</translation>
     </message>
     <message id="ui.explore.day">
-        <location filename="../src/explore/ExplorePanel.cpp" line="867"/>
-        <location filename="../src/explore/ExplorePanel.cpp" line="875"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="868"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="876"/>
         <source>Day</source>
         <translation>Day</translation>
     </message>
     <message id="ui.explore.weather">
-        <location filename="../src/explore/ExplorePanel.cpp" line="884"/>
+        <location filename="../src/explore/ExplorePanel.cpp" line="885"/>
         <source>Weather</source>
         <translation>Weather</translation>
     </message>

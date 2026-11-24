@@ -26,12 +26,15 @@
 #include <tsre/tdb/TSectionDAT.h>
 #include <tsre/procedural/ProceduralShape.h>
 #include <tsre/procedural/ProceduralTrackPolicy.h>
+#include <tsre/procedural/TrackProfileFilters.h>
+#include <tsre/procedural/ComplexTrackCache.h>
 #include <tsre/procedural/ShapeTemplates.h>
 #include <tsre/procedural/OrtsTrackProfile.h>
 #include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <QElapsedTimer>
 #include <QSet>
 
 #ifndef M_PI
@@ -84,6 +87,71 @@ WorldObj* TrackObj::clone(){
 
 TrackObj::~TrackObj() {
     clearProceduralShape();
+    if(hasPoseState && shapePointer != NULL)
+        shapePointer->releaseState(poseState);
+}
+
+// Tracks task 17 step 9: the junction's set path and its moving parts.
+void TrackObj::setSwitchRoute(int path, bool animate){
+    switchRoute = path;
+    switchAtOnce = !animate;
+}
+
+float TrackObj::shapeTarget() const {
+    if(switchRoute < 0 || Game::trackDB == NULL || Game::trackDB->tsection == NULL)
+        return 0;
+    const auto found = Game::trackDB->tsection->shape.find(sectionIdx);
+    if(found == Game::trackDB->tsection->shape.end() || found->second == NULL)
+        return 0;
+    return switchRoute == found->second->mainroute ? 0 : 1;
+}
+
+float TrackObj::switchTarget(int switchIndex) const {
+    if(switchRoute < 0 || complexShared == nullptr || switchIndex >= complexShared->plan.switches.size())
+        return 0;
+    return complexShared->plan.switches[switchIndex].other == switchRoute ? 1 : 0;
+}
+
+void TrackObj::clearSwitchBlend(){
+    for(QVector<OglObj*> &objects : switchBlend)
+        qDeleteAll(objects);
+    switchBlend.clear();
+    switchBlendKey.clear();
+}
+
+void TrackObj::stepSwitches(){
+    static QElapsedTimer clock;
+    if(!clock.isValid())
+        clock.start();
+    const qint64 now = clock.elapsed();
+    const float seconds = switchClock < 0 ? 0.0f : float(now - switchClock) / 1000.0f;
+    switchClock = now;
+    const float step = switchAtOnce ? 1.0f : seconds / SwitchMoveSeconds;
+    switchAtOnce = false;
+    auto move = [step](float key, float target) {
+        return key < target ? std::min(target, key + step) : std::max(target, key - step);
+    };
+    // A static junction shape: its keyed parts at the key's frame, in a
+    // state of its own once off key 0.
+    const float shapeGoal = shapeTarget();
+    if(shapePointer != NULL && shapePointer->isLoaded() && (shapeKey != shapeGoal || posedKey != shapeKey)){
+        shapeKey = move(shapeKey, shapeGoal);
+        if(!hasPoseState){
+            poseState = shapePointer->newState();
+            hasPoseState = true;
+        }
+        for(int part = 0; part < shapePointer->partCount(); part++){
+            const float last = shapePointer->partLastFrame(part);
+            if(last >= 0)
+                shapePointer->setPartFrame(poseState, part, shapeKey * last);
+        }
+        posedKey = shapeKey;
+    }
+    // Procedural switches.
+    const int count = complexShared != nullptr ? complexShared->switches.size() : 0;
+    switchKeys.resize(count);
+    for(int s = 0; s < count; s++)
+        switchKeys[s] = move(switchKeys[s], switchTarget(s));
 }
 
 int TrackObj::updateTrackSectionInfo(QHash<unsigned int,unsigned int> shapes, QHash<unsigned int,unsigned int> sect){
@@ -171,6 +239,102 @@ void TrackObj::clearProceduralShape(){
     procShape.clear();
     procShapeOwned = false;
     proceduralShapeUsesBakedPath = false;
+    complexShared.reset();
+    clearSwitchBlend();
+}
+
+bool TrackObj::useComplexShape(const OrtsTrackProfile &profile, OrtsTrackProfile::ObjectType type,
+        const TrackProfileFilters::Filter *filter, const TrackShape &shape,
+        const QVector<OrtsProfileRoll> &rolls,
+        const QVector<QSharedPointer<const OrtsTrackProfile>> *pathProfiles,
+        const QString &routePath, const ProceduralPathTransform &transform){
+    if(Game::trackDB == NULL || Game::trackDB->tsection == NULL)
+        return false;
+    const QSharedPointer<const OrtsTrackProfile> member = OrtsTrackProfileCatalog::find(
+            OrtsTrackProfileCatalog::profileId(profile.familyId, OrtsTrackProfile::ObjectRole::Complex), type);
+    if(member == nullptr)
+        return false;
+    const QSharedPointer<ComplexTrackMeshes> shared = ComplexTrackCache::meshes(
+            shape, *Game::trackDB->tsection, *member, filter, routePath);
+    if(shared == nullptr)
+        return false;
+    clearProceduralShape();
+    complexShared = shared;
+    // The shape's own paths in no group (included shapes' paths follow
+    // them in the plan), per object as plain track.
+    QVector<int> own;
+    for(int path : shared->independent)
+        if(path < shape.numpaths)
+            own.append(path);
+    if(!own.isEmpty()){
+        TrackShape subset;
+        subset.id = shape.id;
+        subset.filename = shape.filename;
+        subset.numpaths = own.size();
+        subset.path = new TrackShape::SectionIdx[own.size()];
+        QVector<OrtsProfileRoll> subsetRolls;
+        QVector<QSharedPointer<const OrtsTrackProfile>> subsetProfiles;
+        for(int k = 0; k < own.size(); k++){
+            subset.path[k] = shape.path[own[k]];
+            subsetRolls.append(own[k] < rolls.size() ? rolls[own[k]] : OrtsProfileRoll());
+            if(pathProfiles != NULL)
+                subsetProfiles.append(own[k] < pathProfiles->size() ? pathProfiles->at(own[k])
+                                                                    : QSharedPointer<const OrtsTrackProfile>());
+        }
+        QStringList diagnostics;
+        OrtsTrackProfileRenderer::generate(profile, subset, subsetRolls, procShape, routePath,
+                &diagnostics, OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0, &transform,
+                pathProfiles != NULL ? &subsetProfiles : nullptr, UiD);
+        delete[] subset.path;
+        subset.path = NULL;
+        procShapeOwned = true;
+    }
+    proceduralShapeUsesBakedPath = true;
+    proceduralFallback = false;
+    return true;
+}
+
+namespace {
+
+// Tracks task 17: the route's filter for an object without its own
+// template; none when a filter names a family the route has no profile of
+// (warned about once a filter), so the object is drawn as without it.
+// Each path's place on its vector in a database (track or road; tracks
+// task 17 step 8) and, where superelevation is shown, its cant (task 16).
+QVector<OrtsProfileRoll> pathRollsOf(TDB *db, int tileX, int tileZ, unsigned int uid,
+        const TrackShape &shape, bool cant) {
+    if(db == NULL)
+        return QVector<OrtsProfileRoll>();
+    QVector<OrtsProfileRoll> rolls = OrtsProfileRoll::forObject(*db, tileX, tileZ, uid, shape);
+    if(!cant)
+        for(OrtsProfileRoll &roll : rolls)
+            roll.spans.clear();
+    return rolls;
+}
+
+const TrackProfileFilters::Filter *routeFilter(const QString &fileName,
+        const QString &requested, const TrackShape *shape,
+        OrtsTrackProfile::ObjectType type){
+    if(!requested.isEmpty() || shape == NULL
+            || Game::proceduralTracks == ProceduralTracksMode::Disabled)
+        return NULL;
+    const TrackProfileFilters::Filter *filter = TrackProfileFilters::match(fileName, [&]() {
+        return TrackProfileFilters::kindsOf(*shape, Game::trackDB->tsection->sekcja);
+    });
+    if(filter == NULL || filter->disabled
+            || OrtsTrackProfileCatalog::find(filter->profile, type) != nullptr)
+        return filter;
+    static QSet<QString> warned;
+    const QString key = filter->description() + (type == OrtsTrackProfile::ObjectType::Road ? " road" : " track");
+    if(!warned.contains(key)){
+        warned.insert(key);
+        qWarning().noquote() << TrackProfileFilters::fileName() + " " + filter->description()
+                + ": the route has no " + (type == OrtsTrackProfile::ObjectType::Road ? "road" : "track")
+                + " profile family " + filter->profile + "; its objects are drawn as without the filter";
+    }
+    return NULL;
+}
+
 }
 
 bool TrackObj::useProceduralShape(){
@@ -213,16 +377,32 @@ bool TrackObj::useProceduralShape(){
         if(found != Game::trackDB->tsection->shape.end())
             ownShape = found->second;
     }
+    // Tracks task 17: an object without its own template takes its profile
+    // family from the route's filters (trackprofiles.dat), ahead of Open
+    // Rails' guess; a filter's DISABLED keeps the static shape. The filters
+    // give the profile wherever track is procedural (decision 29): complex
+    // shapes are procedural only in Forced.
+    const QString requested = templateName.trimmed();
+    const TrackProfileFilters::Filter *filter = routeFilter(fileName, requested, ownShape, profileType);
+    proceduralSource = ProfileSource::Static;
+    proceduralSourceDetail.clear();
+    if(requested.compare("DISABLED", Qt::CaseInsensitive) == 0)
+        proceduralSource = ProfileSource::ObjectDisabled;
+    if(filter != NULL && filter->disabled){
+        proceduralSource = ProfileSource::FilterDisabled;
+        proceduralSourceDetail = filter->description();
+        if(railCant)
+            TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, true);
+        return false;
+    }
     if(railCant && ownShape != NULL){
-        const QString requested = templateName.trimmed();
         const bool plain = !ownShape->tunnelshape
                 && !(ownShape->numpaths > 1 && (ownShape->clearancedist > 0 || ownShape->mainroute >= 0));
         if(requested.compare("DISABLED", Qt::CaseInsensitive) == 0){
             TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, true);
         } else if(requested.isEmpty() && plain){
-            const QVector<OrtsProfileRoll> rolls = Game::trackCantShown()
-                    ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *ownShape)
-                    : QVector<OrtsProfileRoll>();
+            const QVector<OrtsProfileRoll> rolls = pathRollsOf(Game::trackDB, x, -y, UiD, *ownShape,
+                    Game::trackCantShown());
             bool canted = false;
             for(const OrtsProfileRoll &roll : rolls)
                 canted = canted || !roll.empty();
@@ -230,16 +410,34 @@ bool TrackObj::useProceduralShape(){
                 const float gauge = Game::trackDB->cant.route.gauge;
                 const bool defaultFallback = Game::proceduralTracks == ProceduralTracksMode::Forced
                         || ProceduralTrackPolicy::noProfileFallback == NoProfileFallback::DefaultProfile;
-                // The static shape is never loaded for the guess. Where the
-                // route's profiles match by texture names, only its file's
-                // image list is read, once per shape file (decision 14).
-                const QString shapePath = ContentPath::join(resPath, fileName);
-                QSharedPointer<const OrtsTrackProfile> profile = OrtsTrackProfileCatalog::guess(fileName, [&]() {
-                    return OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)
-                            ? SFileComplex::readImageNames(shapePath) : QStringList();
-                }, gauge);
-                if(profile == nullptr && defaultFallback)
-                    profile = OrtsTrackProfileCatalog::defaultTrack(gauge);
+                QSharedPointer<const OrtsTrackProfile> profile;
+                // A filter's family: each path its member (MAIN, or the side
+                // roles for parallel paths).
+                QVector<QSharedPointer<const OrtsTrackProfile>> pathProfiles;
+                ProfileSource source = ProfileSource::Guess;
+                if(filter != NULL){
+                    source = ProfileSource::Filter;
+                    profile = OrtsTrackProfileCatalog::find(filter->profile, profileType);
+                    QVector<float> rotations;
+                    for(int pathIndex = 0; pathIndex < ownShape->numpaths; pathIndex++)
+                        rotations.append(ownShape->path[pathIndex].rotDeg);
+                    pathProfiles = OrtsTrackProfileCatalog::profilesForPaths(
+                            filter->profile, profileType, rotations);
+                } else {
+                    // The static shape is never loaded for the guess. Where
+                    // the route's profiles match by texture names, only its
+                    // file's image list is read, once per shape file
+                    // (decision 14).
+                    const QString shapePath = ContentPath::join(resPath, fileName);
+                    profile = OrtsTrackProfileCatalog::guess(fileName, [&]() {
+                        return OrtsTrackProfileCatalog::guessNeedsImages(gauge, defaultFallback)
+                                ? SFileComplex::readImageNames(shapePath) : QStringList();
+                    }, gauge);
+                    if(profile == nullptr && defaultFallback){
+                        profile = OrtsTrackProfileCatalog::defaultTrack(gauge);
+                        source = ProfileSource::Default;
+                    }
+                }
                 TrackCant::setVisualOff(*Game::trackDB, x, -y, UiD, profile == nullptr
                         || profile->superElevationMethod == OrtsTrackProfile::SuperElevationMethod::None);
                 if(profile == nullptr)
@@ -249,14 +447,26 @@ bool TrackObj::useProceduralShape(){
                         ProceduralPath::bakedObjectTransform(
                             qDirection,
                             Flex::TdbYawFromTrackQuaternion(qDirection));
+                // Tracks task 17: frog pieces and other plain shapes whose
+                // paths share ties, from the family's COMPLEX member (Forced).
+                if(Game::proceduralTracks == ProceduralTracksMode::Forced
+                        && useComplexShape(*profile, profileType, filter, *ownShape, rolls,
+                                pathProfiles.isEmpty() ? NULL : &pathProfiles, routePath, ownTransform)){
+                    proceduralSource = source;
+                    proceduralSourceDetail = filter != NULL ? filter->description() : profile->id;
+                    return true;
+                }
                 QStringList diagnostics;
                 if(OrtsTrackProfileRenderer::generate(
                         *profile, *ownShape, rolls, procShape, routePath, &diagnostics,
                         OrtsTrackProfileRenderer::GeneratedTrackEndOverlap, 0,
-                        &ownTransform, nullptr, UiD) && !procShape.isEmpty()){
+                        &ownTransform, pathProfiles.isEmpty() ? nullptr : &pathProfiles,
+                        UiD) && !procShape.isEmpty()){
                     procShapeOwned = true;
                     proceduralShapeUsesBakedPath = true;
                     proceduralFallback = false;
+                    proceduralSource = source;
+                    proceduralSourceDetail = filter != NULL ? filter->description() : profile->id;
                     return true;
                 }
                 clearProceduralShape();
@@ -266,11 +476,27 @@ bool TrackObj::useProceduralShape(){
         }
     }
 
+    // In Forced a filter's family takes the place of the default one (for
+    // track DefaultTrack; for roads RdProfile, as road DynTracks, task 17's
+    // decision 19).
+    const bool fromFilter = filter != NULL && requested.isEmpty()
+            && Game::proceduralTracks == ProceduralTracksMode::Forced;
     const ProceduralTrackResolution resolution = ProceduralTrackPolicy::resolve(
-            Game::proceduralTracks, templateName, availableTemplates);
+            Game::proceduralTracks, fromFilter ? filter->profile : templateName,
+            availableTemplates,
+            roadShape ? QStringLiteral("RdProfile") : QStringLiteral("DefaultTrack"));
     ProceduralTrackPolicy::warnOnce(resolution);
     if(resolution.backend == ProceduralTrackBackend::Fallback)
         return false;
+    ProfileSource resolvedSource = ProfileSource::Default;
+    QString resolvedDetail = resolution.templateName;
+    if(fromFilter && resolution.templateName.compare(filter->profile, Qt::CaseInsensitive) == 0){
+        resolvedSource = ProfileSource::Filter;
+        resolvedDetail = filter->description();
+    } else if(!requested.isEmpty()
+            && resolution.templateName.compare(requested, Qt::CaseInsensitive) == 0){
+        resolvedSource = ProfileSource::ObjectTemplate;
+    }
     if(Game::trackDB == NULL || Game::trackDB->tsection == NULL
             || Game::trackDB->tsection->shape.find(sectionIdx)
                     == Game::trackDB->tsection->shape.end()
@@ -304,12 +530,22 @@ bool TrackObj::useProceduralShape(){
         QStringList diagnostics;
         // Task tracks 16: each path's superelevation from the track
         // database, where it is shown (rail only).
-        const QVector<OrtsProfileRoll> pathRolls =
-                Game::trackCantShown() && !roadShape && Game::trackDB != NULL
-                ? OrtsProfileRoll::forObject(*Game::trackDB, x, -y, UiD, *tsh)
-                : QVector<OrtsProfileRoll>();
-        if(!pathRolls.isEmpty())
+        // Tracks task 17 step 8: and each path's place on its vector (the
+        // road database's for roads), its repeats in step with it.
+        const bool cantShown = Game::trackCantShown() && !roadShape && Game::trackDB != NULL;
+        const QVector<OrtsProfileRoll> pathRolls = pathRollsOf(roadShape ? Game::roadDB : Game::trackDB,
+                x, -y, UiD, *tsh, cantShown);
+        if(cantShown)
             TrackCant::setPivot(*Game::trackDB, x, -y, UiD, OrtsProfileRoll::pivotOf(*routeProfile));
+        // Tracks task 17: junctions, crossings and frog pieces from the
+        // family's COMPLEX member, with the filter's parts when a filter
+        // gave the family.
+        if(useComplexShape(*routeProfile, profileType, fromFilter ? filter : NULL, *tsh, pathRolls,
+                &pathProfiles, routePath, pathTransform)){
+            proceduralSource = resolvedSource;
+            proceduralSourceDetail = resolvedDetail;
+            return true;
+        }
         if(OrtsTrackProfileRenderer::generate(
                 *routeProfile, *tsh, pathRolls, procShape, routePath,
                 &diagnostics,
@@ -355,6 +591,8 @@ bool TrackObj::useProceduralShape(){
     }
 
     proceduralFallback = false;
+    proceduralSource = resolvedSource;
+    proceduralSourceDetail = resolvedDetail;
     return true;
 }
 
@@ -573,6 +811,44 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
         fillYawOnlyTrackMatrix(qDirection, position, bakedMatrix);
         renderMatrix = bakedMatrix;
     }
+    // Tracks task 17: the shape's complex groups, rigid in shape space, with
+    // the object's whole matrix as a static shape.
+    // Step 9: the junction's moving parts as its set path has them.
+    stepSwitches();
+    if(procedural && complexShared != nullptr && !complexShared->objects.isEmpty()){
+        queue.pushTransform();
+        Mat4::multiply(queue.transform(), queue.transform(), matrix);
+        auto push = [&](const QVector<OglObj*> &objects) {
+            for(OglObj *object : objects)
+                object->pushRenderItem(queue, selectionId,
+                        OrtsTrackProfileRenderer::generatedPartLod(object, matrix, posx, posz));
+        };
+        push(complexShared->objects);
+        for(int s = 0; s < complexShared->switches.size(); s++){
+            const ComplexTrackMeshes::Switch &sw = complexShared->switches[s];
+            const float key = switchKeys.value(s, 0);
+            push(sw.parts[key < 0.5f ? 0 : 1]);
+            if(key <= 0 || key >= 1){
+                if(switchBlend.contains(s)){
+                    qDeleteAll(switchBlend.take(s));
+                    switchBlendKey.remove(s);
+                }
+                push(sw.blades[key >= 1 ? 1 : 0]);
+                continue;
+            }
+            // Moving: the blades a share key of the way, made again when
+            // the key has moved.
+            if(!switchBlend.contains(s) || switchBlendKey.value(s, -1) != key){
+                qDeleteAll(switchBlend.take(s));
+                switchBlend.insert(s, OrtsTrackProfileRenderer::complexObjects(
+                        OrtsTrackProfileRenderer::blendMeshes(sw.meshes.blades[0], sw.meshes.blades[1], key),
+                        Game::root + "/ROUTES/" + Game::route));
+                switchBlendKey.insert(s, key);
+            }
+            push(switchBlend.value(s));
+        }
+        queue.popTransform();
+    }
     Mat4::multiply(queue.transform(),
             queue.transform(), renderMatrix);
     
@@ -591,10 +867,12 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     }*/
     if(!procedural) {
         if(shapePointer != NULL){
-            const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, 0, {lod, position[1] - playerW[1]});
+            // Step 9: a posed junction in its own state.
+            const unsigned int state = hasPoseState ? poseState : 0;
+            const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, state, {lod, position[1] - playerW[1]});
             queue.setLightsShown(drawing.lights);
             if (drawing)
-                shapePointer->pushRenderItem(queue, selectionId, 0);
+                shapePointer->pushRenderItem(queue, selectionId, state);
             queue.setLightsShown(true);
         }
     } else {

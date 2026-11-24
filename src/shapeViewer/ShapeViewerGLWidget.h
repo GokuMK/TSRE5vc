@@ -77,6 +77,16 @@ public:
         float ambient = 0.5f;
     };
     void setLight(const Light &light);
+    // Moves the camera closer than the fitted view by this factor (1: the
+    // whole model in view) when the next model is framed.
+    void setFrameZoom(float zoom) { frameZoom = zoom > 0.0f ? zoom : 1.0f; }
+    // Shows generated objects (procedural track profiles, task tracks 17
+    // and the profile captures) in place of a shape: the view owns them,
+    // each part at its distance-based level of detail, framed as a shape.
+    void showGenerated(const QVector<OglObj*> &objects);
+    // Frames these bounds (maxX, minX, maxY, minY, maxZ, minZ) in place of
+    // the generated objects' (a part of them close up).
+    void setFrameBound(const float *bound);
     void setBackgroundGlColor(float r, float g, float b);
     // Smoke and steam in its view (task shapes 15): the standalone Shape
     // Viewer's main view only (the particles are one system, the main
@@ -291,6 +301,11 @@ private:
     bool cameraInit = false;
     // Near clip distance, scaled with the shown shape so small ones are not clipped.
     float nearPlane = 0.2f;
+    // showGenerated's objects (renderItem 6), their bounds; framing's zoom.
+    QVector<OglObj*> generated;
+    float generatedBound[6] = {0, 0, 0, 0, 0, 0};
+    float frameZoom = 1.0f;
+    void deleteGenerated();
     // This frame's projection (without the camera) and depth planes, which
     // the renderer's screen-space effects need (setSceneProjection).
     float sceneProjection[16] = {};

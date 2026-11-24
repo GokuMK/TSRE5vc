@@ -28,6 +28,8 @@ struct ProceduralTrackResolution {
     ProceduralTrackBackend backend = ProceduralTrackBackend::Fallback;
     QString requestedName;
     QString templateName;
+    // What an object without a template is drawn with in Forced.
+    QString defaultName;
     bool missingRequested = false;
     bool missingDefault = false;
 };
@@ -45,10 +47,14 @@ class ProceduralTrackPolicy {
 public:
     static constexpr NoProfileFallback noProfileFallback = NoProfileFallback::DefaultProfile;
     static ProceduralTracksMode modeFromSetting(const QString &value);
+    // defaultName: what Forced draws an object without a template with
+    // (DefaultTrack for track; tracks task 17, decision 19: RdProfile, as
+    // road DynTracks, for road shapes).
     static ProceduralTrackResolution resolve(
             ProceduralTracksMode mode,
             const QString &requestedName,
-            const QStringList &availableTemplateNames);
+            const QStringList &availableTemplateNames,
+            const QString &defaultName = QStringLiteral("DefaultTrack"));
     static void warnOnce(const ProceduralTrackResolution &resolution);
     static void warnGenerationFailureOnce(const QString &templateName);
 };

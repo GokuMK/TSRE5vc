@@ -47,12 +47,39 @@ std::vector<Found> sectionsBetween(TDB &tdb, int tileX, int tileZ, unsigned int 
     return found;
 }
 
+// Tracks task 17 step 8: where a path starts along its vector: `found` its
+// sections in database order; a path reading them backwards starts at the
+// end of the last.
+void locate(TDB &tdb, const std::vector<Found> &found, OrtsProfileRoll &roll) {
+    if(found.empty() || tdb.tsection == nullptr)
+        return;
+    const bool reversed = found.front().reversed;
+    const Found &first = reversed ? found.back() : found.front();
+    const auto node = tdb.trackNodes.find(first.node);
+    if(node == tdb.trackNodes.end() || node->second == nullptr || first.index >= node->second->iTrv)
+        return;
+    auto length = [&](int index) {
+        const auto section = tdb.tsection->sekcja.find(int(node->second->trVectorSection[index].sectionIndex));
+        return section != tdb.tsection->sekcja.end() && section->second != nullptr
+                ? section->second->getDlugosc() : 0.0f;
+    };
+    double distance = 0;
+    for(int k = 0; k < first.index; k++)
+        distance += length(k);
+    if(reversed)
+        distance += length(first.index);
+    roll.vectorStart = float(distance);
+    roll.vectorDirection = reversed ? -1.0f : 1.0f;
+    roll.inVector = true;
+}
+
 // A path's spans over its sections: `found` its vector sections in
 // database order (read backwards when reversed).
 OrtsProfileRoll spansOf(TDB &tdb, const std::vector<Found> &found, const QVector<float> &lengths) {
     OrtsProfileRoll roll;
     if(found.empty() || int(found.size()) != lengths.size())
         return roll;
+    locate(tdb, found, roll);
     const bool reversed = found.front().reversed;
     float from = 0.0f;
     bool any = false;

@@ -60,6 +60,7 @@ private:
     QComboBox cCollisionType;
     QLineEdit eCollisionFlags;
     QLineEdit eSectionIdx;
+    QLabel profileSourceLabel;
     
     void hideElevBoxes();
     void showElevBox(QString val);
@@ -67,6 +68,7 @@ private:
     float getStepValue(float step);
     void updateTemplateValue();
     void refreshTemplateList();
+    void updateProfileSource();
 };
 
 #endif	/* PROPERTIESTRACKOBJ_H */

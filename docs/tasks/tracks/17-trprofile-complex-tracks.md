@@ -1,8 +1,14 @@
 # Task 17 - TrProfile Complex Tracks
 
-Status: design. Review 2026-11-23; the user's answers the same day are in
-"Decisions" (1-31), no open questions. Nothing is built; building waits
-for the user's go.
+Status: steps 1 to 9 merged into main from `feature/complex-tracks`
+(2026-11-24, the user's go "Let's first merge then"): filters, shape
+analysis, the `COMPLEX` member, ties and beds (beds per track, decision
+40), rails, blades, frogs and check rails, switch drives and indicators,
+buffers by a buffer family, repeats in step with the track and road
+databases, switch state on the shape side. Left: step 10's list; instancing
+of junctions' small parts to be rethought (memory and load time measured
+first). See "Progress". Review and the user's answers (decisions 1-40)
+2026-11-23 and 24.
 
 ## Objective
 
@@ -93,7 +99,7 @@ their file name.
 | 5 overlapping paths (frog pieces) | 75 | 88 | 2,199 (11) | `A1tFrog7_5dLft`, `A2tFrog7_5dLft` | `COMPLEX` |
 | 6 tunnel | 159 | 158 | 0 | `A2t250mStrtTun`, `A1t2000r5dRndTun` | tunnel profiles (track and tube) |
 | 7 bridge | 61 | 67 | 85 (22) | `A1tBrdgEnd`, `A1tBrdg100mStrt` | bridge profiles (rails, guard rails); a few 3D bridges later |
-| 8 buffer | 2 | 5 | 597 (4) | `A1tbuffer-PL_1`, `A1tBuffer` | track profile; the buffer stop mesh later |
+| 8 buffer | 2 | 5 | 597 (4) | `A1tbuffer-PL_1`, `A1tBuffer` | a buffer family by name filter (decision 39, step 7) |
 | 8 level/pedestrian crossing | 5 | 5 | 0 | `A2t10mLvlCrs` | track profiles |
 | 8 scale/water/fuel/derail/dummy | 15 | 13 | 0 | `A1t10mStrtWtr`, `A1tDerail1_5mStrt` | track profiles |
 | 8 turntable/transfer/roundhouse | 9 | 14 | 96 (3) | `A1t30mRoundhouse`, `A1t24mFordito` | skipped for now (static) |
@@ -214,8 +220,9 @@ TrackProfileFilters (
   neither is given. Values, any case: `Rail`, `Tie` (a track's own ties and
   the shared bearers, whichever mesh), `Fastener`, `Bed` (the member's
   polylines), `ConductorRail`, `RackRail` (decision 24), `Other`
-  (anything else, such as a plain `Sweep` per path); later `GuardRail`,
-  `Blade`, `Nose`, `Buffer`. Unknown values are warned
+  (anything else, such as a plain `Sweep` per path), `CheckRail` (phase 2,
+  decision 33), `SwitchDrive`, `SwitchIndicator` (step 7, decision 35);
+  later perhaps `Blade`, `Nose`. Unknown values are warned
   about and ignored. Shapes drawn from `MAIN` or the side roles have no part
   names; there both are ignored with a warning. `ExcludedParts` suits pieces
   whose sleepers another shape lays: parts added later (blades, check
@@ -230,9 +237,16 @@ TrackProfileFilters (
 - `IncludedTrackShapeParts ( ... )` (optional, one per filter, decision
   12): the parts the included shapes give, the same values as
   `IncludedParts`. Default `( Tie Fastener Bed Other )`: no rails,
-  conductor or rack rails, blades or check rails, which stay with the junction object that owns them (its
+  conductor or rack rails, blades, check rails or switch parts, which stay
+  with the junction object that owns them (its
   switch state, later its animation). `IncludedTrackShapeParts ( Rail Tie
-  Fastener Bed )` when one object should draw a whole slip.
+  Fastener Bed )` when one object should draw a whole slip (with
+  `SwitchDrive SwitchIndicator`, its half switches' drives too).
+- `HandOperated ( 1 )` (optional, step 7, decision 38): the matched
+  shapes' switches are operated by hand; they draw the `SwitchDrive`
+  templates marked `HandOperated` instead of the unmarked ones.
+- `SwitchSideFlip ( 1 )` (optional, step 7, decision 36): the matched
+  shapes' switch parts stand on the other side (all of them).
 
 Order for an object (decision 2): its own `ShapeTemplate`, then the
 filters, then Open Rails' guess (last: it cannot be switched off, and it
@@ -317,17 +331,20 @@ TrProfile (
 New `Template3D` generation modes, read only in `COMPLEX` members
 (decision 3):
 
-- `Rail`: the rail section swept along every rail line (each path at
-  ± half the member's `TrackGauge`; decision 20). `Offset`'s x is ignored;
-  y and z are used.
+- `Rail`: the rail section swept along every rail line: each path at
+  ± half the member's `TrackGauge` (the gauge line, decision 20) plus
+  `Offset`'s x outward, the distance from the gauge line to the rail
+  mesh's centre (half the rail head: 0.036 m for 60E1); y and z as given.
 - `Tie`: a sleeper laid by the tie planner (section 5). Its x extent is the
   tie length, its z extent the width used for collisions.
 - `Bearer` (optional): the mesh for shared ties, used when the member has
   one; else the `Tie` mesh is stretched (decision 5).
 - `Fastener`: placed where a rail crosses a tie or bearer, turned with the
-  rail. The 3D sleepers in assets-gen have their clips baked in; a complex
-  member needs the sleeper body and the fastening as separate meshes,
-  because on a bearer the fastenings sit where the rails cross it.
+  rail, centred on the rail's line (the `Rail` part's); `Offset`'s x is
+  ignored, y and z are used. The 3D sleepers in assets-gen have their
+  clips baked in; a complex member needs the sleeper body and the
+  fastening as separate meshes, because on a bearer the fastenings sit
+  where the rails cross it (assets-gen's families have both since step 3).
 - `ConductorRail` (decision 24): a third or fourth rail, its section swept
   along every path at `Offset`'s x (the side: a set with the conductor rail
   on either side gets a family per side, chosen by name filters; 0 for a
@@ -335,11 +352,97 @@ New `Template3D` generation modes, read only in `COMPLEX` members
   (section 7).
 - `RackRail` (decision 24): the rack in the middle of the track, swept or
   repeated along every path at `Offset`'s x (0), cut the same way.
-- Later (phase 2): `GuardRail` (check rail section), and optional `Blade`
-  and `Nose` meshes; without them both come from the rail section.
-- Later: `Buffer`, a buffer stop mesh placed at a path end that is a track
-  database end node (the user: the profile names it). First steps draw
-  buffer shapes as track only.
+- `CheckRail` (phase 2, decision 33): the check rail section, swept
+  opposite every crossing nose; without one the rail section. Later:
+  optional `Blade` and `Nose` meshes; without them both come from the rail
+  section (as now).
+- Buffers need no mode (decision 39): a buffer family's `MAIN` places the
+  stop mesh with `Place` at the path's end, on buffer shapes chosen by a
+  name filter (decision 37; PRUDNIK: `A1tbuffer-PL_1.s` 442
+  objects, `DB/DB30_A1tBuffer.s` 90, `A1tUSBuffer.s` 29, `A1tBuffer.s`
+  24). No automatic placement at track database end nodes. The example:
+  assets-gen's `PL_60E1_Buffer` (step 7).
+- `SwitchDrive` and `SwitchIndicator` (step 7; decisions 35, 36, 38),
+  optional: a family without the mesh draws none; filters turn them off
+  per shape (`ExcludedParts ( SwitchDrive SwitchIndicator )`).
+  - Switches: of the paths starting together (one point, one heading),
+    each one parting from the set's main path (the shape's `MainRoute`,
+    else the first) with a blade between them is a switch with it: plain
+    and Y points one, three-way points two, a slip's half switch one (its
+    paths part by 0.26 m in 10 m: where two paths part by less than a
+    gauge, the blade on each side is the rail of the path the other leaves
+    towards it; phase 2's blades take the same rule). The diverging side:
+    where the other path leaves the main one to. The blades' heel: where a
+    blade's gap from its stock rail reaches `BladeOpening` (the open
+    blade's), the farther of the two: 9.4 m on 7.5° points, 15 m on 4.7°
+    (PRUDNIK's DBTracks: 8.7 and 15 m).
+  - Parts stand on the switch's main path, from its toe: `Offset`'s x is
+    out from the track centre, its sign the default side (+ the diverging
+    side, - the straight), y up, z as in every `Template3D` (-z forward,
+    so -0.6 stands 0.6 m past the toe). The mesh is modelled standing
+    right of the track (its origin where `Offset` puts it); on the left it
+    is turned half round about its origin.
+  - `SwitchDrive`: a static mesh. With `Spacing`, more along the blades
+    every `Spacing` from the first, as long as at least one `Spacing` is
+    left before the heel (decision 36): with `Spacing ( 6 )` one drive on
+    7.5° points, two on 4.7°. The ties under a drive (those its footprint
+    along the switch overlaps; none: the nearest within a tie spacing) are
+    lengthened on its side until they reach under its far edge, as
+    bearers (the `Bearer` mesh where the LOD has one), within
+    `MaxBearerLength` and not onto another tie; the footprints are the
+    drawn drive templates' of the nearest LOD having any.
+  - Hand operation (decision 38): a template marked `HandOperated ( 1 )`
+    is the part the player operates by hand (a hand lever; later perhaps a
+    motor's crank). A filter's `HandOperated ( 1 )` makes the switches it
+    matches hand-operated: they draw the marked drive templates instead of
+    the unmarked ones (the motor); every other switch draws the unmarked
+    ones. `SwitchSideFlip ( 1 )` puts all of a switch's parts on the
+    other side.
+
+    ```text
+    Template3D (
+        GenerationMode ( SwitchDrive )
+        Shape ( "meshes/pl_point_motor.obj" )
+        Offset ( 1.55 0.145 -0.6 )
+        Spacing ( 6 )
+    )
+    Template3D (
+        GenerationMode ( SwitchDrive )
+        Shape ( "meshes/pl_point_lever.obj" )
+        Offset ( 1.5 0.145 -0.6 )
+        HandOperated ( 1 )
+    )
+    Template3D (
+        GenerationMode ( SwitchIndicator )
+        Shape ( "meshes/pl_switch_indicator_main.obj" )
+        Shape ( "meshes/pl_switch_indicator_other.obj" )
+        Offset ( 1.9 0.145 -1.2 )
+    )
+    ```
+
+    Using it belongs to the junction-state task: the walking character's
+    usables (characters task 03: within `Character::UseReach`, a label
+    under the view's mark, E or a click) get their first kind standing in
+    the world, not in a car; using it throws the switch through the
+    simulation, and blades, lever and indicator move. Static MSTS shapes
+    alike by the lever's matrix name (DB: `S1_HEBEL`), as cab controls.
+    Task 17 gives the format and where the marked part stands.
+  - `SwitchIndicator`: one per switch, placed as a drive without
+    `Spacing`. Its `Shape` list follows the switch's routes, main route
+    first; one shape shows no state. Until the junction-state task it
+    shows the main route (the first shape), as the blades do.
+  - Defaults from PRUDNIK's DBTracks (`GLOBAL/SHAPES/DB`, measured
+    2026-11-24): 7.5° and 10° points, blades 8.7 m from the toe: one
+    motor, 0.95 to 2.34 m from the track centre, from the toe to 0.5 m
+    past it; the indicator 1.8 m out, 0.7 to 1.0 m past the toe, its head
+    0.6 to 1.0 m up. `DB2_a1tPnt4_7d*`, blades 15 m: two motors, at the toe
+    and 5 m on, each with rods to both blades. The side varies within the
+    set: `DB30_A1tPnt7_5dLft` has its motor on the straight side,
+    `..._Lft_M2` and `..._Rgt_M2` on the diverging side.
+  - In MSTS shapes the motors are static geometry; blades, the hand lever
+    and the indicator head are animated matrices with the junction's keys
+    (DB's indicator head turns 90° from key 0 to key 1). The junction-state
+    task poses them with the blades.
 
 Stretching (bearers, ballast): vertices with x < 0 follow the left end, x > 0
 the right end, as `GenAdvancedTie` did. `StretchZone ( x0 x1 )` on a
@@ -347,18 +450,26 @@ the right end, as `GenAdvancedTie` did. `StretchZone ( x0 x1 )` on a
 spread, the ones outside keep their distance from their end); default
 `( 0 0 )`. A mesh with a vertex column at x = 0 stretches cleanly.
 
-Polylines in a `COMPLEX` member are the bed: the single track's
-cross-section, stretched across the group in the same way (left half under
-the leftmost track, right half under the rightmost). A polyline wholly on
-one side follows that side's track.
+Polylines in a `COMPLEX` member at or below the rail foot (the `Rail`
+part's `Offset` y) are the bed: the single track's cross-section laid under
+every track, each side reaching to the midpoint between it and its
+neighbour (section 6, decision 40). Higher ones (a tunnel's tube) are
+stretched across the group (left half under the leftmost track, right half
+under the rightmost; a polyline wholly on one side follows that side's
+track).
 
 `ComplexTrack` values: tie spacing and phase as `Repeat`'s; `TieGap` the
 least gap between two tie ends; `MaxBearerLength` the longest shared tie
 before tracks get their own ties; `MaxSharedAngle` the crossing angle above
 which the first track's ties run through instead (section 5; 60° by
 decision 9); `ConductorClearance` the least distance kept between a
-conductor or rack rail and another track's running rails (section 7). Tie
-length and width come from the `Tie` mesh.
+conductor or rack rail and another track's running rails (section 7).
+Phase 2 adds `Flangeway` (0.045), `BladeOpening` (0.16) and
+`CheckRailLength` (4.8). Tie length and width come from the `Tie` mesh.
+
+The `COMPLEX` member is the last in a family file, with its `ObjectType`
+first: Open Rails without the recommended change stops reading a file at
+a `COMPLEX` member (section 10).
 
 Plain track needs no new mode for conductor and rack rails: in `MAIN` and
 the side roles they are ordinary items (a `Sweep` or a `Template3D` at
@@ -368,6 +479,14 @@ LODs: the plan (section 5) is made once per shape; each LOD's items are laid
 on it. A LOD without a `Tie` item draws no ties (far LODs: bed and rails).
 
 Missing `COMPLEX`: complex shapes are swept per path with `MAIN` as today.
+
+Far LODs: the member's polylines are the bed, so rails drawn as polylines
+(the 2.5D far LODs of `MAIN`) would be stretched across the group; a
+`COMPLEX` member's far LOD draws its `Rail` part and the bed (assets-gen's
+families: the simplified rail section, no sleeper strip).
+
+`COMPLEX` members are read from STF profiles only: TSRE's XML profile
+reader has no `Template3D`.
 
 ### 3. Shapes into groups
 
@@ -385,7 +504,11 @@ Geometry first, names never:
 4. Each complex group is drawn from `COMPLEX`.
 
 A shape's kind for the filters: `Single` (one path), `Parallel` (no group),
-`Complex` (at least one group), `Tunnel`, `Road` (flags).
+`Complex` (at least one group), `Tunnel`, `Road` (flags). Filters are
+matched before a profile is chosen, so `Kind` groups with the default tie,
+2.6 m plus 0.1 m (`TrackShapeAnalysis`). A crossing of exactly
+`MaxSharedAngle` stays shared (a thousandth of a degree of rounding
+allowed).
 
 Examples: `A1tPnt7_5dLft` is one group of two; `A2tPnt...` (a switch on one
 of two tracks) is a group of two plus one independent track; the scissors
@@ -434,7 +557,13 @@ ties through below).
    other track's rails are lengthened to carry them, while they stay within
    `MaxBearerLength`. The other paths get their own ties only where they
    collide with none.
-7. Fasteners at every rail/tie crossing, turned with the rail.
+7. Fasteners at every rail/tie crossing, turned with the rail (one where
+   two rails lie on each other).
+8. Past a path's end a cut line may still cross one of its rails: such a
+   rail joins a cluster with whole tracks (points keep their last bearer),
+   but a cluster of such rails alone lays no tie (a stub at a diamond's
+   end; step 4, `tieplan.py` changed alike: 45° diamond 12 to 10 ties, 60°
+   10 to 7, scissors middle 22 to 21).
 
 On real geometry this gives the look of real turnouts: `A1tPnt7_5dLft` all
 bearers (the tracks stay within 1.6 m), `A1tFrog7_5dLft` bearers for its
@@ -494,18 +623,35 @@ overlap.
 
 ### 6. Ballast bed
 
-The group's bed is swept along the reference line: on each cut line, the
-`COMPLEX` polylines stretched from the leftmost to the rightmost track whose
-ballast footprint (a strip of the bed's width, ended by the path's own start
-and end planes) crosses that line. Parts of a path outside the reference
-line's span (before its start plane, past its end plane) get the single
-track's bed, cut at that plane. Bed edges then follow the paths' own ends,
-so the next piece on any path starts where this one stops.
+The group's bed is swept along the reference line, on cross-sections every
+0.5 m and where a track starts or ends (2 mm inside it). Each track's bed
+begins and stops at its own ends, on its own end planes (square to the
+track there, decision 40): the next piece's bed on that track starts on the
+same plane, whatever the two pieces' reference lines (a double-track frog
+piece's angled track meets the half switch or points it continues into).
+Only the track's own part of its end cross-section lies on that plane; what
+is cut at a midpoint between tracks stays on the cross-section, where the
+neighbour's edge is. A track reaching up to 1 m past the reference line's
+ends (the angled tracks of double-track frog pieces start 0.107 m before
+their straights) takes the cross-sections on with it; farther, its own bed
+(below). No track's bed is carried past its end any more (the 0.5 m
+`reachingPlanes` of step 4, which carried a points' diverging track 0.1 m
+on to the straight's end). On each cross-section, every track crossing it
+lays the bed polylines as its own cross-section, each side reaching to the
+midpoint between it and its neighbour there: a polyline crossing the
+midpoint is cut there, one wholly past it pressed onto it at the bed's
+height. With the assets-gen ballast: tracks 1.6 m apart meet at about the
+crib's height, 3.3 m apart at the shoulders (0.12 m), and tracks more than
+4.6 m apart leave open ground between their beds, as plain track side by
+side does. Higher polylines (a tunnel's tube) are stretched from the
+leftmost to the rightmost track. Between two cross-sections each track's
+strip joins the one in its place across (crossing tracks swap places);
+where a track starts or ends there, the same path's. Parts of a path
+outside the reference line's span (before its start plane, past its end
+plane) get the single track's bed, cut at that plane.
 
-In phase 1 a group's bed never splits: XTracks' pieces end while their
-tracks are still close. Later: a split with a V where the gap between beds
-is wide. Steep crossings: two beds; the second cut where it overlaps the
-first (until then they overlap as today).
+Steep crossings: two beds; the second cut where it overlaps the first
+(until then they overlap as today).
 
 ### 7. Rails
 
@@ -534,7 +680,7 @@ Phase 2, rails from the geometry (all of it name-free):
   the gauge by the flangeway, flared ends.
 
 The rail lines are split at these events and every piece is swept with the
-rail section (tapered or cut where needed), or with `GuardRail`, `Blade`,
+rail section (tapered or cut where needed), or with `CheckRail`, `Blade`,
 `Nose` meshes when the profile has them.
 
 Conductor and rack rails (phase 1, decision 24): each path's
@@ -579,7 +725,7 @@ TrProfile format already covers them.
 | --- | --- |
 | Tunnels | tunnel families chosen by name filters (decision 13; the `TunnelShape` flag does not say whether there is a tube): track plus the tube's polylines. Two-track tunnels with the side roles, each drawing its half of the tube |
 | Bridges | most are track without sleepers and ballast, plus guard rails (polylines or `Sweep`): bridge families by name. First steps: bridge ends without the guard rails' curved ends. The few 3D bridges (`A1t70m7Bridge2`) later, with their own profiles |
-| Buffers | the track profile; first steps without the buffer stop mesh (later the profile's `Buffer` part). PRUDNIK: 597 objects |
+| Buffers | a buffer family by name filter: its `MAIN` places the stop with `Place` at `PathEnd` (decision 39, step 7). PRUDNIK: 597 objects |
 | Level and pedestrian crossings, water, fuel, scales, derails | track profiles |
 | Embankments, cuttings, ramps (DBTracks `DB2he`, ...) | track profiles with embankment or cutting polylines, as the `bbb` route's `TrProfile_DB1_emb1`, `_cut2/4/6`, `_ramp1` (decision 17) |
 | Monorails (Schwebebahn `WS`, Lartigue `LM`) | profiles of their own: the beam and supports as polylines and Template3D (decision 17) |
@@ -595,19 +741,38 @@ No Open Rails code in this task (decision 30). The user's Open Rails
 working copy is on another machine (the one here is an agent's clone); a
 change needs a review first, and the mainstream pull request needs tests on
 Windows. The task leaves a document for the Open Rails feature PR team,
-`docs/features/openrails-trprofile-complex.md`, with what Open Rails would
-need; the patch is a follow-up task. What the document covers:
+[`docs/features/openrails-trprofile-complex.md`](../../features/openrails-trprofile-complex.md)
+(written 2026-11-24, after phase 2, decision 32), with what Open Rails
+would need; the patch is a follow-up task.
 
-- Open Rails does not read the filter file; it keeps guessing by
-  `IncludedShapes`. TSRE-only route data, nothing to do.
-- Our Open Rails patch rejects an unknown role: a `COMPLEX` member is
-  skipped with a warning, the file's other members still load. Recommended:
-  read `COMPLEX` as a known role and leave it unused (no warning), and the
-  new `Template3D` generation modes and `ComplexTrack` block with it.
+TSRE shares the TrProfile design with Open Rails, so Open Rails will
+implement complex tracks too, once the feature is finished and tested in
+TSRE; another team's task (decision 34). This task's design sections are
+then the shared specification, and TSRE's code the reference
+implementation. What the document says now:
+
+- Open Rails does not read the filter file yet; it keeps guessing by
+  `IncludedShapes`. Nothing to do before its implementation, which reads
+  the file too, so a route gets the same families in both.
+- Our Open Rails branch (`77d31fbb0`, read, not run) rejects the role
+  `COMPLEX` with a warning, then still reads the member: each new mode
+  warns twice, and the first `LODItem` left without a valid template
+  throws "missing Polylines or Template3D", which ends the whole file's
+  parse. Members before `COMPLEX` load; members after it are lost; 4 to 8
+  warnings per family file. Hence: `COMPLEX` is the last member of a
+  family file (section 2) until Open Rails has the change.
+- Recommended: `COMPLEX` a known role whose `LOD` blocks are skipped
+  unread and which never enters the profile list. Open Rails then needs no
+  knowledge of the new modes, now or later (`SwitchDrive`,
+  `SwitchIndicator`, perhaps `Blade` and `Nose`).
+  `ComplexTrack` and `StretchZone` are already skipped silently by the STF
+  reader.
 - The road centre roles `CENTERLEFT`, `CENTERRIGHT`, `CENTER` (section
-  11) when TSRE has them.
-- Open Rails keeps static shapes for junctions; complex procedural track is
-  TSRE's.
+  11) when TSRE has them; blades from the junction state follow Open
+  Rails' `SwitchTrackShape`.
+- Until its implementation, Open Rails keeps static shapes for junctions.
+  The skip above is its first step: the implementation reads what the
+  skip leaves out.
 
 ### 11. Roads
 
@@ -636,6 +801,62 @@ need; the patch is a follow-up task. What the document covers:
   matches falls back to `RdProfile`, as road DynTracks do; `DefaultTrack`
   stays the rail fallback.
 
+### 12. Repeats in step with the track database (step 8)
+
+The user (2026-11-24): plain track and roads continue their repeating parts
+over the joints between pieces, from the track (road) database, as
+decision 37 noted. Today `Repeat` places at `Phase + n * Spacing` from each
+piece's own start and texture coordinates run from 0 at each piece's start,
+so the sleeper pattern and the ballast or road texture restart at every
+joint.
+
+- Each path of a procedural track or road object (a static object's paths,
+  a DynTrack's one) finds its vector section in the track database (roads:
+  the road database) as superelevation does (`OrtsProfileRoll::forObject`,
+  `forDynTrack`): `s0`, the distance along its vector at the path's start
+  (the lengths of the vector's sections before it). A path running against
+  its vector counts down from the distance at its end.
+- What repeats along the path takes `s0` as its origin: `Repeat`
+  templates (sleepers, insulator posts: the first copy where the vector
+  distance is `Phase + n * Spacing`, so sleepers run on evenly over joints)
+  and texture coordinates that grow with distance (polylines'
+  `DeltaTexCoord`: ballast, road surfaces and markings; `Sweep` with the
+  path-length texture: rails), offset by `s0` modulo the texture's period
+  (float precision on long vectors). Not: `Stretch`, `Place` (path ends,
+  nodes), anything whose texture does not run with distance.
+- A vector restarts at each junction or end node, so the pattern restarts
+  there; junctions (`COMPLEX`) keep their own tie plan. Without a database
+  entry (the Shape Viewer, an object not yet joined): as today.
+- The phase follows the database: moving an object or re-splitting a vector
+  rebuilds its meshes, as superelevation does (task 16's edit rebuild).
+- No format change. Open Rails places per piece; a note in the Open Rails
+  document (a behaviour it can adopt).
+
+### 13. Switch state on the shape side (step 9)
+
+The user (2026-11-24): blades, indicator and hand lever follow the
+switch's state on the shape side, tested with the Shape Viewer's animation
+controls; no simulation wiring yet, but made to take it later.
+
+- A junction track object gets a state: the route set (0 the `MainRoute`,
+  then the others; a three-way point's two switches both follow it) and a
+  pose moving to it over 0.5 s (Open Rails' `SwitchTrackShape`). One call
+  sets it (`setRoute(route, animate)`): the Shape Viewer's controls now,
+  the simulation later through the junction node's object (its UiD in the
+  track database).
+- Static MSTS junction shapes: their animated matrices posed between key
+  0 and key 1 by it (blades, DB's lever and indicator head), as Open Rails
+  does.
+- Procedural junctions: the blades leave the shared mesh for a small
+  per-object piece with both routes' lines (closed and open), its vertices
+  blended by the pose; the `SwitchIndicator` shows its route's `Shape`
+  (main route first, swapped halfway); a `HandOperated` `SwitchDrive` takes
+  a `Shape` per route alike (the lever's positions); motors stay static.
+- Using the hand lever as a walking character (characters' usables, a
+  label and E) comes with the simulation wiring, since it throws the
+  switch through the simulation; step 9 keeps where each marked part
+  stands for it.
+
 ## Steps
 
 Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
@@ -659,21 +880,325 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    turnouts with the 3D families, in a scratch route or in PRUDNIK itself
    with its `TRACKPROFILES` folder compressed first as a backup (decision
    27), and on the 10° family on a test route.
-5. assets-gen (decision 8): the check rail section, tunnel and bridge
-   families, a third rail family, and a new test route with points, frog
-   pieces, a diamond, a wye, a double slip, a tunnel, a bridge and a
-   buffer. Images and reports there. The Open Rails document (section 10)
-   once the format of steps 1-4 is settled.
-6. Phase 2: switch blades, noses, wing rails, check rails, diamonds.
-7. Later: slips' obtuse crossings, blades from the junction state, the
-   buffer stop mesh, bridge guard rails' curved ends, 3D bridges, bed
-   splits, steep crossing beds, turntables, the overhead wire on junctions,
+5. assets-gen (decision 8), the minimum (decision 32): one example family
+   per feature, a tunnel, an open-deck bridge, a third rail; checked in
+   the Shape Viewer capture on tsection shapes (no test route). Images and
+   reports there.
+6. Phase 2: switch blades, noses, wing rails, check rails, diamonds; the
+   assets they need (the check rail section). Then the Open Rails document
+   (section 10) after phase 2 (decision 32). It describes the format as of
+   phase 2; the format is not finished (decision 35).
+7. Switch drives and indicators (decisions 35, 36, 38: `SwitchDrive`
+   with `Spacing` and `HandOperated`, `SwitchIndicator`, the filters'
+   `HandOperated` and `SwitchSideFlip`, ties lengthened under drives),
+   buffers by a buffer family (decision 39); one example of each in
+   assets-gen; viewer captures on 7.5° points, long points, three-way
+   points, a double slip, and PRUDNIK.
+8. Repeats in step with the track and road databases (section 12, the
+   user 2026-11-24): `Repeat` and distance-running texture coordinates
+   from the vector distance at a path's start.
+9. Switch state on the shape side (section 13, the user 2026-11-24):
+   static and procedural junctions posed by a route state, tested in the
+   Shape Viewer; the simulation wiring and the usable lever later.
+10. Later: slips' obtuse crossings, the switch state from the simulation
+   (and the hand lever usable), bridge guard rails'
+   curved ends, 3D bridges (bed splits: done, decision 40), steep
+   crossing beds, turntables, the overhead wire on junctions,
    road junction parts (`ROAD COMPLEX`), the road centre roles, conductor
    rail ramps and rack points, DB-style 3D sleepers for PRUDNIK's
    profiles, an editor for `trackprofiles.dat`. A follow-up task: the Open
-   Rails patch (section 10).
+   Rails patch (section 10). Another team's task: complex tracks in Open
+   Rails, after TSRE has finished and tested them (decision 34).
 
 Each step stops for the user's visual check before the next.
+
+## Progress
+
+| Step | State | Commit (`feature/complex-tracks`) |
+| --- | --- | --- |
+| 1 filter file | checked by the user (2026-11-23) | `0e36300f` |
+| 2 shape analysis | checked by the user (2026-11-23) | `0e36300f` |
+| 3 `COMPLEX` parsing, first profiles | checked by the user (2026-11-23) | `0e36300f`, `eee62168`; assets-gen `b0ab7e5` |
+| 4 phase 1: ties, bearers, fasteners, bed, rails | checked by the user (2026-11-23) | `86274020`, `82a68097`; assets-gen `d8294f8` |
+| 5 one example per feature | built (2026-11-23) | `0c4400bc`; assets-gen `21a9e84` |
+| 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
+| 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
+| 7 switch drives, indicators, buffers | built; waiting for the user's check (2026-11-24) | `ea30b5a9`; assets-gen `35481a3` |
+| 8 repeats in step with the databases | built (2026-11-24) | `f020fe7f`; assets-gen reports `prudnik-vector-phase.jpg` |
+| 9 switch state on the shape side | built (2026-11-24) | `2cb026eb`; assets-gen `2afbd21` |
+| 7 bed review: beds per track, own end planes (decision 40) | built, joints checked with the user (2026-11-24) | `74c306ef`, `2848d513`; assets-gen `46c8366`, `391100d`, `81e78be` |
+
+Steps 1-3 (2026-11-23):
+
+- `TrackProfileFilters` reads `<route>/trackprofiles.dat` with the route's
+  profiles (also on Route > Reload Track Profiles; server clients get the
+  file). `TrackObj`: own template, filters, Open Rails' guess; a filter
+  naming a family the route lacks is warned about once and passed over.
+  Plain track from a filter takes its family's side roles per path.
+  Forced road objects without a template or filter use `RdProfile`
+  (decision 19). The track object's properties show the profile's source.
+- `TrackShapeAnalysis`: the port of `tieplan.py`'s groups and reference
+  lines; path distances by a grid (Build 54's 14,620 shapes in 2.2 s,
+  Release).
+- Parsing: `ObjectType ( TRACK|ROAD COMPLEX )` (`<family>_complex`, never
+  a side role or a selectable subtype), `ComplexTrack`, the part modes,
+  `StretchZone`; the parts are never swept per path. The STF reader moved
+  to `OrtsStf` (with line numbers), shared with the filters.
+- assets-gen: `pl-60e1-ps94-3d` and `pl-49e1-wood-3d` have a `COMPLEX`
+  member: sleeper body and one rail seat's fastening as separate meshes,
+  a uniform concrete bearer (wood: the tie stretched), the bed; existing
+  files unchanged.
+- PRUDNIK in `Forced` (assets-gen `reports/complex-tracks/filters/`,
+  `sheet-filters.jpg`; a link root by `checks/route-root.py`, PRUDNIK
+  itself untouched): without a filter file the points stay static and the
+  frog pieces take the guessed `TrProfile_DB3`; with the DBTracks skins
+  filtered to the 3D families and `Kind ( Complex ) DISABLED` first, every
+  junction stays static and plain track turns 3D; without that line the
+  junctions are drawn per path from the families, ties through each other
+  (step 4's work). Renderer captures now name a picked track object's
+  profile source (`RouteEditorGLWidget::selectionObjectInfo`): the
+  captures' picks read "DISABLED by a filter line 11: ..." and "filter
+  line 15: ...", as the properties panel does.
+- Checks: suites `track-profile-filters` (41), `track-shape-analysis` (22;
+  35 with `--game-root` and `TSRE_TSECTION_REVIEW_CSV`: Build 54's 14,620
+  and PSK's 7,225 shapes all of `review.py`'s kind), `orts-profile` (81),
+  `procedural-policy` (15); ctest 11/11.
+
+Step 4 (2026-11-23, the user's go the same day):
+
+- `ComplexTrackPlan`, the port of `tieplan.py` (equal ties on 12 Build 54
+  shapes): stations, clusters, bearers, hand-over, own ties, steep
+  crossings; fasteners on rail centre lines (half the gauge plus the
+  `Rail` part's offset); rail lines in the reference's path order, where
+  one lies on an earlier drawn one (within a rail head, headings within
+  3°) left out; conductor and rack lines cut (section 7); bed
+  cross-sections every 0.5 m along the reference, a path ending within
+  0.5 m short of the reference's end plane carried to it (points'
+  diverging track ends 0.1 m short), a path's own bed outside the
+  reference's span, steep crossings a bed per path. Line hits include a
+  line's last point.
+- `OrtsTrackProfileRenderer::buildComplexMeshes`: frames built as the
+  renderer's static paths (x mirrored), so the existing vertex transforms
+  (winding, normals, texture coordinates) apply; ties and bearers
+  stretched by `StretchZone`; the `Rail` and conductor meshes swept as
+  `Sweep`; each LOD's items. Other `Template3D` modes in a `COMPLEX`
+  member are not drawn on junctions yet.
+- `ComplexTrackCache`: one set per (shape, member, catalog load, filter),
+  held by the objects drawing it. `TrackObj`: a complex shape whose family
+  has a `COMPLEX` member draws its groups with the object's whole matrix,
+  its independent paths per object as plain track; in `Forced` also frog
+  pieces from the guess (decision 29), and any junction drawn from a
+  template.
+- The Shape Viewer capture draws profiles (ported by hand from the unmerged
+  `feature/profile-capture`, `e890a4c5`, onto main's viewer: generated
+  objects, framing, zoom, background; main's pitch replaces the branch's
+  tilt and turns about the track's own axis, so views from above take a
+  negative pitch at yaw 0) and, new, any tsection shape: `"track":
+  "tsection"`, `"shape"`, `"filter"` (a filter's values). assets-gen
+  `checks/complex-tracks.json`.
+- Checked (assets-gen `reports/complex-tracks/step4/`): the viewer's
+  junctions from above and close; PRUDNIK in `Forced` with
+  `trackprofiles-prudnik-step4.dat` (the families, the slip filters of
+  section 5a): bearers through the points, frog pieces shared then own
+  ties, one bed across the piece joins (a 0.5 m wedge before the bed fix),
+  its double slips tied by the diamond. Not yet: switch blades, noses,
+  check rails (phase 2, step 6), the far LOD's sleeper look, instancing.
+- Timing (Release, `TSRE_COMPLEX_PROFILE` with the suite's PSK run): the
+  72 complex shapes PRUDNIK uses (7,797 objects) with `PL_49E1_Wood_3D`:
+  plans 683 ms, meshes 515 ms in all, once per shape; vertex data 210 MB
+  over three LODs (the wood family's fastening is 270 vertices a rail
+  seat). Later: ties and fastenings instanced (the renderer's `Shared`
+  geometry).
+
+Step 5 (2026-11-23):
+
+- assets-gen examples (`tools/assetlib/structures.py`, `track/pl-60e1-tunnel`,
+  `pl-60e1-bridge-open`, `pl-60e1-third-rail`): the 3D concrete track in a
+  lined tube, `MAIN` and `COMPLEX` (the tube is a polyline, so over a
+  junction it stretches across the tracks like the bed: one wide tube over
+  a wye); an open-deck bridge (timbers, guard rails, plate girders, no
+  ballast, `MAIN` only); the 3D track with a conductor rail on the right
+  (`MAIN` Sweep and insulators, `COMPLEX` `ConductorRail` part). The 3D
+  track's builder shared (`track.track_3d`); the existing families
+  unchanged.
+- Conductor and rack rails also cut where they run closer than
+  `ConductorClearance` beside an earlier one (not only across it), pieces
+  under 2 m left out: on points the diverging track's third rail no longer
+  shows a short piece beside the straight's.
+- Checked in the Shape Viewer capture (assets-gen
+  `checks/complex-examples.json`, `reports/complex-tracks/step5/`).
+
+Step 6, phase 2 (2026-11-23, the user's go the same day):
+
+- `ComplexTrackPlan` makes rail pieces (`RailPiece`: plain, blade, wing,
+  check rail) from the rail lines:
+  - Switches (two paths of a group starting together): of each pair of
+    rails lying on each other at the toe, the one that ends between the
+    tracks' centres is the blade, the other the stock rail, drawn whole.
+    A blade lies beside its stock rail up to where they are a head apart,
+    its section narrowed from 20 % at the tip; the main route's blades
+    (the shape's `MainRoute`, else the first path) closed, the others
+    open by `BladeOpening` (0.16 m) at the tip.
+  - Crossings of two paths' drawn rails, 3° or more: a common crossing
+    when the acute sector's gauge faces both look out (the nose) or both
+    in (the throat). The nose's legs start where their heads touch; the
+    rails from the throat stop at the knuckle, a head and `Flangeway`
+    (0.045 m) from the other leg, and go on as wing rails beside it to
+    1.5 m past the nose tip, flared 8 cm. A check rail opposite the nose
+    on the other rail of each track, inside by a head and the flangeway,
+    `CheckRailLength` (4.8 m) centred on the nose's first half, flared at
+    both ends. Otherwise an obtuse crossing (a diamond's middle, a
+    K-crossing): the two half-rails whose gauge faces both look out of
+    their obtuse sector stay whole and meet at the crossing as a bent
+    knuckle rail; the other two are point rails, starting where they are a
+    flangeway from the knuckle (0.68 m from the crossing at 7.5°),
+    narrowed from 20 % at the tip to the full section a head and a
+    flangeway from it (first a plain gap of 1.2 m: the user's report). Both
+    rails of each track have their gap at the same place, so a check rail
+    opposite cannot guide: a bent check knuckle runs along both point rails
+    on their gauge side, a head and a flangeway off, its legs half
+    `CheckRailLength` each from where they meet, flared ends (as fixed
+    K-crossings are built: a running knuckle, two point rails, a check
+    knuckle).
+  - Rails lying on each other elsewhere (dual gauge) still drawn once.
+- `ComplexTrack` takes `Flangeway`, `BladeOpening`, `CheckRailLength`;
+  the `CheckRail` part and filter part name. assets-gen: the concrete
+  family's `COMPLEX` member has a UIC33-like check rail on chairs 3 cm
+  above the running rails (the one example; the wood family sweeps its
+  rail section).
+- Shape Viewer capture: `"focus": [x, z, radius]` frames part of a shape.
+  Checked (assets-gen `checks/complex-phase2.json`): 7.5° points (blades,
+  the frog, check rails), the 7.5° diamond (frogs at its ends, the middle
+  gaps), the scissors, 10° points.
+- Three-way points (`A1t3WayPnt10dMnl`, checked 2026-11-24): four blades,
+  two a side, the outer rails stock rails; the second blade of a side lies
+  open beside the first rather than its stock rail (alike when open); the
+  frogs where the diverging tracks cross the straight and each other.
+- Not yet: ends of cut
+  rails show the meshes' open insides (dark squares: end faces later);
+  wing and check rails reach past a shape's end into the next piece (as
+  on real track) without the next piece knowing; blades from the junction's state (a task of its own, for static
+  and procedural junctions alike: MSTS junction shapes carry their blades
+  on animated matrices, which Open Rails' `SwitchTrackShape` poses by
+  the junction's route, key 0 on `MainRoute`, 1 off it, over half a
+  second; TSRE draws them at key 0. It needs the simulation's switch
+  positions sent to the views, static shapes posed by them, and the
+  procedural blades as a per-object piece); `Blade`/`Nose` meshes.
+
+Step 7 (2026-11-24, the user's go the same day):
+
+- `ComplexTrackPlan` finds the switches (`Switch`: main and other path,
+  diverging side, blade length) and places their parts
+  (`switchPlacements`, `switchSide`); the ties under drives are
+  lengthened (section 2). Where two paths starting together part by less
+  than a gauge (a slip's half switch), the blade is found by the side the
+  other path leaves towards: phase 2's blades now draw on slip halves too
+  (before, both rails ran plain there).
+- `SwitchDrive` and `SwitchIndicator` read in `COMPLEX` members;
+  `HandOperated` on `SwitchDrive` only; a drive's `Spacing` below 0 is one
+  drive. Filters: `HandOperated ( 1 )`, `SwitchSideFlip ( 1 )` (shown in
+  the object's properties with the filter), the part names; included
+  shapes give no switch parts by default.
+- assets-gen (one example each): the concrete family's `COMPLEX` member
+  has a point motor (1.1 m long, its rods in the crib between the first
+  two ties; a second one 6 m on where the blades are long enough), a hand
+  lever with a counterweight (`HandOperated`) and an indicator in two
+  states (a white bar lying, standing), on one atlas
+  (`pl_track_hardware.ace`); the tunnel and third-rail examples carry
+  them too. A buffer family, `PL_60E1_Buffer`: the 3D track whose `MAIN`
+  places a buffer stop of old rails, its sleepers and a short bed with
+  `Place` at `PathEnd` (decision 39).
+- Checked in the Shape Viewer capture (assets-gen
+  `checks/complex-switch-parts.json`, OR_PSK_NEW's tsection.dat): 7.5°
+  points (motor, hand lever, side flipped, parts excluded), 4.7° points
+  (two motors 6 m apart), three-way points (two switches, a motor each
+  side), the 7.5° double slip with its half switches' drives, the buffer
+  stop; and on PRUDNIK in `Forced`
+  (`reports/complex-tracks/step7/trackprofiles-prudnik-step7.dat`: plain
+  DB points flipped, `_M2` not, buffers to the buffer family).
+- Not yet: the parts' state (indicator, lever) and using the lever (the
+  junction-state task); the motor can sink into terrain higher than the
+  bed's shoulder (the route's terrain, as with DBTracks' own motors).
+
+Bed review (2026-11-24, decision 40): the user found the bed of PRUDNIK's
+scissors middle one big rectangle that does not fit the switches. Beds are
+now laid per track (section 6) with cross-sections at the tracks' ends; the
+gaps at the scissors' joints (terrain through up to 0.47 m of missing bed)
+are gone. Tests in track-shape-analysis (the scissors' straights' bed from
+0 to 12.865 m; open ground between tracks 5 m apart; tracks 2.4 m apart
+meeting at the crib's height). From above the scissors middle is still one
+band: its crossing tracks fill the space between the straights.
+
+Then, on PRUDNIK's double-track frog pieces (`DB/DB3f_A2tFrog7_5dLft/Rgt`,
+the user the same day): the angled track's bed was cut square to the
+straights and 0.107 m short at each end, so a strip of terrain showed at
+both joints. Each track's bed now ends on its own end planes and reaches
+its ends (section 6); the joints meet the double slip's half switch and the
+points (assets-gen `reports/complex-tracks/step7/a2tfrog-joints.jpg`). A
+faint seam remains where two pieces' beds overlap, with a small flickering
+patch in one spot; in the Shape Viewer alone a few centimetres stay open
+between a points' straight and its diverging track's angled end, which the
+next piece covers. Tests: the points' diverging bed ends at its own end,
+square to it; the scissors' crossing tracks' beds from end to end, square
+to them.
+
+Step 8 (2026-11-24, the user's go the same day):
+
+- `OrtsProfileRoll` keeps where its path starts along its vector
+  (`vectorStart`, `vectorDirection`, `inVector`), found with the sections
+  superelevation already looks up; static objects and DynTracks look it up
+  whenever they are procedural, roads in the road database (its object
+  index built at load like the track database's; road objects on an
+  edited road vector rebuilt, as superelevation rebuilds track objects).
+- `Repeat` copies on a vector stand where the vector distance is
+  `Phase + n * Spacing`, from the path's start up to (not at) its end: a
+  copy at a joint is the next piece's alone (1 mm either way taken as the
+  joint). Polylines' `DeltaTexCoord` and a `Sweep`'s path-length texture
+  count from the vector distance (its whole texture periods dropped), a
+  path running against its vector counting down. Without a vector entry
+  (the Shape Viewer, junctions' own pieces) as before.
+- Tests (orts-profile): without a vector or on its first piece as before;
+  the next piece runs on evenly over the joint; a piece against its
+  vector at the same places; a copy at a joint drawn once; the texture
+  runs on over joints. On PRUDNIK two 12.86 m pieces (UiD 7263, 7269)
+  crowded their sleepers at the joint before and run on evenly now; its
+  roads' dashes follow the road vector.
+
+Step 9 (2026-11-24, the user's go the same day):
+
+- `TrackObj::setSwitchRoute(path, animate)`: the path a junction object
+  is set to (-1 its `MainRoute`), moved to over 0.5 s
+  (`SwitchMoveSeconds`, Open Rails' `SwitchTrackShape`). A static junction
+  shape gets a state of its own (`ComplexShape::newState`) once off key 0
+  and poses its keyed parts at the key's frame (key 0 on `MainRoute`, 1
+  otherwise): blades, DB's levers and indicator heads. A procedural one
+  draws its switches' moving parts for their routes: a switch (plan's
+  `switches`) shows route 1 when its other path is set, else route 0 (a
+  three-way point: each side's switch by the path set).
+- The plan keeps each blade's line for the other route (`RailPiece::
+  otherLine`, closed and open swapped) and its switch. The renderer lays
+  the fixed parts as before (`ComplexSelection` `Fixed`) and, per switch
+  and route, the blades and the parts shown per route (`buildSwitchMeshes`:
+  the indicator's and a hand lever's `Shape` for that route; one `Shape`:
+  the same); shared per shape in `ComplexTrackMeshes::switches`. While a
+  switch moves, its object blends the two routes' blades
+  (`blendMeshes`, as many vertices in both) each frame; indicator and
+  lever change halfway.
+- Captures: a viewer item's `switchRoute` (a path) and `switchPose` (0 to
+  1); a route view's `switchesOther` (every junction in the loaded tiles to
+  another path at once, or back). The simulation wiring and the usable
+  lever later.
+- assets-gen: the hand lever has its thrown pose as its second `Shape`
+  (`pl_point_lever_other.obj`).
+- Tests (track-shape-analysis 67): the other route's blade lines swapped
+  at the tips (0.043 and 0.203 m from the stock rail); both routes' blades
+  with as many vertices, different, halfway at 0.5; the indicator's second
+  `Shape` on the other route. Captures: 7.5° points on the main route, a
+  quarter, half way and on the other route, the indicator, a hand lever,
+  the three-way point's two sides (assets-gen `checks/complex-switch-state.json`);
+  PRUDNIK in `Forced` and with its static DBTracks junctions, on their main
+  route and thrown (the static shapes' blades and indicator heads move a
+  few centimetres).
 
 ## Acceptance
 
@@ -698,7 +1223,7 @@ Each step stops for the user's visual check before the next.
    cannot be skipped). A route that wants the guess leaves those shapes out
    of its filters; a catch-all filter turns the guess off.
 3. New `GenerationMode` values (`Rail`, `Tie`, `Bearer`, `Fastener`, later
-   `GuardRail`).
+   `GuardRail`; named `CheckRail` by decision 33).
 4. Where tracks diverge: shared bearers while they are close, then each
    track its own ties square to itself (the prototype's rule, way a of
    three shown). Later perhaps a choice in `trackprofiles.dat`: ties never
@@ -778,6 +1303,84 @@ Each step stops for the user's visual check before the next.
     recommendations for the Open Rails feature PR team; the patch is a
     follow-up task (a review first; the mainstream PR needs Windows tests).
 31. `trackprofiles.dat` is edited by hand for now.
+
+32. Step 5 kept to the minimum (the user, 2026-11-23): one example family
+    per feature (tunnel, bridge, third rail), no assets for phase 2 before
+    it (designing them now would be redone), and the Open Rails document
+    only after phase 2, which may still find the format lacking. The test
+    route was dropped as well (the Shape Viewer capture draws any tsection
+    shape; PRUDNIK covers placed objects); say if one is wanted.
+
+33. The phase-2 part is `CheckRail` (opposite crossing noses, placed by the
+    crossing's geometry); `GuardRail` stays the name for bridge guard
+    rails, which run the whole path (ordinary profile items on plain
+    track; a `COMPLEX` part, cut like conductor rails, only if a bridge
+    family ever needs one). The user: one name if they were the same,
+    two as they differ (2026-11-23). One example asset: the concrete
+    family's check rail.
+34. Open Rails implements complex tracks too (the user, 2026-11-24: the
+    TrProfile design is shared with Open Rails), once the feature is
+    finished and tested in TSRE. Another team's task. The design sections
+    here are the shared specification and TSRE's code the reference
+    implementation; porting notes are added to the Open Rails document
+    when the feature is finished (decision 32's rule: no external docs
+    before the format is settled).
+35. The format is not finished (the user, 2026-11-24): switch motors and
+    switch indicators are needed as optional `COMPLEX` parts (section 2).
+    A motor is a static mesh placed with an offset; short switches have
+    one, longer ones two or three. The user fine-tunes offsets in the
+    template; defaults from PRUDNIK's shapes. Drawn wherever the family has
+    them; filters turn them off. No further parts imagined ahead of need;
+    `Buffer` is the one already needed. Design only; built on the user's
+    go.
+36. Decision 35's proposals taken (the user, 2026-11-24, "Recommendations
+    ok"):
+    - The motor's side: the sign of the family's `Offset` x gives the
+      default (+ the diverging side); a filter flips it for the shapes it
+      matches (DBTracks has both within one set: plain on the straight
+      side, `_M2` on the diverging side).
+    - Ties under the motor: the planner lengthens the ties under the motor
+      mesh's footprint on its side, as bearers are stretched (DB's 7.5°
+      points reach out under the motor alike).
+    - Drive count: `Spacing` along the blades from the first drive, as many
+      as fit with at least one `Spacing` left before the blades' heel.
+37. Buffers by name filter (the user, 2026-11-24): a filter matching buffer
+    shapes is enough; no automatic buffer at a path end that is a track
+    database end node. That may come later in plain track generation,
+    which reads the track database anyway (superelevation, task 16), as
+    may the tie phase from the track database: each piece's first tie at
+    the vector's distance at the piece's start modulo the spacing, so ties
+    run on evenly over the joints between pieces. Not implemented (checked
+    2026-11-24): `Repeat` places at `Phase + n * Spacing` from each piece's
+    own start, for static track objects and DynTracks alike, so the pattern
+    restarts at every joint. The data is at hand: `OrtsProfileRoll::forObject`
+    already finds each object's vector sections (node, index, reversed).
+38. Hand operation (the user, 2026-11-24): the part says it is operated by
+    hand, so a walking player gets a label on it, as on cab controls. The
+    drive part is `SwitchDrive`; a template marked `HandOperated ( 1 )` is
+    the hand-operated part, and a filter's `HandOperated ( 1 )` makes its
+    switches hand-operated (section 2). The label and the throwing come
+    with the junction-state task.
+39. Buffers (the user, 2026-11-24): nothing new in the format. A buffer
+    family's `MAIN` draws the track plus the stop mesh with the existing
+    `Place` mode at `PathEnd` (or `PathStart`, whichever end the shape's
+    stop is at); a name filter picks it for the buffer shapes. Open Rails
+    draws it today. Not a `Buffer` part (section 2's earlier plan).
+
+40. Beds per track (the user's review, 2026-11-24, of PRUDNIK's scissors
+    middle `DB/DB3f_A2tFrog7_5dDbl.s`: "one big rectangle" that does not
+    fit the switches; "build and show" the same day): a group's bed is no
+    longer one cross-section stretched from the leftmost to the rightmost
+    track but each track's own up to the midpoint between neighbours
+    (section 6), and cross-sections fall where tracks start and end (the
+    0.5 m grid alone began and ended a track's bed up to 0.5 m from its
+    ends: the terrain showed through at joints as dark wedges). Then (the
+    user, the same day, on PRUDNIK's double-track frog pieces: "ballast of
+    the middle angled track isn't angled at the ends and doesn't meet the
+    switch, small gap is visible"): each track's bed ends on its own end
+    planes, and a track reaching up to 1 m past the piece's span keeps its
+    bed to its end (the angled track lost 0.107 m at each end). Built;
+    waiting for the user's look.
 
 ## Open questions
 

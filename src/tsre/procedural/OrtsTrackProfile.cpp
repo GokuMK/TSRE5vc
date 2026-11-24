@@ -5,6 +5,8 @@
  */
 
 #include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsStf.h>
+#include <tsre/procedural/TrackProfileFilters.h>
 
 #include <QDebug>
 #include <QDir>
@@ -80,113 +82,20 @@ QVector<float> factorValues(QStringList tokens) {
 
 namespace {
 
-struct StfNode {
-    QString name;
-    QStringList values;
-    QVector<StfNode> children;
-};
+// The STF reader is shared with the route's track profile filters (tracks
+// task 17).
+using StfNode = OrtsStf::Node;
+using OrtsStf::child;
+using OrtsStf::children;
+using OrtsStf::firstValue;
 
 QStringList tokenizeStf(const QString &text, QStringList &diagnostics) {
-    QStringList tokens;
-    int i = 0;
-    while(i < text.size()){
-        const QChar c = text[i];
-        if(c.isSpace()){
-            i++;
-            continue;
-        }
-        if(c == '/' && i + 1 < text.size() && text[i + 1] == '/'){
-            while(i < text.size() && text[i] != '\n')
-                i++;
-            continue;
-        }
-        if(c == '#'){
-            while(i < text.size() && text[i] != '\n')
-                i++;
-            continue;
-        }
-        if(c == '(' || c == ')'){
-            tokens.append(QString(c));
-            i++;
-            continue;
-        }
-        if(c == '"'){
-            QString value;
-            i++;
-            while(i < text.size() && text[i] != '"'){
-                if(text[i] == '\\' && i + 1 < text.size()){
-                    i++;
-                    value.append(text[i++]);
-                } else {
-                    value.append(text[i++]);
-                }
-            }
-            if(i >= text.size())
-                diagnostics.append("Unterminated quoted string");
-            else
-                i++;
-            tokens.append(value);
-            continue;
-        }
-        const int start = i;
-        while(i < text.size() && !text[i].isSpace()
-                && text[i] != '(' && text[i] != ')')
-            i++;
-        tokens.append(text.mid(start, i - start));
-    }
-    return tokens;
+    return OrtsStf::tokenize(text, diagnostics);
 }
 
 bool parseStfNode(const QStringList &tokens, int &index, const QString &name,
         StfNode &node, QStringList &diagnostics) {
-    node.name = name;
-    if(index >= tokens.size() || tokens[index] != "("){
-        diagnostics.append("Expected '(' after " + name);
-        return false;
-    }
-    index++;
-    while(index < tokens.size() && tokens[index] != ")"){
-        const QString token = tokens[index++];
-        if(index < tokens.size() && tokens[index] == "("){
-            StfNode child;
-            if(!parseStfNode(tokens, index, token, child, diagnostics))
-                return false;
-            node.children.append(child);
-        } else {
-            node.values.append(token);
-        }
-    }
-    if(index >= tokens.size()){
-        diagnostics.append("Unclosed block " + name);
-        return false;
-    }
-    index++;
-    return true;
-}
-
-const StfNode *child(const StfNode &node, const QString &name) {
-    for(const StfNode &candidate : node.children){
-        if(candidate.name.compare(name, Qt::CaseInsensitive) == 0)
-            return &candidate;
-    }
-    return nullptr;
-}
-
-QVector<const StfNode*> children(const StfNode &node, const QString &name) {
-    QVector<const StfNode*> result;
-    for(const StfNode &candidate : node.children){
-        if(candidate.name.compare(name, Qt::CaseInsensitive) == 0)
-            result.append(&candidate);
-    }
-    return result;
-}
-
-QString firstValue(const StfNode &node, const QString &name,
-        const QString &fallback = QString()) {
-    const StfNode *valueNode = child(node, name);
-    if(valueNode == nullptr || valueNode->values.isEmpty())
-        return fallback;
-    return valueNode->values.first();
+    return OrtsStf::parseNode(tokens, index, name, node, diagnostics);
 }
 
 float numberValue(QString value, bool *ok = nullptr) {
@@ -205,6 +114,57 @@ float floatValue(const StfNode &node, const QString &name, float fallback) {
     bool ok = false;
     const float result = numberValue(firstValue(node, name), &ok);
     return ok ? result : fallback;
+}
+
+// An angle in degrees (a unit may follow: "60deg", "1.05rad").
+float degreesValue(const StfNode &node, const QString &name, float fallback) {
+    double radians = 0.0;
+    Units::FileNumber read;
+    if(!Units::fromFileToken(firstValue(node, name), Units::Quantity::Angle, radians, u"deg", &read)
+            || !read.whole || !read.unitKnown)
+        return fallback;
+    return float(radians * 180.0 / 3.14159265358979323846);
+}
+
+// Tracks task 17: a COMPLEX member's ComplexTrack block; values out of
+// range keep their defaults, with a word.
+void readComplexTrack(const StfNode &node, OrtsProfileComplexTrack &complexTrack,
+        QStringList &diagnostics) {
+    const OrtsProfileComplexTrack defaults;
+    complexTrack.tieSpacing = floatValue(node, "TieSpacing", defaults.tieSpacing);
+    complexTrack.tiePhase = floatValue(node, "TiePhase", defaults.tiePhase);
+    complexTrack.tieGap = floatValue(node, "TieGap", defaults.tieGap);
+    complexTrack.maxBearerLength = floatValue(node, "MaxBearerLength", defaults.maxBearerLength);
+    complexTrack.maxSharedAngle = degreesValue(node, "MaxSharedAngle", defaults.maxSharedAngle);
+    complexTrack.conductorClearance = floatValue(node, "ConductorClearance", defaults.conductorClearance);
+    complexTrack.flangeway = floatValue(node, "Flangeway", defaults.flangeway);
+    complexTrack.bladeOpening = floatValue(node, "BladeOpening", defaults.bladeOpening);
+    complexTrack.checkRailLength = floatValue(node, "CheckRailLength", defaults.checkRailLength);
+    auto keep = [&](float &value, float fallback, bool ok, const char *name) {
+        if(ok)
+            return;
+        diagnostics.append(QString("ComplexTrack %1 out of range; %2 used").arg(name).arg(fallback));
+        value = fallback;
+    };
+    keep(complexTrack.tieSpacing, defaults.tieSpacing, complexTrack.tieSpacing > 0, "TieSpacing");
+    keep(complexTrack.tieGap, defaults.tieGap, complexTrack.tieGap >= 0, "TieGap");
+    keep(complexTrack.maxBearerLength, defaults.maxBearerLength,
+            complexTrack.maxBearerLength > 0, "MaxBearerLength");
+    keep(complexTrack.maxSharedAngle, defaults.maxSharedAngle,
+            complexTrack.maxSharedAngle > 0 && complexTrack.maxSharedAngle <= 90, "MaxSharedAngle");
+    keep(complexTrack.conductorClearance, defaults.conductorClearance,
+            complexTrack.conductorClearance >= 0, "ConductorClearance");
+    keep(complexTrack.flangeway, defaults.flangeway, complexTrack.flangeway > 0, "Flangeway");
+    keep(complexTrack.bladeOpening, defaults.bladeOpening, complexTrack.bladeOpening >= 0, "BladeOpening");
+    keep(complexTrack.checkRailLength, defaults.checkRailLength,
+            complexTrack.checkRailLength > 0, "CheckRailLength");
+    for(const StfNode &item : node.children){
+        static const QStringList known = {"TieSpacing", "TiePhase", "TieGap",
+            "MaxBearerLength", "MaxSharedAngle", "ConductorClearance",
+            "Flangeway", "BladeOpening", "CheckRailLength"};
+        if(!known.contains(item.name, Qt::CaseInsensitive))
+            diagnostics.append("ComplexTrack: unknown value " + item.name + " ignored");
+    }
 }
 
 int intValue(const StfNode &node, const QString &name, int fallback) {
@@ -230,6 +190,8 @@ QString profileRoleSuffix(OrtsTrackProfile::ObjectRole role) {
             return "_middle";
         case OrtsTrackProfile::ObjectRole::Right:
             return "_right";
+        case OrtsTrackProfile::ObjectRole::Complex:
+            return "_complex";
         case OrtsTrackProfile::ObjectRole::Main:
         default:
             return QString();
@@ -294,6 +256,8 @@ bool parseObjectTypeValues(const QStringList &values,
             profile.objectRole = OrtsTrackProfile::ObjectRole::Middle;
         else if(role.compare("RIGHT", Qt::CaseInsensitive) == 0)
             profile.objectRole = OrtsTrackProfile::ObjectRole::Right;
+        else if(role.compare("COMPLEX", Qt::CaseInsensitive) == 0)
+            profile.objectRole = OrtsTrackProfile::ObjectRole::Complex;
         else {
             profile.diagnostics.append("Invalid ObjectType role: " + role);
             return false;
@@ -359,6 +323,25 @@ OrtsProfileTemplate3D::GenerationMode generationMode(const QString &value,
         return OrtsProfileTemplate3D::GenerationMode::Repeat;
     if(value.compare("Place", Qt::CaseInsensitive) == 0)
         return OrtsProfileTemplate3D::GenerationMode::Place;
+    // Tracks task 17: COMPLEX members' parts.
+    if(value.compare("Rail", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Rail;
+    if(value.compare("Tie", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Tie;
+    if(value.compare("Bearer", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Bearer;
+    if(value.compare("Fastener", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::Fastener;
+    if(value.compare("ConductorRail", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::ConductorRail;
+    if(value.compare("RackRail", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::RackRail;
+    if(value.compare("CheckRail", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::CheckRail;
+    if(value.compare("SwitchDrive", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::SwitchDrive;
+    if(value.compare("SwitchIndicator", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::SwitchIndicator;
     valid = false;
     return OrtsProfileTemplate3D::GenerationMode::Sweep;
 }
@@ -570,6 +553,13 @@ QSharedPointer<OrtsTrackProfile> profileFromStfNode(
     profile->trackGauge = floatValue(root, "TrackGauge", 1.435f);
     profile->superElevationMethod = elevationMethod(
             firstValue(root, "SuperElevationMethod", "Outside"));
+    const bool complexMember = profile->objectRole == OrtsTrackProfile::ObjectRole::Complex;
+    if(const StfNode *complexNode = child(root, "ComplexTrack")){
+        if(complexMember)
+            readComplexTrack(*complexNode, profile->complexTrack, profile->diagnostics);
+        else
+            profile->diagnostics.append("ComplexTrack is read only in a COMPLEX member; ignored");
+    }
 
     for(const StfNode *lodNode : children(root, "LOD")){
         OrtsProfileLod lod;
@@ -656,6 +646,50 @@ QSharedPointer<OrtsTrackProfile> profileFromStfNode(
                 for(const StfNode *placementNode
                         : children(*meshNode, "Placement"))
                     appendPlacements(*placementNode, mesh);
+                // Tracks task 17: the parts are read only in COMPLEX
+                // members, StretchZone only on ties and bearers.
+                if(modeValid && mesh.complexPart() && !complexMember){
+                    profile->diagnostics.append("GenerationMode "
+                            + firstValue(*meshNode, "GenerationMode")
+                            + " is read only in a COMPLEX member; Template3D ignored in LODItem: "
+                            + item.name);
+                    continue;
+                }
+                if(const StfNode *zoneNode = child(*meshNode, "StretchZone")){
+                    const bool tie = mesh.generationMode == OrtsProfileTemplate3D::GenerationMode::Tie
+                            || mesh.generationMode == OrtsProfileTemplate3D::GenerationMode::Bearer;
+                    bool zoneValid = tie && zoneNode->values.size() == 2;
+                    float zone[2] = {0, 0};
+                    for(int i = 0; zoneValid && i < 2; i++)
+                        zone[i] = numberValue(zoneNode->values[i], &zoneValid);
+                    if(zoneValid && zone[0] <= zone[1]){
+                        mesh.stretchZone[0] = zone[0];
+                        mesh.stretchZone[1] = zone[1];
+                    } else {
+                        profile->diagnostics.append(tie
+                                ? "StretchZone needs ( x0 x1 ), x0 not above x1; ignored in LODItem: " + item.name
+                                : "StretchZone is read only on Tie and Bearer; ignored in LODItem: " + item.name);
+                    }
+                }
+                // Step 7: HandOperated on SwitchDrive only (decision 38);
+                // a drive's Spacing not below 0 (0: one drive).
+                if(const StfNode *handNode = child(*meshNode, "HandOperated")){
+                    bool handValid = handNode->values.size() == 1;
+                    const float hand = handValid ? numberValue(handNode->values.first(), &handValid) : 0;
+                    if(mesh.generationMode != OrtsProfileTemplate3D::GenerationMode::SwitchDrive)
+                        profile->diagnostics.append("HandOperated is read only on SwitchDrive; ignored in LODItem: "
+                                                    + item.name);
+                    else if(!handValid || (hand != 0 && hand != 1))
+                        profile->diagnostics.append("HandOperated needs ( 0 ) or ( 1 ); ignored in LODItem: "
+                                                    + item.name);
+                    else
+                        mesh.handOperated = hand == 1;
+                }
+                if(mesh.generationMode == OrtsProfileTemplate3D::GenerationMode::SwitchDrive
+                        && mesh.spacing < 0){
+                    profile->diagnostics.append("SwitchDrive Spacing below 0, one drive; in LODItem: " + item.name);
+                    mesh.spacing = 0;
+                }
                 item.templates3D.append(mesh);
             }
             lod.items.append(item);
@@ -896,6 +930,9 @@ void OrtsTrackProfileCatalog::load(const QString &routePath, bool forceReload) {
     loadDiagnostics.clear();
     const bool hadGlobalDefault = globalDefault != nullptr;
     loadGlobalDefault(normalizedPath);
+    // The route's filters (tracks task 17) name these profiles, so they are
+    // read with them.
+    TrackProfileFilters::load(normalizedPath);
     // The canned profiles stay the same objects while no GLOBAL one is read.
     if(hadGlobalDefault || globalDefault != nullptr)
         builtInDefaults.clear();
@@ -1147,6 +1184,10 @@ QString OrtsTrackProfileCatalog::routePath() {
     return loadedRoutePath;
 }
 
+int OrtsTrackProfileCatalog::generation() {
+    return loadGeneration;
+}
+
 namespace {
 
 // A number as the built-in profile's text writes it.
@@ -1168,11 +1209,8 @@ QStringList profileImages(const OrtsTrackProfile &profile) {
 }
 
 // Open Rails' ConvertToRegex: * and ? as wildcards, the whole name, any case.
-QRegularExpression filterExpression(QString filter) {
-    filter.remove(' ').remove('"');
-    QString pattern = QRegularExpression::escape(filter);
-    pattern.replace("\\?", ".").replace("\\*", ".*");
-    return QRegularExpression("^" + pattern + "$", QRegularExpression::CaseInsensitiveOption);
+QRegularExpression filterExpression(const QString &filter) {
+    return OrtsStf::wildcard(filter);
 }
 
 bool anyMatch(const QStringList &filters, const QString &name) {

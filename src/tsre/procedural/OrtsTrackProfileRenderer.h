@@ -13,6 +13,7 @@
 #include <QSharedPointer>
 #include <QVector>
 #include <array>
+#include <tsre/procedural/ComplexTrackPlan.h>
 #include <tsre/procedural/ProceduralPath.h>
 #include <tsre/shape/MstsMaterials.h>
 #include <tsre/tdb/TSection.h>
@@ -22,6 +23,7 @@ class OglObj;
 class TrackShape;
 class ComplexLine;
 class TDB;
+class TSectionDAT;
 struct OrtsTrackProfile;
 
 // Superelevation along one generated path (task tracks 16): its sections'
@@ -42,6 +44,14 @@ struct OrtsProfileRoll {
     // The pivot's distance from the centre, to the curve's side (Open Rails'
     // rollOffsetM: Outside half the gauge, Inside minus it, Both 0).
     float pivot = 0.0f;
+    // Tracks task 17 step 8: the distance along its vector (the track or
+    // road database's) at the path's start, and the way the path runs along
+    // it (1 with it, -1 against); inVector false: on none (each piece counts
+    // from its own start). Repeats and distance-running texture coordinates
+    // count from it, so they run on over joints.
+    float vectorStart = 0.0f;
+    float vectorDirection = 1.0f;
+    bool inVector = false;
 
     bool empty() const { return spans.isEmpty(); }
     // The angle (radians, profile space, Open Rails' roll) and the side the
@@ -182,6 +192,55 @@ public:
             const QString &routePath,
             QStringList *diagnostics = nullptr,
             int objectIndex = 0);
+    // Tracks task 17: a COMPLEX member's plan settings (its ComplexTrack
+    // values and gauge, the Tie mesh's length and width, the Rail part's
+    // offset).
+    static ComplexTrackPlan::Settings complexSettings(const OrtsTrackProfile &member,
+            QStringList *diagnostics = nullptr);
+    // What of a COMPLEX member's parts is laid (step 9): the fixed ones
+    // (all but the moving ones), or one switch's moving ones for one of its
+    // routes (0 its main path set, 1 its other): its blades, or the parts
+    // shown per route (its indicator's and a hand lever's Shape for that
+    // route).
+    struct ComplexSelection {
+        enum class What { Fixed, Blades, Parts };
+        What what = What::Fixed;
+        int switchIndex = -1;
+        int route = 0;
+    };
+    // A COMPLEX member's parts laid on a plan: the bed (its polylines), the
+    // rails, ties and bearers, fasteners, conductor and rack rails, switch
+    // drives and indicators, each LOD's items; in shape space as a static
+    // shape is drawn (the object's whole matrix).
+    static bool buildComplexMeshes(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan,
+            QVector<OrtsGeneratedProfileMesh> &meshes,
+            QStringList *diagnostics,
+            const ComplexSelection &selection);
+    // Its fixed parts.
+    static bool buildComplexMeshes(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan,
+            QVector<OrtsGeneratedProfileMesh> &meshes,
+            QStringList *diagnostics = nullptr);
+    // The fixed parts as objects.
+    static bool generateComplex(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan, QVector<OglObj*> &objects,
+            const QString &routePath, QStringList *diagnostics = nullptr);
+    // Step 9: each switch's moving parts per route; the blades of both
+    // routes alike (as many meshes and vertices), so they blend.
+    struct SwitchMeshes {
+        QVector<OrtsGeneratedProfileMesh> blades[2];
+        QVector<OrtsGeneratedProfileMesh> parts[2];
+    };
+    static QVector<SwitchMeshes> buildSwitchMeshes(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan, QStringList *diagnostics = nullptr);
+    // Meshes as objects, opaque, alpha-tested, then blended.
+    static QVector<OglObj*> complexObjects(const QVector<OrtsGeneratedProfileMesh> &meshes,
+            const QString &routePath);
+    // Two routes' blades a share t of the way from a to b (t 0: a); empty
+    // when they don't match.
+    static QVector<OrtsGeneratedProfileMesh> blendMeshes(const QVector<OrtsGeneratedProfileMesh> &a,
+            const QVector<OrtsGeneratedProfileMesh> &b, float t);
     // Each path rolled by its entry of pathRolls (none or empty: flat).
     static bool generate(const OrtsTrackProfile &profile,
             const TrackShape &trackShape,
@@ -194,7 +253,10 @@ public:
             const ProceduralPathTransform *pathTransform = nullptr,
             const QVector<QSharedPointer<const OrtsTrackProfile>>
                 *pathProfiles = nullptr,
-            int objectIndex = 0);
+            int objectIndex = 0,
+            // The sections' source: the route's by default (a viewer
+            // without a route gives its own).
+            const TSectionDAT *tsection = nullptr);
 };
 
 #endif

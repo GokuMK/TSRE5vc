@@ -42,6 +42,7 @@
 #include <tsre/math3d/Vector2f.h>
 #include <tsre/math3d/Flex.h>
 #include <tsre/world/objects/DynTrackObj.h>
+#include <tsre/world/objects/TrackObj.h>
 #include <tsre/world/objects/RulerObj.h>
 #include <tsre/world/objects/TelepoleObj.h>
 #include <tsre/procedural/ProceduralShape.h>
@@ -6396,6 +6397,28 @@ void RouteEditorGLWidget::setSimulationPaused(bool paused) {
 
 QString RouteEditorGLWidget::selectionDebugInfo(quint32 id) const {
     return renderer != NULL ? renderer->selectionDebugInfo(id) : QString();
+}
+
+QString RouteEditorGLWidget::selectionObjectInfo(quint32 id) const {
+    const SelectionIdCodec::DecodedSelection decoded = SelectionIdCodec::decode(id);
+    if(route == NULL || !decoded.valid || decoded.kind != SelectionIdCodec::Kind::WorldObject)
+        return QString();
+    if(camera == NULL)
+        return QString();
+    // Selection ids hold the tile against the camera's, as the picking does.
+    WorldObj *object = route->getObj(static_cast<int>(camera->pozT[0]) + decoded.tileXOffset,
+            static_cast<int>(camera->pozT[1]) + decoded.tileZOffset, int(decoded.primaryId));
+    if(object == NULL)
+        return QString();
+    QString info = object->type + " " + object->fileName;
+    if(object->type == "trackobj"){
+        static const char *sources[] = {"not drawn yet", "static", "DISABLED on the object",
+            "DISABLED by a filter", "own template", "filter", "guess", "default"};
+        const TrackObj *track = static_cast<const TrackObj*>(object);
+        info += QString(", profile: %1 %2").arg(sources[int(track->profileSource())])
+                .arg(track->profileSourceDetail()).trimmed();
+    }
+    return info;
 }
 
 QVector<quint32> RouteEditorGLWidget::probeSelectionIds(

@@ -44,6 +44,7 @@
 #include <tsre/humans/Crowd.h>
 #include <tsre/humans/Locomotion.h>
 #include <tsre/ogl/OglObj.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/shape/ShapeSeats.h>
 #include <tsre/renderer/RenderStats.h>
 #include <tsre/trains/EngLib.h>
@@ -72,6 +73,7 @@ ShapeViewerGLWidget::~ShapeViewerGLWidget() {
     // call back into a destroyed object.
     surface->detachClient();
     cleanup();
+    deleteGenerated();
 }
 
 void ShapeViewerGLWidget::update() {
@@ -595,7 +597,8 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
     
     float aspect = float(this->width()) / float(this->height());
     float* lookAt = camera->getMatrix();
-    const float zNear = renderItem == 4 ? nearPlane : 0.2f;
+    const bool framed = renderItem == 4 || renderItem == 6;
+    const float zNear = framed ? nearPlane : 0.2f;
     Mat4::perspective(gluu->pMatrix, camera->fov*M_PI/180*(1/aspect), aspect, zNear, Game::objectLod);
     std::copy(gluu->pMatrix, gluu->pMatrix + 16, sceneProjection);
     sceneNear = zNear;
@@ -635,10 +638,14 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
         camera->setPos(crowdOptions.camera[0], crowdOptions.camera[1], crowdOptions.camera[2]);
         camera->setPlayerRot(M_PI / 2.0, crowdOptions.look * M_PI / 180.0);
     }
-    if(renderItem == 4 && complexShape != NULL && !crowdActive()){
-        if(cameraInit && complexShape->isLoaded()){
+    // A shape when loaded, or the generated objects.
+    const float *frameBound = renderItem == 6 ? generatedBound
+            : renderItem == 4 && complexShape != NULL && complexShape->isLoaded() && !crowdActive()
+            ? complexShape->getBound() : NULL;
+    if(frameBound != NULL){
+        if(cameraInit){
             cameraInit = false;
-            const float* bound = complexShape->getBound();
+            const float* bound = frameBound;
             const float dx = fabs(bound[0]-bound[1]);
             const float dy = fabs(bound[2]-bound[3]);
             const float dz = fabs(bound[4]-bound[5]);
@@ -653,6 +660,7 @@ void ShapeViewerGLWidget::renderFrame(bool selectionPass) {
             float dist = 1.05f * radius / std::sin(0.5f * std::min(fovX, fovY));
             if(!(dist > 0.0f) || !std::isfinite(dist))
                 dist = 1.0f;
+            dist /= frameZoom;
             nearPlane = std::clamp(dist * 0.02f, 0.001f, 0.2f);
             // The model turns about its origin in "rot" mode (Z, then Y), so aim
             // at its turned centre.
@@ -793,6 +801,14 @@ void ShapeViewerGLWidget::renderGathered(quint32 selectionId) {
         }
         if(selectionId == 0 && showSeats)
             pushSeats(queue);
+    }
+    if(renderItem == 6){
+        // Each part picks its level of detail by its distance to the
+        // camera, as on a route.
+        const float *camera3d = camera->getPos();
+        for(OglObj *object : generated)
+            object->pushRenderItem(queue, selectionId,
+                    OrtsTrackProfileRenderer::generatedPartLod(object, mv, -camera3d[0], -camera3d[2]));
     }
     if(exhaustFrame)
         ExhaustParticles::instance().endFrame();
@@ -1339,6 +1355,41 @@ void ShapeViewerGLWidget::showShape(QString path, QString texPath, ComplexShape 
     renderItem = 4;
     con = NULL;
     eng = NULL;
+}
+
+void ShapeViewerGLWidget::deleteGenerated(){
+    for(OglObj *object : generated)
+        delete object;
+    generated.clear();
+}
+
+void ShapeViewerGLWidget::showGenerated(const QVector<OglObj*> &objects){
+    deleteGenerated();
+    generated = objects;
+    bool any = false;
+    for(OglObj *object : generated){
+        float b[6];
+        if(object == NULL || !object->getSimpleBorder(b))
+            continue;
+        for(int i = 0; i < 6; i += 2){
+            generatedBound[i] = any ? std::max(generatedBound[i], b[i]) : b[i];
+            generatedBound[i + 1] = any ? std::min(generatedBound[i + 1], b[i + 1]) : b[i + 1];
+        }
+        any = true;
+    }
+    if(!any)
+        std::fill(generatedBound, generatedBound + 6, 0.0f);
+    nearPlane = 0.2f;
+    cameraInit = true;
+    renderItem = 6;
+    complexShape = NULL;
+    con = NULL;
+    eng = NULL;
+}
+
+void ShapeViewerGLWidget::setFrameBound(const float *bound){
+    std::copy(bound, bound + 6, generatedBound);
+    cameraInit = true;
 }
 
 void ShapeViewerGLWidget::showShape(ComplexShape *currentShape){

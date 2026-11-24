@@ -85,6 +85,11 @@ PropertiesTrackObj::PropertiesTrackObj(){
     vbox->addWidget(label);
     vbox->addWidget(&eTemplate);
     vbox->addWidget(&eTemplateSubtype);
+    // Tracks task 17: where the drawn profile came from (the object's
+    // template, a trackprofiles.dat filter, Open Rails' guess, ...).
+    profileSourceLabel.setWordWrap(true);
+    profileSourceLabel.setContentsMargins(3,0,0,0);
+    vbox->addWidget(&profileSourceLabel);
     eTemplate.setStyleSheet("combobox-popup: 0;");
     eTemplateSubtype.setStyleSheet("combobox-popup: 0;");
     eTemplateSubtype.setEnabled(false);
@@ -646,9 +651,54 @@ void PropertiesTrackObj::refreshTemplateList(){
     selectTemplateValue(previousValue, profileType);
 }
 
+void PropertiesTrackObj::updateProfileSource(){
+    if(trackObj == NULL){
+        profileSourceLabel.clear();
+        return;
+    }
+    const QString detail = trackObj->profileSourceDetail();
+    QString text;
+    switch(trackObj->profileSource()){
+        case TrackObj::ProfileSource::Unknown:
+            //% "Profile: not drawn yet"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.unknown");
+            break;
+        case TrackObj::ProfileSource::Static:
+            //% "Profile: none, the static shape"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.static");
+            break;
+        case TrackObj::ProfileSource::ObjectDisabled:
+            //% "Profile: none, DISABLED on the object"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.object.disabled");
+            break;
+        case TrackObj::ProfileSource::FilterDisabled:
+            //% "Profile: none, DISABLED by trackprofiles.dat %1"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.filter.disabled").arg(detail);
+            break;
+        case TrackObj::ProfileSource::ObjectTemplate:
+            //% "Profile: %1, the object's template"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.object.template").arg(detail);
+            break;
+        case TrackObj::ProfileSource::Filter:
+            //% "Profile from trackprofiles.dat %1"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.filter").arg(detail);
+            break;
+        case TrackObj::ProfileSource::Guess:
+            //% "Profile: %1, Open Rails' guess"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.guess").arg(detail);
+            break;
+        case TrackObj::ProfileSource::Default:
+            //% "Profile: %1, the default"
+            text = qtTrId("route.editor.properties.track.obj.profile.source.default").arg(detail);
+            break;
+    }
+    profileSourceLabel.setText(text);
+}
+
 void PropertiesTrackObj::updateTemplateValue(){
     if(trackObj == NULL)
         return;
+    updateProfileSource();
     if(selectedTemplateValue() == trackObj->getTemplate())
         return;
     const OrtsTrackProfile::ObjectType profileType = trackObj->isRoad()

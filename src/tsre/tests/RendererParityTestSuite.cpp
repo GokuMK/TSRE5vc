@@ -55,6 +55,11 @@
 #include <tsre/world/Ref.h>
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/Tile.h>
+#include <tsre/world/objects/TrackObj.h>
+#include <tsre/tdb/TDB.h>
+#include <tsre/tdb/TSectionDAT.h>
+#include <tsre/tdb/TrackShape.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <settings/SettingsManager.h>
@@ -71,6 +76,17 @@
 #include <tsre/renderer/rhi/RhiContext.h>
 #include <tsre/renderer/rhi/RhiTextures.h>
 #include <tsre/humans/Crowd.h>
+#include <QFileInfo>
+#include <QSet>
+#include <tsre/ogl/OglObj.h>
+#include <tsre/procedural/OrtsTrackProfile.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
+#include <tsre/procedural/ComplexTrackCache.h>
+#include <tsre/procedural/TrackProfileFilters.h>
+#include <tsre/tdb/TSectionDAT.h>
+#include <tsre/tdb/TrackShape.h>
+#include <tsre/texture/Texture.h>
+#include <tsre/tdb/TSection.h>
 #include <tsre/humans/StationWalkAreas.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/fileFunctions/ContentPath.h>
@@ -79,6 +95,31 @@
 #include <tsre/world/TerrainLibQt.h>
 
 namespace {
+
+// Tracks task 17 step 9: every junction track object in the loaded tiles
+// set at once to a path other than its MainRoute (other) or back to it.
+void setSwitchesOther(bool other) {
+    if (Game::currentRoute == nullptr || Game::trackDB == nullptr || Game::trackDB->tsection == nullptr)
+        return;
+    int set = 0;
+    for (Tile *tile : Game::currentRoute->tile) {
+        if (tile == nullptr || tile->loaded != 1)
+            continue;
+        for (const auto &entry : tile->obiekty) {
+            TrackObj *track = dynamic_cast<TrackObj *>(entry.second);
+            if (track == nullptr)
+                continue;
+            const auto found = Game::trackDB->tsection->shape.find(track->sectionIdx);
+            if (found == Game::trackDB->tsection->shape.end() || found->second == nullptr
+                    || found->second->numpaths < 2 || found->second->mainroute < 0)
+                continue;
+            const int main = found->second->mainroute;
+            track->setSwitchRoute(other ? (main == 0 ? 1 : 0) : -1, false);
+            set++;
+        }
+    }
+    qInfo().noquote() << "[tests:renderer-capture] switches" << (other ? "set to another path:" : "set back:") << set;
+}
 
 const char *CaptureLog = "[tests:renderer-capture]";
 
@@ -378,6 +419,11 @@ struct ViewSpec {
     // editor moves an object (cached shadow maps, task renderer 37).
     bool hasMoveObjects = false;
     float moveObjects[3] = {0.0f, 0.0f, 0.0f};
+    // Tracks task 17 step 9: every junction track object in the loaded
+    // tiles set at once to a path other than its MainRoute ("switchesOther":
+    // true), or back to it (false); absent: as they are.
+    bool hasSwitchesOther = false;
+    bool switchesOther = false;
     // Height above the terrain, replacing the view's own height.
     bool hasAboveGround = false;
     float aboveGround = 0.0f;
@@ -916,6 +962,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         }
         view.editDistant = object.value("editDistant").toBool(false);
         view.hasMoveObjects = readFloatArray(object.value("moveObjects"), view.moveObjects, 3);
+        view.hasSwitchesOther = object.contains("switchesOther");
+        view.switchesOther = object.value("switchesOther").toBool(false);
         view.hasAboveGround = object.contains("aboveGround");
         if (object.value("windowSize").isArray() && object.value("windowSize").toArray().size() == 2) {
             view.windowWidth = object.value("windowSize").toArray()[0].toInt(0);
@@ -1469,6 +1517,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (spec.hasMoveObjects)
             for (WorldObj *placedObject : placedObjects)
                 placedObject->translate(spec.moveObjects[0], spec.moveObjects[1], spec.moveObjects[2]);
+        if (spec.hasSwitchesOther)
+            setSwitchesOther(spec.switchesOther);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);
@@ -1853,8 +1903,14 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
             // A draw without an id, under TSRE_SELECT_DEBUG: what it was.
             const bool debugDraw = i < picks.size()
                     && SelectionIdCodec::isKind(picks[i], SelectionIdCodec::Kind::DebugDraw);
-            describedList.append(debugDraw ? "debug " + widget.selectionDebugInfo(picks[i])
-                                 : i < picks.size() ? describeSelection(picks[i]) : QString());
+            QString described = debugDraw ? "debug " + widget.selectionDebugInfo(picks[i])
+                    : i < picks.size() ? describeSelection(picks[i]) : QString();
+            // The picked object (tracks task 17: a track object's profile
+            // source, as its properties show it).
+            const QString object = i < picks.size() ? widget.selectionObjectInfo(picks[i]) : QString();
+            if (!object.isEmpty())
+                described += ": " + object;
+            describedList.append(described);
         }
         QJsonObject picking;
         picking["valid"] = picks.size() == points.size();
@@ -2167,6 +2223,21 @@ struct ViewerItem {
     // (shapes only).
     double yaw = 0.0;
     double pitch = 0.0;
+    // Profiles (the profile captures, tracks task 17): camera closer than
+    // the fitted view by "zoom"; the path, "track": a preset ("straight",
+    // "curve", "long"), "sections" of its own ([length, radius] each, radius
+    // 0 straight, negative to the other side) or "tsection": the game root's
+    // GLOBAL/tsection.dat shape "shape" (a FileName), its complex groups from
+    // the file's COMPLEX member, "filter" its trackprofiles.dat filter's
+    // values (IncludedParts, IncludedTrackShape, ...).
+    double zoom = 1.0;
+    QString track = "straight";
+    QVector<QPair<double, double>> sections;
+    QString shape;
+    QString filter;
+    // "focus": [x, z, radius]: frame that circle of the shape (shape space,
+    // metres) in place of the whole.
+    QVector<float> focus;
     // A shape's repaint and distance level (-1: as it comes).
     QString repaint;
     int level = -1;
@@ -2181,6 +2252,11 @@ struct ViewerItem {
     QStringList animation;
     bool animationEnd = false;
     double travelled = 0.0;
+    // A tsection junction drawn procedurally (tracks task 17 step 9): the
+    // path set ("switchRoute", -1 its MainRoute) and how far its switches
+    // have moved to it ("switchPose", 0 to 1; 1 there).
+    int switchRoute = -1;
+    double switchPose = 1.0;
     // A glTF shape's clip at a time (task humans 02): "clip" (its name),
     // "clipTime" (seconds), "blend" and "blendWeight" (a second clip mixed
     // in at the same share of its length), "clipsFile" (a clips file's
@@ -2227,6 +2303,8 @@ struct ViewerOptions {
     // Smoke and steam as the standalone Shape Viewer draws them ("exhaust":
     // true; task shapes 15).
     bool exhaust = false;
+    // Background colour (0..1), or the viewer's own when not set.
+    QVector<float> background;
     QVector<ViewerItem> items;
 };
 
@@ -2248,6 +2326,12 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
     options.backend = backend == "complex" ? ShapeLib::MstsBackend::Complex
             : backend == "legacy" ? ShapeLib::MstsBackend::Legacy : ShapeLib::MstsBackend::ConfiguredDefault;
     options.exhaust = root.value("exhaust").toBool(false);
+    for (const QJsonValue &channel : root.value("background").toArray())
+        options.background.push_back(float(channel.toDouble()));
+    if (!options.background.isEmpty() && options.background.size() != 3) {
+        error = "background needs three channels";
+        return false;
+    }
     if (options.itemRoot.startsWith('$')) {
         const int end = options.itemRoot.indexOf('/');
         const QString name = options.itemRoot.mid(1, end < 0 ? -1 : end - 1);
@@ -2272,7 +2356,18 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.file = object.value("file").toString();
         item.textures = object.value("textures").toString();
         item.yaw = object.value("yaw").toDouble(0.0);
-        item.pitch = object.value("pitch").toDouble(0.0);
+        // Track is seen from above by default, so ties and ballast show.
+        item.pitch = object.value("pitch").toDouble(item.type == "profile" ? 25.0 : 0.0);
+        item.zoom = object.value("zoom").toDouble(1.0);
+        item.track = object.value("track").toString(item.track);
+        for (const QJsonValue &section : object.value("sections").toArray()) {
+            const QJsonArray pair = section.toArray();
+            item.sections.push_back({pair.at(0).toDouble(), pair.at(1).toDouble()});
+        }
+        item.shape = object.value("shape").toString();
+        item.filter = object.value("filter").toString();
+        for (const QJsonValue &value : object.value("focus").toArray())
+            item.focus.push_back(float(value.toDouble()));
         item.repaint = object.value("repaint").toString();
         item.level = object.value("level").toInt(-1);
         item.fov = object.value("fov").toDouble(0.0);
@@ -2280,6 +2375,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         for (const QJsonValue &group : object.value("animation").toArray())
             item.animation << group.toString();
         item.animationEnd = object.value("animationEnd").toBool(false);
+        item.switchRoute = object.value("switchRoute").toInt(-1);
+        item.switchPose = object.value("switchPose").toDouble(1.0);
         item.travelled = object.value("travelled").toDouble(0.0);
         item.clip = object.value("clip").toString();
         item.clipTime = object.value("clipTime").toDouble(0.0);
@@ -2341,6 +2438,194 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
     return true;
 }
 
+// The path a profile is built along, as track sections.
+bool profilePath(const ViewerItem &item, QVector<TSection> &sections, QString &error) {
+    QVector<QPair<double, double>> parts = item.sections;
+    if (parts.isEmpty()) {
+        if (item.track == "straight")
+            parts = {{10.0, 0.0}, {10.0, 0.0}};
+        else if (item.track == "curve")
+            parts = {{10.0, 0.0}, {20.0, 100.0}};
+        else if (item.track == "long")
+            parts = {{100.0, 0.0}, {100.0, 500.0}};
+        else {
+            error = QString("unknown track preset %1").arg(item.track);
+            return false;
+        }
+    }
+    for (const auto &part : parts) {
+        if (!(part.first > 0.0)) {
+            error = "section lengths must be positive";
+            return false;
+        }
+        if (part.second == 0.0)
+            sections.append(TSection(sections.size(), 0, float(part.first), 0.0f));
+        else
+            sections.append(TSection(sections.size(), 1, float(part.first / part.second),
+                                     float(std::abs(part.second))));
+    }
+    return true;
+}
+
+// The route a profile file belongs to, for its textures: the parent of a
+// TRACKPROFILES directory, otherwise the file's own directory.
+QString profileRoute(const QString &profileFile) {
+    QDir directory = QFileInfo(profileFile).absoluteDir();
+    if (directory.dirName().compare("TRACKPROFILES", Qt::CaseInsensitive) == 0)
+        directory.cdUp();
+    return directory.absolutePath();
+}
+
+// The game root's global tsection.dat, read once.
+const TSectionDAT *globalTsection() {
+    static TSectionDAT *tsection = nullptr;
+    static QString root;
+    if (tsection == nullptr || root != Game::root) {
+        const QString route = Game::route;
+        Game::route.clear();
+        delete tsection;
+        tsection = new TSectionDAT(false, false);
+        Game::route = route;
+        root = Game::root;
+    }
+    return tsection;
+}
+
+// A tsection shape drawn from a profile file (tracks task 17): its complex
+// groups from the file's COMPLEX member, its other paths each from the
+// chosen profile, in shape space.
+void buildTsectionShape(const ViewerItem &item, const OrtsTrackProfile &chosen,
+                        const QVector<QSharedPointer<OrtsTrackProfile>> &profiles,
+                        const QString &route, QVector<OglObj*> &objects, QStringList &diagnostics) {
+    const TSectionDAT *tsection = globalTsection();
+    const TrackShape *shape = nullptr;
+    for (const auto &entry : tsection->shape)
+        if (entry.second != nullptr && entry.second->filename.compare(item.shape, Qt::CaseInsensitive) == 0)
+            shape = entry.second;
+    if (shape == nullptr) {
+        diagnostics << QString("no tsection shape %1 in %2/GLOBAL/tsection.dat").arg(item.shape, Game::root);
+        return;
+    }
+    QSharedPointer<OrtsTrackProfile> member;
+    for (const auto &profile : profiles)
+        if (profile->valid && profile->objectRole == OrtsTrackProfile::ObjectRole::Complex
+                && profile->objectType == chosen.objectType)
+            member = profile;
+    QVector<TrackProfileFilters::Filter> filters;
+    if (!item.filter.isEmpty()) {
+        QStringList filterDiagnostics;
+        filters = TrackProfileFilters::parse("TrackProfileFilters ( Filter ( Shapes ( \"*\" ) Profile ( "
+                + chosen.familyId + " ) " + item.filter + " ) )", &filterDiagnostics);
+        for (const QString &line : filterDiagnostics)
+            diagnostics << "filter: " + line;
+    }
+    const TrackProfileFilters::Filter *filter = filters.isEmpty() ? nullptr : &filters.first();
+    QVector<int> independent;
+    for (int i = 0; i < shape->numpaths; i++)
+        independent << i;
+    QStringList buildDiagnostics;
+    if (member != nullptr) {
+        const ComplexTrackPlan plan = ComplexTrackCache::plan(*shape, *tsection, *member, filter, &buildDiagnostics);
+        if (!plan.groups.isEmpty()) {
+            independent.clear();
+            for (int i : plan.independent)
+                if (i < shape->numpaths)
+                    independent << i;
+            int bearers = 0, own = 0, square = 0, fasteners = 0, railStretches = 0;
+            QStringList references;
+            for (const ComplexTrackPlan::Group &group : plan.groups) {
+                fasteners += group.fasteners.size();
+                for (const ComplexTrackPlan::Tie &tie : group.ties) {
+                    bearers += tie.kind == ComplexTrackPlan::Tie::Kind::Bearer;
+                    own += tie.kind == ComplexTrackPlan::Tie::Kind::Own;
+                    square += tie.kind == ComplexTrackPlan::Tie::Kind::Square;
+                }
+                static const char *types[] = {"none (steep)", "path", "bisector", "mean"};
+                references << QString("%1 paths, reference %2").arg(group.paths.size())
+                                      .arg(types[int(group.reference.type)]);
+            }
+            for (const ComplexTrackPlan::RailLine &rail : plan.rails)
+                railStretches += rail.drawn.size();
+            qInfo().noquote() << ViewerCaptureLog << item.name << shape->filename << "complex:"
+                              << references.join("; ") << QString("| %1 bearers, %2 own ties, %3 square, "
+                                 "%4 fastenings, %5 rail stretches, independent %6")
+                                 .arg(bearers).arg(own).arg(square).arg(fasteners).arg(railStretches)
+                                 .arg(independent.size()) << plan.notes.join("; ");
+            OrtsTrackProfileRenderer::generateComplex(*member, plan, objects, route, &buildDiagnostics);
+            // Step 9: the switches' moving parts as the item's set path
+            // has them, a share switchPose of the way there.
+            const QVector<OrtsTrackProfileRenderer::SwitchMeshes> switches =
+                    OrtsTrackProfileRenderer::buildSwitchMeshes(*member, plan, &buildDiagnostics);
+            for (int s = 0; s < switches.size(); s++) {
+                const bool other = item.switchRoute >= 0 && plan.switches[s].other == item.switchRoute;
+                const float key = other ? float(std::clamp(item.switchPose, 0.0, 1.0)) : 0.0f;
+                const QVector<OrtsGeneratedProfileMesh> blades = key <= 0 ? switches[s].blades[0]
+                        : key >= 1 ? switches[s].blades[1]
+                        : OrtsTrackProfileRenderer::blendMeshes(switches[s].blades[0], switches[s].blades[1], key);
+                objects += OrtsTrackProfileRenderer::complexObjects(blades, route);
+                objects += OrtsTrackProfileRenderer::complexObjects(switches[s].parts[key < 0.5f ? 0 : 1], route);
+            }
+            if (item.switchRoute >= 0)
+                qInfo().noquote() << ViewerCaptureLog << item.name << "switch route" << item.switchRoute
+                                  << "pose" << item.switchPose << "|" << switches.size() << "switches";
+        }
+    }
+    if (!independent.isEmpty()) {
+        TrackShape subset;
+        subset.id = shape->id;
+        subset.numpaths = independent.size();
+        subset.path = new TrackShape::SectionIdx[independent.size()];
+        for (int k = 0; k < independent.size(); k++)
+            subset.path[k] = shape->path[independent[k]];
+        OrtsTrackProfileRenderer::generate(chosen, subset, {}, objects, route, &buildDiagnostics,
+                                           0, 0, nullptr, nullptr, 0, tsection);
+        delete[] subset.path;
+        subset.path = nullptr;
+    }
+    for (const QString &line : buildDiagnostics)
+        diagnostics << "build: " + line;
+}
+
+// Builds a profile of a file along the item's path. Reports the file's
+// profiles and every diagnostic; objects stay empty when nothing was built.
+void buildProfile(const ViewerItem &item, const QString &file, const QString &route,
+                  QVector<OglObj*> &objects, QStringList &diagnostics) {
+    QStringList parseDiagnostics;
+    const auto profiles = OrtsTrackProfileParser::parseFileProfiles(file, &parseDiagnostics);
+    for (const QString &line : parseDiagnostics)
+        diagnostics << "parse: " + line;
+    QSharedPointer<OrtsTrackProfile> chosen;
+    QStringList names;
+    for (const auto &profile : profiles) {
+        names << profile->name + (profile->valid ? "" : " (invalid)");
+        if (chosen == nullptr && profile->objectRole != OrtsTrackProfile::ObjectRole::Complex
+                && (item.file.isEmpty() || profile->name == item.file || profile->id == item.file))
+            chosen = profile;
+    }
+    qInfo().noquote() << ViewerCaptureLog << item.name << "profiles in file:"
+                      << (names.isEmpty() ? QString("none") : names.join(", "));
+    if (chosen == nullptr) {
+        diagnostics << QString("no profile %1 in %2").arg(item.file, file);
+        return;
+    }
+    for (const QString &line : chosen->diagnostics)
+        diagnostics << "profile: " + line;
+    if (item.track == "tsection") {
+        buildTsectionShape(item, *chosen, profiles, route, objects, diagnostics);
+        return;
+    }
+    QVector<TSection> sections;
+    QString error;
+    if (!profilePath(item, sections, error)) {
+        diagnostics << error;
+        return;
+    }
+    QStringList buildDiagnostics;
+    OrtsTrackProfileRenderer::generate(*chosen, sections, objects, route, &buildDiagnostics);
+    for (const QString &line : buildDiagnostics)
+        diagnostics << "build: " + line;
+}
+
 } // namespace
 
 int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QString &label,
@@ -2391,10 +2676,20 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         return 2;
     }
 
+    if (!options.background.isEmpty())
+        widget.setBackgroundGlColor(options.background[0], options.background[1],
+                                    options.background[2]);
     QJsonArray items;
     for (const ViewerItem &item : options.items) {
-        const QDir itemRoot(options.itemRoot.isEmpty() ? Game::root : options.itemRoot);
+        // A relative item root is under the game root.
+        const QDir itemRoot(options.itemRoot.isEmpty() ? Game::root
+                            : QDir(Game::root).absoluteFilePath(options.itemRoot));
         const QString path = itemRoot.absoluteFilePath(item.path);
+        widget.setFrameZoom(float(item.zoom));
+        // Profiles: what the parser and generator reported, and the textures
+        // the generated parts use.
+        QStringList diagnostics;
+        QSet<int> textureIds;
         bool shown = true;
         if (item.type == "shape") {
             widget.setCamera(&shapeCamera);
@@ -2420,6 +2715,25 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             shapeCamera.setPos(std::min(back, -15.0f), 2.5f, 0.0f);
             shapeCamera.setPlayerRot(M_PI / 2.0, 0);
             widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
+        } else if (item.type == "profile") {
+            const QString route = item.textures.isEmpty() ? profileRoute(path)
+                                                          : itemRoot.absoluteFilePath(item.textures);
+            QVector<OglObj*> objects;
+            buildProfile(item, path, route, objects, diagnostics);
+            for (OglObj *object : objects)
+                if (object != NULL && object->getTexId() >= 0)
+                    textureIds.insert(object->getTexId());
+            widget.setCamera(&shapeCamera);
+            widget.setMode("rot");
+            widget.showGenerated(objects);
+            if (item.focus.size() == 3) {
+                // Generated objects are in the renderer's space: x mirrored.
+                const float x = -item.focus[0], z = item.focus[1], r = item.focus[2];
+                const float bound[6] = {x + r, x - r, 0.5f, 0.0f, z + r, z - r};
+                widget.setFrameBound(bound);
+            }
+            widget.setModelRotation(float(item.yaw * M_PI / 180.0), float(item.pitch * M_PI / 180.0));
+            shown = !objects.isEmpty();
         } else if (item.type == "consist") {
             const int id = ConLib::addCon(path, item.file);
             if (id < 0) {
@@ -2432,8 +2746,12 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         } else {
             shown = false;
         }
+        for (const QString &line : diagnostics)
+            qWarning().noquote() << ViewerCaptureLog << item.name << line;
         if (!shown) {
             qWarning() << ViewerCaptureLog << item.name << "could not be shown";
+            items.append(QJsonObject{{"name", item.name}, {"shown", false},
+                                     {"diagnostics", QJsonArray::fromStringList(diagnostics)}});
             continue;
         }
         ShapeViewerGLWidget::Light light;
@@ -2524,7 +2842,23 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
         }
         RenderStats::setEnabled(statsWere);
         image.save(QDir(outputDir).filePath(item.name + ".png"));
-        items.append(QJsonObject{{"name", item.name}, {"settled", settled}, {"frames", frames}});
+        QJsonObject entry{{"name", item.name}, {"settled", settled}, {"frames", frames}};
+        if (item.type == "profile") {
+            // Textures the profile names but that did not load.
+            QStringList missing;
+            for (int id : std::as_const(textureIds)) {
+                auto found = TexLib::mtex.find(id);
+                if (found != TexLib::mtex.end() && found->second != nullptr
+                        && (found->second->missing || found->second->error))
+                    missing << found->second->pathid;
+            }
+            missing.sort();
+            for (const QString &texture : missing)
+                qWarning().noquote() << ViewerCaptureLog << item.name << "texture missing:" << texture;
+            entry["diagnostics"] = QJsonArray::fromStringList(diagnostics);
+            entry["missingTextures"] = QJsonArray::fromStringList(missing);
+        }
+        items.append(entry);
         qInfo().noquote() << ViewerCaptureLog << item.name
                           << (settled ? "settled" : "did not settle") << "after" << frames << "frames";
     }
