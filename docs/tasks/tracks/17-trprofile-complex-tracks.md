@@ -834,8 +834,8 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    points, a double slip, and PRUDNIK.
 8. Later: slips' obtuse crossings, blades from the junction state (and
    the hand lever usable, the indicator's state), bridge guard rails'
-   curved ends, 3D bridges, bed
-   splits, steep crossing beds, turntables, the overhead wire on junctions,
+   curved ends, 3D bridges (bed splits: done, decision 40), steep
+   crossing beds, turntables, the overhead wire on junctions,
    road junction parts (`ROAD COMPLEX`), the road centre roles, conductor
    rail ramps and rack points, DB-style 3D sleepers for PRUDNIK's
    profiles, an editor for `trackprofiles.dat`. A follow-up task: the Open
@@ -856,6 +856,7 @@ Each step stops for the user's visual check before the next.
 | 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
 | 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
 | 7 switch drives, indicators, buffers | built; waiting for the user's check (2026-11-24) | `ea30b5a9`; assets-gen `35481a3` |
+| 7 bed review: beds per track, own end planes (decision 40) | built, joints checked with the user (2026-11-24) | `74c306ef`, `2848d513`; assets-gen `46c8366`, `391100d`, `81e78be` |
 
 Steps 1-3 (2026-11-23):
 
