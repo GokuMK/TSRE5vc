@@ -507,11 +507,25 @@ took them everywhere. E (no wave paying for both loops) gained nothing,
 so the cab's cost is the code's (its programs compiled with the loops'
 branches), not the taps.
 
-Done: B (the same images; cab 0.5 ms less, Prudnik up to 1.7). Left: the
-cab about 2.6 ms over 17cf5862's view. To weigh: the cab's own parts
-(inside the box, where the dynamic taps are skipped anyway) drawn with a
-program variant without the dynamic maps' code: towards the 28.6 and 32.1
-above.
+Done: B (the same images; cab 0.5 ms less, Prudnik up to 1.7). B over E:
+the same speed, B exact (each tap lit where both maps are, as before), E
+the two filters' shares combined (22 pixels over 2 levels at the freight
+station, where a moving shadow's penumbra meets a static one's); E only
+helps waves mixing both loops, which the measurement ruled out.
+
+Left (the user, 2026-11-24: for later): the cab about 2.6 ms over
+17cf5862's view. The idea, as the cube's programs: a define
+(`TSRE_SHADOW_NO_DYNAMIC`) round the dynamic maps' code in
+`ShadowSampling.glsl` (the cells' tests, the dynamic loop and tap), the
+near and middle maps then the static loop alone; program variants of MAIN
+and PBR with it (and their velocity variants, the viewer's train's parts
+being moving instances: 2 to 4 programs, from the same sources); picked in
+`programFor` for the items of the vehicle whose map is on: a 3D cab's own
+shape only (the rest of the locomotive, past the 6 m box, takes its own
+shadows from the dynamic maps), a car's whole shape (its box holds it).
+Towards the 28.6 and 32.1 ms above, about 5 ms under now. Costs: no
+dynamic shadow on those parts while the map fades in (0.5 s) and in the
+box's outer fade band.
 
 ## Ideas to weigh
 
