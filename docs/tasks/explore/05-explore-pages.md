@@ -1,9 +1,10 @@
 # Explore task 05 - The Explore window in pages: a route, then its activities, timetables or exploring
 
 Status 2026-11-24: built on `feature/explore` the same day (the user's
-go: "ok, proceed"), not merged; its questions answered (at the end); see
-"As built". Narrow and wide views (at the end) built the same day (the
-user's go: "Ok, proceed"). Part of the [explore set](00-task-roadmap.md).
+go: "ok, proceed"); its questions answered (at the end); see "As built".
+Narrow and wide views (at the end) built the same day (the user's go:
+"Ok, proceed"). Merged into main the same day (the user: "Captures look
+good. Let's merge."). Part of the [explore set](00-task-roadmap.md).
 Reworks task 02's three-column window ([02](02-explore-window.md)); keeps its readers, the
 run's start, the game menu and the remembered choices, and task 04's
 walking ([04](04-walking-runs.md)).
