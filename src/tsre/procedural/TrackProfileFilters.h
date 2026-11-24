@@ -32,6 +32,8 @@ class TSection;
 //           ExcludedParts ( Tie Fastener Bed )     optional; or IncludedParts
 //           IncludedTrackShape ( "A1tPnt7_5dLftSlip.s" 0 0 -10 0 )
 //           IncludedTrackShapeParts ( Tie Fastener Bed Other )
+//           HandOperated ( 1 )                     optional (step 7)
+//           SwitchSideFlip ( 1 )                   optional (step 7)
 //       )
 //   )
 class TrackProfileFilters {
@@ -46,12 +48,17 @@ public:
         RackRail = 32,
         Other = 64,
         // Phase 2: opposite every crossing nose.
-        CheckRail = 128
+        CheckRail = 128,
+        // Step 7: a switch's drives and its indicator (decision 35).
+        SwitchDrive = 256,
+        SwitchIndicator = 512
     };
     static constexpr unsigned AllParts = Rail | Tie | Fastener | Bed
-            | ConductorRail | RackRail | Other | CheckRail;
-    // What an included track shape gives by default: no rails of any kind,
-    // which stay with the junction object that owns them (decision 12).
+            | ConductorRail | RackRail | Other | CheckRail
+            | SwitchDrive | SwitchIndicator;
+    // What an included track shape gives by default: no rails of any kind
+    // nor switch parts, which stay with the junction object that owns them
+    // (decision 12).
     static constexpr unsigned DefaultIncludedTrackShapeParts = Tie | Fastener | Bed | Other;
 
     struct IncludedTrackShape {
@@ -79,6 +86,11 @@ public:
         unsigned parts = AllParts;
         QVector<IncludedTrackShape> includedTrackShapes;
         unsigned includedTrackShapeParts = DefaultIncludedTrackShapeParts;
+        // Step 7: the matched switches are operated by hand (they draw the
+        // SwitchDrive templates marked HandOperated, decision 38); their
+        // switch parts stand on the other side (decision 36).
+        bool handOperated = false;
+        bool switchSideFlip = false;
 
         bool matchesName(const QString &shapeFileName) const;
         // "line 12: Shapes ( "A*Tun*" ) Profile ( PL_60E1_Tunnel )".

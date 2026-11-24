@@ -58,7 +58,16 @@ struct OrtsProfileTemplate3D {
         RackRail,
         // Phase 2: a check rail opposite every crossing nose (a bridge's
         // guard rails are ordinary profile items).
-        CheckRail
+        CheckRail,
+        // Step 7 (decisions 35, 36, 38): a switch's drive, a static mesh
+        // placed from each switch's toe by Offset (x out from the track
+        // centre, its sign the default side: + the diverging side); more
+        // along the blades by Spacing. HandOperated marks the part a
+        // switch operated by hand draws instead.
+        SwitchDrive,
+        // One per switch from its toe by Offset; its Shape list follows the
+        // switch's routes, main route first.
+        SwitchIndicator
     };
     enum class ShapeSelectionMode {
         First,
@@ -100,9 +109,12 @@ struct OrtsProfileTemplate3D {
     // longer (vertices outside it keep their distance from their end);
     // (0 0) by default: x < 0 follows the left end, x > 0 the right.
     float stretchZone[2] = {0, 0};
+    // SwitchDrive: the part a switch operated by hand draws (a lever) in
+    // place of the unmarked ones (a motor).
+    bool handOperated = false;
     bool valid = true;
 
-    // One of the COMPLEX member's parts (Rail to CheckRail).
+    // One of the COMPLEX member's parts (Rail to SwitchIndicator).
     bool complexPart() const {
         return generationMode == GenerationMode::Rail
                 || generationMode == GenerationMode::Tie
@@ -110,7 +122,9 @@ struct OrtsProfileTemplate3D {
                 || generationMode == GenerationMode::Fastener
                 || generationMode == GenerationMode::ConductorRail
                 || generationMode == GenerationMode::RackRail
-                || generationMode == GenerationMode::CheckRail;
+                || generationMode == GenerationMode::CheckRail
+                || generationMode == GenerationMode::SwitchDrive
+                || generationMode == GenerationMode::SwitchIndicator;
     }
 };
 

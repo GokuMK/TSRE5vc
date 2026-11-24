@@ -521,6 +521,50 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
     // on each other at the toe, the one that ends between the two tracks'
     // centres is the blade, the other the stock rail; the main route's
     // blades lie closed.
+    // Two paths starting together: one point, one heading.
+    auto together = [&](int i, int j) {
+        const Line &li = plan.paths[i].line, &lj = plan.paths[j].line;
+        return std::hypot(li[0].x - lj[0].x, li[0].z - lj[0].z) <= 0.05f
+                && std::abs(std::remainder(li[0].heading - lj[0].heading, 2 * Pi)) <= 1e-3f;
+    };
+    // Two paths starting together that part: their common length (0:
+    // they don't).
+    auto parting = [&](int i, int j) {
+        if(!together(i, j))
+            return 0.0f;
+        const Line &li = plan.paths[i].line, &lj = plan.paths[j].line;
+        const float end = std::min(li.last().distance, lj.last().distance);
+        const Point ci = TrackShapeAnalysis::at(li, end), cj = TrackShapeAnalysis::at(lj, end);
+        return (cj.x - ci.x) * (cj.x - ci.x) + (cj.z - ci.z) * (cj.z - ci.z) < 0.04f ? 0.0f : end;
+    };
+    // Of two parting paths' rails on one side, the blade: the one that
+    // ends between the two tracks' centres; where they part by less than a
+    // gauge (a slip's half switch, 0.26 m in 10 m), the rail of the path
+    // the other leaves towards that side.
+    auto bladeOf = [&](int i, int j, int side, float end) {
+        const int ri = railOf(i, side), rj = railOf(j, side);
+        if(ri < 0 || rj < 0)
+            return -1;
+        const Point ci = TrackShapeAnalysis::at(plan.paths[i].line, end);
+        const Point cj = TrackShapeAnalysis::at(plan.paths[j].line, end);
+        const float dx = cj.x - ci.x, dz = cj.z - ci.z;
+        const float span2 = dx * dx + dz * dz;
+        auto between = [&](int r) {
+            const Line &line = plan.rails[r].line;
+            const float length = plan.paths[plan.rails[r].path].line.last().distance;
+            const Point x = TrackShapeAnalysis::at(line, end * line.last().distance / std::max(1e-3f, length));
+            const float t = ((x.x - ci.x) * dx + (x.z - ci.z) * dz) / span2;
+            return t > 0 && t < 1;
+        };
+        if(between(ri))
+            return ri;
+        if(between(rj))
+            return rj;
+        if(span2 >= st.gauge * st.gauge)
+            return -1;
+        const float lateral = dx * std::cos(ci.heading) - dz * std::sin(ci.heading);
+        return lateral * side > 0 ? ri : rj;
+    };
     struct Blade {
         int stock = -1;
         bool closed = false;
@@ -529,33 +573,87 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
     for(int a = 0; a < order.size(); a++)
         for(int b = a + 1; b < order.size(); b++){
             const int i = order[a], j = order[b];
-            const Line &li = plan.paths[i].line, &lj = plan.paths[j].line;
-            if(std::hypot(li[0].x - lj[0].x, li[0].z - lj[0].z) > 0.05f
-                    || std::abs(std::remainder(li[0].heading - lj[0].heading, 2 * Pi)) > 1e-3f)
-                continue;
-            const float end = std::min(li.last().distance, lj.last().distance);
-            const Point ci = TrackShapeAnalysis::at(li, end), cj = TrackShapeAnalysis::at(lj, end);
-            const float span2 = (cj.x - ci.x) * (cj.x - ci.x) + (cj.z - ci.z) * (cj.z - ci.z);
-            if(span2 < 0.04f)
+            const float end = parting(i, j);
+            if(end <= 0)
                 continue;
             const int main = plan.paths[i].main ? i : plan.paths[j].main ? j : i;
             for(int side : {-1, 1}){
                 const int ri = railOf(i, side), rj = railOf(j, side);
                 if(ri < 0 || rj < 0 || !laysPart(ri, TrackProfileFilters::Rail) || !laysPart(rj, TrackProfileFilters::Rail))
                     continue;
-                auto between = [&](int r) {
-                    const Line &line = plan.rails[r].line;
-                    const float length = plan.paths[plan.rails[r].path].line.last().distance;
-                    const Point x = TrackShapeAnalysis::at(line, end * line.last().distance / std::max(1e-3f, length));
-                    const float t = ((x.x - ci.x) * (cj.x - ci.x) + (x.z - ci.z) * (cj.z - ci.z)) / span2;
-                    return t > 0 && t < 1;
-                };
-                const int blade = between(ri) ? ri : between(rj) ? rj : -1;
+                const int blade = bladeOf(i, j, side, end);
                 if(blade < 0 || blades.contains(blade))
                     continue;
                 blades.insert(blade, Blade{blade == ri ? rj : ri, plan.rails[blade].path == main});
             }
         }
+
+    // Step 7: the switches, for their drives and indicators (design
+    // section 2), whatever parts the paths lay: of the paths starting
+    // together (one point, one heading), each one parting from the set's
+    // main path (the MainRoute, else the first) with a blade between them
+    // is a switch with it; a three-way point is two.
+    {
+        QVector<int> taken;
+        for(int a = 0; a < order.size(); a++){
+            if(taken.contains(order[a]))
+                continue;
+            QVector<int> set{order[a]};
+            for(int b = a + 1; b < order.size(); b++)
+                if(!taken.contains(order[b]) && together(order[a], order[b]))
+                    set.append(order[b]);
+            if(set.size() < 2)
+                continue;
+            taken += set;
+            int hub = set.first();
+            for(int k : set)
+                if(plan.paths[k].main){
+                    hub = k;
+                    break;
+                }
+            for(int other : set){
+                if(other == hub)
+                    continue;
+                const float end = parting(hub, other);
+                if(end <= 0)
+                    continue;
+                const Point ch = TrackShapeAnalysis::at(plan.paths[hub].line, end);
+                const Point co = TrackShapeAnalysis::at(plan.paths[other].line, end);
+                const float dx = co.x - ch.x, dz = co.z - ch.z;
+                ComplexTrackPlan::Switch sw;
+                sw.group = plan.groups.size();
+                sw.main = hub;
+                sw.other = other;
+                sw.diverging = dx * std::cos(ch.heading) - dz * std::sin(ch.heading) > 0 ? 1 : -1;
+                bool bladed = false;
+                for(int side : {-1, 1}){
+                    const int rh = railOf(hub, side), ro = railOf(other, side);
+                    const int blade = bladeOf(hub, other, side, end);
+                    if(blade < 0)
+                        continue;
+                    bladed = true;
+                    const Line &line = plan.rails[blade].line;
+                    const Line &stock = plan.rails[blade == rh ? ro : rh].line;
+                    // Between the line's points where the gap passes it.
+                    const float heelGap = w + st.bladeOpening;
+                    float heel = line.last().distance;
+                    float previousGap = 0;
+                    for(int k = 0; k < line.size(); k++){
+                        const float gap = distanceTo(line[k], stock);
+                        if(gap >= heelGap){
+                            heel = k == 0 ? 0 : line[k - 1].distance + (line[k].distance - line[k - 1].distance)
+                                    * (heelGap - previousGap) / std::max(1e-6f, gap - previousGap);
+                            break;
+                        }
+                        previousGap = gap;
+                    }
+                    sw.bladeLength = std::max(sw.bladeLength, heel);
+                }
+                if(bladed)
+                    plan.switches.append(sw);
+            }
+        }
+    }
 
     // Lying on an earlier drawn line (dual gauge's common rail): drawn
     // once; a blade and its stock rail both drawn.
@@ -818,6 +916,117 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
 
 }
 
+namespace {
+
+// Step 7 (decision 36): the ties under a switch's drives lengthened on the
+// drive's side until they reach under its far edge, as bearers; within
+// maxBearerLength and not onto another tie. Where no tie lies under a
+// drive, the nearest within a tie spacing.
+void lengthenUnderDrives(ComplexTrackPlan &plan, ComplexTrackPlan::Group &group, int groupIndex) {
+    const ComplexTrackPlan::Settings &st = plan.settings;
+    const QVector<ComplexTrackPlan::SwitchPart> &drives = st.handOperated ? st.handDrives : st.drives;
+    if(drives.isEmpty())
+        return;
+    for(const ComplexTrackPlan::Switch &sw : plan.switches){
+        if(sw.group != groupIndex || !lays(plan.paths[sw.main], TrackProfileFilters::SwitchDrive))
+            continue;
+        for(const ComplexTrackPlan::SwitchPart &part : drives)
+            for(const ComplexTrackPlan::SwitchPlacement &place : plan.switchPlacements(sw, part)){
+                const float fx = std::sin(place.heading), fz = std::cos(place.heading);
+                const float rx = std::cos(place.heading), rz = -std::sin(place.heading);
+                const float reach = std::abs(part.offset[0]) + part.maxX;
+                // The drive's footprint along the switch (-z forward; turned
+                // half round on the left).
+                const float a0 = place.side > 0 ? -part.maxZ : part.minZ;
+                const float a1 = place.side > 0 ? -part.minZ : part.maxZ;
+                QVector<int> under;
+                int nearest = -1;
+                float nearestGap = std::numeric_limits<float>::max();
+                for(int t = 0; t < group.ties.size(); t++){
+                    const Tie &tie = group.ties[t];
+                    if(!tie.paths.contains(sw.main) && !tie.paths.contains(sw.other))
+                        continue;
+                    const float along = (tie.centre[0] - place.position[0]) * fx
+                            + (tie.centre[1] - place.position[1]) * fz;
+                    if(along + tie.width / 2 >= a0 && along - tie.width / 2 <= a1)
+                        under.append(t);
+                    else {
+                        const float gap = std::min(std::abs(along - a0), std::abs(along - a1)) - tie.width / 2;
+                        if(gap < nearestGap){
+                            nearestGap = gap;
+                            nearest = t;
+                        }
+                    }
+                }
+                if(under.isEmpty() && nearest >= 0 && nearestGap <= st.tieSpacing)
+                    under.append(nearest);
+                for(int t : under){
+                    Tie tie = group.ties[t];
+                    const float ax = std::cos(tie.heading), az = -std::sin(tie.heading);
+                    const float k = ax * rx + az * rz;
+                    if(std::abs(k) < 0.3f)
+                        continue;
+                    const float direction = k * place.side > 0 ? 1.0f : -1.0f;
+                    const float ex = tie.centre[0] + direction * ax * tie.length / 2;
+                    const float ez = tie.centre[1] + direction * az * tie.length / 2;
+                    const float across = ((ex - place.position[0]) * rx + (ez - place.position[1]) * rz) * place.side;
+                    if(across >= reach)
+                        continue;
+                    const float length = std::min(st.maxBearerLength, tie.length + (reach - across) / std::abs(k));
+                    if(length <= tie.length + 1e-4f)
+                        continue;
+                    const float grow = length - tie.length;
+                    tie.centre[0] += direction * ax * grow / 2;
+                    tie.centre[1] += direction * az * grow / 2;
+                    tie.length = length;
+                    tie.kind = Tie::Kind::Bearer;
+                    bool clear = true;
+                    for(int o = 0; o < group.ties.size() && clear; o++)
+                        clear = o == t || !ComplexTrackPlan::overlaps(tie, group.ties[o])
+                                || ComplexTrackPlan::overlaps(group.ties[t], group.ties[o]);
+                    if(clear)
+                        group.ties[t] = tie;
+                    else
+                        plan.notes.append(QString("switch at path %1: a tie under its drive %2 m on not lengthened (another tie)")
+                                          .arg(sw.main).arg(place.along, 0, 'f', 2));
+                }
+            }
+    }
+}
+
+}
+
+int ComplexTrackPlan::switchSide(const Switch &sw, const SwitchPart &part) const {
+    return (part.offset[0] < 0 ? -1 : 1) * sw.diverging * (settings.switchSideFlip ? -1 : 1);
+}
+
+QVector<ComplexTrackPlan::SwitchPlacement> ComplexTrackPlan::switchPlacements(const Switch &sw,
+        const SwitchPart &part) const {
+    QVector<SwitchPlacement> result;
+    if(sw.main < 0 || sw.main >= paths.size() || paths[sw.main].line.size() < 2)
+        return result;
+    const Line &line = paths[sw.main].line;
+    const int side = switchSide(sw, part);
+    for(int k = 0; k < 32; k++){
+        const float along = -part.offset[2] + k * part.spacing;
+        if(k > 0 && (part.spacing <= 0 || along + part.spacing > sw.bladeLength + 1e-4f))
+            break;
+        // Off the line's ends: on along its first or last heading.
+        Point p = TrackShapeAnalysis::at(line, along);
+        const float past = along < 0 ? along : std::max(0.0f, along - line.last().distance);
+        p.x += past * std::sin(p.heading);
+        p.z += past * std::cos(p.heading);
+        SwitchPlacement placement;
+        placement.position[0] = p.x;
+        placement.position[1] = p.z;
+        placement.heading = p.heading;
+        placement.along = along;
+        placement.side = side;
+        result.append(placement);
+    }
+    return result;
+}
+
 ComplexTrackPlan::Line ComplexTrackPlan::offsetLine(const Line &line, float offset) {
     Line result;
     result.reserve(line.size());
@@ -924,6 +1133,8 @@ ComplexTrackPlan ComplexTrackPlan::make(const QVector<Path> &paths, const Settin
             }
         // Phase 2: switches, frogs, check rails; the pieces to sweep.
         planRails(plan, group, firstRail, headWidth);
+        // Step 7: the ties under the switches' drives.
+        lengthenUnderDrives(plan, group, plan.groups.size());
 
         // Fasteners where a rail crosses a tie (one where two rails meet).
         for(int t = 0; t < group.ties.size(); t++){

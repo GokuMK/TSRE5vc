@@ -144,14 +144,21 @@ are left out here, so the member can be pasted into a file as it stands.
   | `Fastener` | rail fastenings, where a rail crosses a tie |
   | `ConductorRail` | third or fourth rail, cut where it would cross another track |
   | `RackRail` | rack rail, cut the same way |
+  | `SwitchDrive` | a switch's drive (a point motor, a hand lever), placed from each switch's toe by `Offset`; more along long blades by `Spacing` |
+  | `SwitchIndicator` | a switch indicator, one per switch; one `Shape` per route, main route first |
 
 - `StretchZone ( x0 x1 )` may appear in `Tie` and `Bearer` templates. It
   sets the band of the mesh that stretches when a tie is lengthened.
+- `HandOperated ( 1 )` may appear in `SwitchDrive` templates. It marks the
+  drive that switches operated by hand draw instead of the others.
 - Polylines in a `COMPLEX` member are the bed: the single track's
   cross-section, stretched across all the tracks of a junction.
-- The format is not finished. More `COMPLEX`-only modes are planned:
-  `SwitchDrive`, `SwitchIndicator`, and perhaps `Blade` and
-  `Nose`. The recommended change below does not need to know them.
+- The format is not finished. More `COMPLEX`-only modes may follow,
+  perhaps `Blade` and `Nose`. The recommended change below does not need
+  to know them.
+- Buffer stops need nothing new: a buffer family's `MAIN` places the stop
+  with `Place` at `PathEnd`, which Open Rails draws today; the filter
+  file gives that family to the buffer shapes.
 
 The members TSRE wrote before (`MAIN`, `SINGLE`, `LEFT`, `MIDDLE`,
 `RIGHT`) are unchanged.
@@ -159,8 +166,11 @@ The members TSRE wrote before (`MAIN`, `SINGLE`, `LEFT`, `MIDDLE`,
 ### The route's filter file
 
 `<route>/trackprofiles.dat` holds name filters that give TSRE's static
-track objects their profile family, ahead of the `IncludedShapes` guess.
-It is edited by hand. Open Rails can ignore it for now. Its own
+track objects their profile family, ahead of the `IncludedShapes` guess,
+and per filter the parts drawn, other track shapes laid with them,
+whether their switches are operated by hand (`HandOperated`) and which
+side their switch parts stand on (`SwitchSideFlip`). It is edited by
+hand. Open Rails can ignore it for now. Its own
 implementation should read it too, so that a route gets the same families
 in both programs.
 

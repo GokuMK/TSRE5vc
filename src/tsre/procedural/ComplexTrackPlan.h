@@ -27,6 +27,18 @@ public:
     // Distances along a line, [from, to].
     using Range = QPair<float, float>;
 
+    // A SwitchDrive or SwitchIndicator template as the plan places it
+    // (step 7, design section 2): its Offset (x out from the track centre,
+    // its sign the default side, + the diverging side; z as any
+    // template's, -z forward from the toe), Spacing between drives along
+    // the blades (0: one), and its mesh's extents (template space, as
+    // modelled standing right of the track).
+    struct SwitchPart {
+        float offset[3] = {0, 0, 0};
+        float spacing = 0;
+        float minX = 0, maxX = 0, minZ = 0, maxZ = 0;
+    };
+
     struct Settings {
         // The gauge line: half of it each side of a path.
         float gauge = 1.435f;
@@ -53,6 +65,16 @@ public:
         // Steep crossings: the first track's ties lengthened under the
         // other track's rails, within maxBearerLength.
         bool steepLengthen = true;
+        // Step 7 (decisions 36, 38), from the filter: the switches are
+        // operated by hand (their drives: the SwitchDrive templates
+        // marked HandOperated), their parts on the other side.
+        bool handOperated = false;
+        bool switchSideFlip = false;
+        // The drives (unmarked SwitchDrive templates) and the hand-operated
+        // ones (marked) of the nearest LOD having any: the ties under them
+        // are lengthened to reach under them (decision 36).
+        QVector<SwitchPart> drives;
+        QVector<SwitchPart> handDrives;
     };
 
     // Which parts of a path the plan lays (TrackProfileFilters::Part bits):
@@ -155,6 +177,33 @@ public:
         float distance = 0;
     };
 
+    // A switch (step 7): two paths starting together and parting, with
+    // blades between them. Its parts stand from its toe (the paths'
+    // start) along its main path.
+    struct Switch {
+        int group = -1;
+        // The MainRoute's path (else the first of those starting there),
+        // and the other: a three-way point is two switches.
+        int main = -1;
+        int other = -1;
+        // -1: the other path leaves to the left of the main one, 1 right.
+        int diverging = 0;
+        // From the toe to the blades' heel: where a blade's gap from its
+        // stock rail reaches bladeOpening (the open blade's), the farther
+        // of the two blades.
+        float bladeLength = 0;
+    };
+
+    // Where a switch part stands: on its switch's main path `along`
+    // metres past the toe, `side` of it (-1 left, 1 right; its mesh turned
+    // half round on the left).
+    struct SwitchPlacement {
+        float position[2] = {0, 0};
+        float heading = 0;
+        float along = 0;
+        int side = 1;
+    };
+
     struct Group {
         QVector<int> paths;
         TrackShapeAnalysis::Reference reference;
@@ -178,6 +227,7 @@ public:
     // What is swept: running and stock rails, blades, wing and check rails.
     QVector<RailPiece> railPieces;
     QVector<Crossing> crossings;
+    QVector<Switch> switches;
     QStringList notes;
 
     // The plan of paths (a shape's, with included shapes' after them).
@@ -190,6 +240,15 @@ public:
     // it: drawn once; crossing or beside it); pieces under 2 m left out
     // (decision 24).
     QVector<RailLine> conductorLines(float offset, unsigned part) const;
+
+    // The side a switch's parts stand on (decision 36): the sign of the
+    // part's Offset x (0 as +) on the diverging side, the other way with
+    // switchSideFlip.
+    int switchSide(const Switch &sw, const SwitchPart &part) const;
+    // The places of a part at a switch: at `-Offset z` past the toe, then
+    // every Spacing along the blades as long as at least one Spacing is
+    // left before the heel (decision 36); one where Spacing is 0.
+    QVector<SwitchPlacement> switchPlacements(const Switch &sw, const SwitchPart &part) const;
 
     // A line `offset` metres to the right of `line`, its distances
     // measured along it.

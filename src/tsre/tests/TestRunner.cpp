@@ -3586,6 +3586,48 @@ static int runOrtsProfileSuite(bool verbose) {
                 && std::abs(outOfRange->complexTrack.maxSharedAngle - 60) < 1e-5f
                 && rangeWords.size() == 3, "complex-track-out-of-range-defaults");
 
+        // Step 7: switch drives and indicators (decisions 35, 36, 38).
+        QStringList switchWords;
+        const QVector<QSharedPointer<OrtsTrackProfile>> switchMembers = OrtsTrackProfileParser::parseStfProfiles(
+                "SIMISA@@@@@@@@@@JINX0p0t______\n"
+                "TrProfile ( ObjectType ( TRACK MAIN )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"main\" ) TexName ( \"b.ace\" ) ShaderName ( TexDiff )\n"
+                + polyline +
+                "  Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"motor.obj\" ) ) ) ) )\n"
+                "TrProfile ( ObjectType ( TRACK COMPLEX )\n"
+                " LOD ( CutoffRadius ( 100 ) LODItem ( Name ( \"switch\" ) TexName ( \"s.ace\" ) ShaderName ( TexDiff )\n"
+                "  Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"motor.obj\" ) Offset ( 1.55 0.15 -0.25 ) Spacing ( 5 ) )\n"
+                "  Template3D ( GenerationMode ( switchdrive ) Shape ( \"lever.obj\" ) Offset ( 1.6 0.15 -0.3 ) HandOperated ( 1 ) )\n"
+                "  Template3D ( GenerationMode ( SwitchIndicator ) Shape ( \"main.obj\" ) Shape ( \"diverging.obj\" )"
+                " Offset ( -1.8 0 -0.85 ) )\n"
+                "  Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"m.obj\" ) Spacing ( -1 ) HandOperated ( 2 ) )\n"
+                "  Template3D ( GenerationMode ( Tie ) Shape ( \"tie.obj\" ) HandOperated ( 1 ) ) ) ) )\n",
+                "Sw", &switchWords);
+        const OrtsTrackProfile *switchMember = switchMembers.size() == 2 ? switchMembers[1].data() : nullptr;
+        if(switchMember != nullptr && switchMember->valid && switchMember->lods[0].items[0].templates3D.size() == 5){
+            const QVector<OrtsProfileTemplate3D> &parts = switchMember->lods[0].items[0].templates3D;
+            using Mode = OrtsProfileTemplate3D::GenerationMode;
+            check(parts[0].generationMode == Mode::SwitchDrive && !parts[0].handOperated
+                    && std::abs(parts[0].spacing - 5) < 1e-5f && std::abs(parts[0].offset[2] + 0.25f) < 1e-5f
+                    && parts[1].generationMode == Mode::SwitchDrive && parts[1].handOperated
+                    && parts[2].generationMode == Mode::SwitchIndicator && parts[2].shapes.size() == 2
+                    && parts[0].complexPart() && parts[2].complexPart()
+                    && parts[3].spacing == 0 && !parts[3].handOperated && !parts[4].handOperated,
+                    "switch-parts");
+        } else
+            check(false, "switch-parts");
+        check(switchMembers.size() == 2 && switchMembers[0]->lods[0].items[0].templates3D.isEmpty(),
+                "switch-parts-only-in-complex");
+        const QString switchText = switchWords.join(" | ");
+        check(switchWords.size() == 4
+                && switchText.contains("GenerationMode SwitchDrive is read only in a COMPLEX member")
+                && switchText.contains("HandOperated needs ( 0 ) or ( 1 )")
+                && switchText.contains("SwitchDrive Spacing below 0, one drive")
+                && switchText.contains("HandOperated is read only on SwitchDrive"),
+                "switch-parts-diagnostics");
+        if(switchWords.size() != 4)
+            qWarning() << "[tests:orts-profile] switch part diagnostics:" << switchWords;
+
         // The per-path renderer never sweeps the parts; the bed alone.
         if(complexMember != nullptr){
             OrtsTrackProfile bedOnly = *complexMember;

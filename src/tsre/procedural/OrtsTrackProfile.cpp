@@ -338,6 +338,10 @@ OrtsProfileTemplate3D::GenerationMode generationMode(const QString &value,
         return OrtsProfileTemplate3D::GenerationMode::RackRail;
     if(value.compare("CheckRail", Qt::CaseInsensitive) == 0)
         return OrtsProfileTemplate3D::GenerationMode::CheckRail;
+    if(value.compare("SwitchDrive", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::SwitchDrive;
+    if(value.compare("SwitchIndicator", Qt::CaseInsensitive) == 0)
+        return OrtsProfileTemplate3D::GenerationMode::SwitchIndicator;
     valid = false;
     return OrtsProfileTemplate3D::GenerationMode::Sweep;
 }
@@ -666,6 +670,25 @@ QSharedPointer<OrtsTrackProfile> profileFromStfNode(
                                 ? "StretchZone needs ( x0 x1 ), x0 not above x1; ignored in LODItem: " + item.name
                                 : "StretchZone is read only on Tie and Bearer; ignored in LODItem: " + item.name);
                     }
+                }
+                // Step 7: HandOperated on SwitchDrive only (decision 38);
+                // a drive's Spacing not below 0 (0: one drive).
+                if(const StfNode *handNode = child(*meshNode, "HandOperated")){
+                    bool handValid = handNode->values.size() == 1;
+                    const float hand = handValid ? numberValue(handNode->values.first(), &handValid) : 0;
+                    if(mesh.generationMode != OrtsProfileTemplate3D::GenerationMode::SwitchDrive)
+                        profile->diagnostics.append("HandOperated is read only on SwitchDrive; ignored in LODItem: "
+                                                    + item.name);
+                    else if(!handValid || (hand != 0 && hand != 1))
+                        profile->diagnostics.append("HandOperated needs ( 0 ) or ( 1 ); ignored in LODItem: "
+                                                    + item.name);
+                    else
+                        mesh.handOperated = hand == 1;
+                }
+                if(mesh.generationMode == OrtsProfileTemplate3D::GenerationMode::SwitchDrive
+                        && mesh.spacing < 0){
+                    profile->diagnostics.append("SwitchDrive Spacing below 0, one drive; in LODItem: " + item.name);
+                    mesh.spacing = 0;
                 }
                 item.templates3D.append(mesh);
             }

@@ -49,6 +49,7 @@ const TrackShape *tsectionShape(const TSectionDAT &tsection, const TrackProfileF
 QString filterKey(const TrackProfileFilters::Filter *filter) {
     if(filter == nullptr)
         return "-";
+    // The description has HandOperated and SwitchSideFlip.
     QString key = filter->description() + "|" + QString::number(filter->parts)
             + "|" + QString::number(filter->includedTrackShapeParts);
     for(const TrackProfileFilters::IncludedTrackShape &included : filter->includedTrackShapes)
@@ -105,7 +106,12 @@ ComplexTrackPlan ComplexTrackCache::plan(const TrackShape &shape, const TSection
         return ComplexTrackPlan();
     const int flags = (shape.tunnelshape ? TrackShapeAnalysis::Tunnel : 0)
             | (shape.roadshape ? TrackShapeAnalysis::Road : 0);
-    return ComplexTrackPlan::make(shapePaths, OrtsTrackProfileRenderer::complexSettings(member, diagnostics), flags);
+    ComplexTrackPlan::Settings settings = OrtsTrackProfileRenderer::complexSettings(member, diagnostics);
+    if(filter != nullptr){
+        settings.handOperated = filter->handOperated;
+        settings.switchSideFlip = filter->switchSideFlip;
+    }
+    return ComplexTrackPlan::make(shapePaths, settings, flags);
 }
 
 QSharedPointer<ComplexTrackMeshes> ComplexTrackCache::meshes(const TrackShape &shape,

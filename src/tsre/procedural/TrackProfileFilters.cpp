@@ -116,6 +116,16 @@ bool filterFrom(const OrtsStf::Node &node, TrackProfileFilters::Filter &filter,
                 diagnostics.append(at(item.line) + "IncludedTrackShape needs ( shape x y z rotY ); ignored");
         } else if(item.name.compare("IncludedTrackShapeParts", Qt::CaseInsensitive) == 0){
             filter.includedTrackShapeParts = partsOf(item, diagnostics);
+        } else if(item.name.compare("HandOperated", Qt::CaseInsensitive) == 0
+                  || item.name.compare("SwitchSideFlip", Qt::CaseInsensitive) == 0){
+            // Step 7 (decisions 36, 38): ( 1 ) or ( 0 ).
+            const QString value = item.values.size() == 1 ? item.values.first().trimmed() : QString();
+            if(value != "0" && value != "1"){
+                diagnostics.append(at(item.line) + item.name + " needs ( 0 ) or ( 1 ); ignored");
+                continue;
+            }
+            (item.name.compare("HandOperated", Qt::CaseInsensitive) == 0
+                    ? filter.handOperated : filter.switchSideFlip) = value == "1";
         } else {
             diagnostics.append(at(item.line) + "unknown Filter value " + item.name + " ignored");
         }
@@ -154,6 +164,10 @@ QString TrackProfileFilters::Filter::description() const {
     if(kinds != 0)
         text += " Kind ( " + TrackShapeAnalysis::kindNames(kinds).replace(",", "") + " )";
     text += " Profile ( " + (disabled ? QString("DISABLED") : profile) + " )";
+    if(handOperated)
+        text += " HandOperated ( 1 )";
+    if(switchSideFlip)
+        text += " SwitchSideFlip ( 1 )";
     return text;
 }
 
@@ -253,7 +267,9 @@ unsigned TrackProfileFilters::partFromName(const QString &name) {
     static const struct { const char *name; Part part; } names[] = {
         {"Rail", Rail}, {"Tie", Tie}, {"Fastener", Fastener}, {"Bed", Bed},
         {"ConductorRail", ConductorRail}, {"RackRail", RackRail}, {"Other", Other},
-        {"CheckRail", CheckRail}
+        {"CheckRail", CheckRail},
+        {"SwitchDrive", SwitchDrive},
+        {"SwitchIndicator", SwitchIndicator}
     };
     const QString value = name.trimmed();
     for(const auto &entry : names)
@@ -266,7 +282,9 @@ QString TrackProfileFilters::partNames(unsigned parts) {
     static const struct { const char *name; Part part; } names[] = {
         {"Rail", Rail}, {"Tie", Tie}, {"Fastener", Fastener}, {"Bed", Bed},
         {"ConductorRail", ConductorRail}, {"RackRail", RackRail}, {"Other", Other},
-        {"CheckRail", CheckRail}
+        {"CheckRail", CheckRail},
+        {"SwitchDrive", SwitchDrive},
+        {"SwitchIndicator", SwitchIndicator}
     };
     QStringList result;
     for(const auto &entry : names)

@@ -93,7 +93,7 @@ their file name.
 | 5 overlapping paths (frog pieces) | 75 | 88 | 2,199 (11) | `A1tFrog7_5dLft`, `A2tFrog7_5dLft` | `COMPLEX` |
 | 6 tunnel | 159 | 158 | 0 | `A2t250mStrtTun`, `A1t2000r5dRndTun` | tunnel profiles (track and tube) |
 | 7 bridge | 61 | 67 | 85 (22) | `A1tBrdgEnd`, `A1tBrdg100mStrt` | bridge profiles (rails, guard rails); a few 3D bridges later |
-| 8 buffer | 2 | 5 | 597 (4) | `A1tbuffer-PL_1`, `A1tBuffer` | track profile; the buffer stop mesh later |
+| 8 buffer | 2 | 5 | 597 (4) | `A1tbuffer-PL_1`, `A1tBuffer` | a buffer family by name filter (decision 39, step 7) |
 | 8 level/pedestrian crossing | 5 | 5 | 0 | `A2t10mLvlCrs` | track profiles |
 | 8 scale/water/fuel/derail/dummy | 15 | 13 | 0 | `A1t10mStrtWtr`, `A1tDerail1_5mStrt` | track profiles |
 | 8 turntable/transfer/roundhouse | 9 | 14 | 96 (3) | `A1t30mRoundhouse`, `A1t24mFordito` | skipped for now (static) |
@@ -215,7 +215,8 @@ TrackProfileFilters (
   the shared bearers, whichever mesh), `Fastener`, `Bed` (the member's
   polylines), `ConductorRail`, `RackRail` (decision 24), `Other`
   (anything else, such as a plain `Sweep` per path), `CheckRail` (phase 2,
-  decision 33); later `Blade`, `Nose`, `Buffer`. Unknown values are warned
+  decision 33), `SwitchDrive`, `SwitchIndicator` (step 7, decision 35);
+  later perhaps `Blade`, `Nose`. Unknown values are warned
   about and ignored. Shapes drawn from `MAIN` or the side roles have no part
   names; there both are ignored with a warning. `ExcludedParts` suits pieces
   whose sleepers another shape lays: parts added later (blades, check
@@ -230,9 +231,16 @@ TrackProfileFilters (
 - `IncludedTrackShapeParts ( ... )` (optional, one per filter, decision
   12): the parts the included shapes give, the same values as
   `IncludedParts`. Default `( Tie Fastener Bed Other )`: no rails,
-  conductor or rack rails, blades or check rails, which stay with the junction object that owns them (its
+  conductor or rack rails, blades, check rails or switch parts, which stay
+  with the junction object that owns them (its
   switch state, later its animation). `IncludedTrackShapeParts ( Rail Tie
-  Fastener Bed )` when one object should draw a whole slip.
+  Fastener Bed )` when one object should draw a whole slip (with
+  `SwitchDrive SwitchIndicator`, its half switches' drives too).
+- `HandOperated ( 1 )` (optional, step 7, decision 38): the matched
+  shapes' switches are operated by hand; they draw the `SwitchDrive`
+  templates marked `HandOperated` instead of the unmarked ones.
+- `SwitchSideFlip ( 1 )` (optional, step 7, decision 36): the matched
+  shapes' switch parts stand on the other side (all of them).
 
 Order for an object (decision 2): its own `ShapeTemplate`, then the
 filters, then Open Rails' guess (last: it cannot be switched off, and it
@@ -346,36 +354,63 @@ New `Template3D` generation modes, read only in `COMPLEX` members
   stop mesh with `Place` at the path's end, on buffer shapes chosen by a
   name filter (decision 37; PRUDNIK: `A1tbuffer-PL_1.s` 442
   objects, `DB/DB30_A1tBuffer.s` 90, `A1tUSBuffer.s` 29, `A1tBuffer.s`
-  24). No automatic placement at track database end nodes. First steps
-  draw buffer shapes as track only.
-- Later (decisions 35, 36, 38; design, not built): `SwitchDrive` and
-  `SwitchIndicator`, optional; a family without the mesh draws none, and
-  filters turn them off per shape (part names as the modes). Each switch
-  of the plan (blade pair) gets a record: its toe (where the blades
-  start), heading, diverging side, main route.
-  - `SwitchDrive`: a static mesh placed from the toe by `Offset`: x out
-    from the track centre (its sign: the side, below), y up, z along the
-    switch. Longer switches have two or three drives: `Spacing` along the
-    blades from the first, as many as fit with at least one `Spacing` left
-    before the blades' heel. The user fine-tunes offsets in the template.
+  24). No automatic placement at track database end nodes. The example:
+  assets-gen's `PL_60E1_Buffer` (step 7).
+- `SwitchDrive` and `SwitchIndicator` (step 7; decisions 35, 36, 38),
+  optional: a family without the mesh draws none; filters turn them off
+  per shape (`ExcludedParts ( SwitchDrive SwitchIndicator )`).
+  - Switches: of the paths starting together (one point, one heading),
+    each one parting from the set's main path (the shape's `MainRoute`,
+    else the first) with a blade between them is a switch with it: plain
+    and Y points one, three-way points two, a slip's half switch one (its
+    paths part by 0.26 m in 10 m: where two paths part by less than a
+    gauge, the blade on each side is the rail of the path the other leaves
+    towards it; phase 2's blades take the same rule). The diverging side:
+    where the other path leaves the main one to. The blades' heel: where a
+    blade's gap from its stock rail reaches `BladeOpening` (the open
+    blade's), the farther of the two: 9.4 m on 7.5° points, 15 m on 4.7°
+    (PRUDNIK's DBTracks: 8.7 and 15 m).
+  - Parts stand on the switch's main path, from its toe: `Offset`'s x is
+    out from the track centre, its sign the default side (+ the diverging
+    side, - the straight), y up, z as in every `Template3D` (-z forward,
+    so -0.6 stands 0.6 m past the toe). The mesh is modelled standing
+    right of the track (its origin where `Offset` puts it); on the left it
+    is turned half round about its origin.
+  - `SwitchDrive`: a static mesh. With `Spacing`, more along the blades
+    every `Spacing` from the first, as long as at least one `Spacing` is
+    left before the heel (decision 36): with `Spacing ( 6 )` one drive on
+    7.5° points, two on 4.7°. The ties under a drive (those its footprint
+    along the switch overlaps; none: the nearest within a tie spacing) are
+    lengthened on its side until they reach under its far edge, as
+    bearers (the `Bearer` mesh where the LOD has one), within
+    `MaxBearerLength` and not onto another tie; the footprints are the
+    drawn drive templates' of the nearest LOD having any.
   - Hand operation (decision 38): a template marked `HandOperated ( 1 )`
     is the part the player operates by hand (a hand lever; later perhaps a
     motor's crank). A filter's `HandOperated ( 1 )` makes the switches it
     matches hand-operated: they draw the marked drive templates instead of
     the unmarked ones (the motor); every other switch draws the unmarked
-    ones. The side flip applies to all of a switch's parts.
+    ones. `SwitchSideFlip ( 1 )` puts all of a switch's parts on the
+    other side.
 
     ```text
     Template3D (
         GenerationMode ( SwitchDrive )
-        Shape ( "meshes/point_motor.obj" )
-        Offset ( 1.55 0.15 0.2 )
+        Shape ( "meshes/pl_point_motor.obj" )
+        Offset ( 1.55 0.145 -0.6 )
+        Spacing ( 6 )
     )
     Template3D (
         GenerationMode ( SwitchDrive )
-        Shape ( "meshes/hand_lever.obj" )
-        Offset ( 1.6 0.15 0.3 )
+        Shape ( "meshes/pl_point_lever.obj" )
+        Offset ( 1.5 0.145 -0.6 )
         HandOperated ( 1 )
+    )
+    Template3D (
+        GenerationMode ( SwitchIndicator )
+        Shape ( "meshes/pl_switch_indicator_main.obj" )
+        Shape ( "meshes/pl_switch_indicator_other.obj" )
+        Offset ( 1.9 0.145 -1.2 )
     )
     ```
 
@@ -386,10 +421,10 @@ New `Template3D` generation modes, read only in `COMPLEX` members
     simulation, and blades, lever and indicator move. Static MSTS shapes
     alike by the lever's matrix name (DB: `S1_HEBEL`), as cab controls.
     Task 17 gives the format and where the marked part stands.
-  - `SwitchIndicator`: a mesh placed from the toe by its own `Offset`, one
-    per switch. Its `Shape` list follows the switch's routes, main route
+  - `SwitchIndicator`: one per switch, placed as a drive without
+    `Spacing`. Its `Shape` list follows the switch's routes, main route
     first; one shape shows no state. Until the junction-state task it
-    shows the main route, as the blades do.
+    shows the main route (the first shape), as the blades do.
   - Defaults from PRUDNIK's DBTracks (`GLOBAL/SHAPES/DB`, measured
     2026-11-24): 7.5° and 10° points, blades 8.7 m from the toe: one
     motor, 0.95 to 2.34 m from the track centre, from the toe to 0.5 m
@@ -664,7 +699,7 @@ TrProfile format already covers them.
 | --- | --- |
 | Tunnels | tunnel families chosen by name filters (decision 13; the `TunnelShape` flag does not say whether there is a tube): track plus the tube's polylines. Two-track tunnels with the side roles, each drawing its half of the tube |
 | Bridges | most are track without sleepers and ballast, plus guard rails (polylines or `Sweep`): bridge families by name. First steps: bridge ends without the guard rails' curved ends. The few 3D bridges (`A1t70m7Bridge2`) later, with their own profiles |
-| Buffers | the track profile; first steps without the buffer stop mesh (later the profile's `Buffer` part). PRUDNIK: 597 objects |
+| Buffers | a buffer family by name filter: its `MAIN` places the stop with `Place` at `PathEnd` (decision 39, step 7). PRUDNIK: 597 objects |
 | Level and pedestrian crossings, water, fuel, scales, derails | track profiles |
 | Embankments, cuttings, ramps (DBTracks `DB2he`, ...) | track profiles with embankment or cutting polylines, as the `bbb` route's `TrProfile_DB1_emb1`, `_cut2/4/6`, `_ramp1` (decision 17) |
 | Monorails (Schwebebahn `WS`, Lartigue `LM`) | profiles of their own: the beam and supports as polylines and Template3D (decision 17) |
@@ -702,7 +737,8 @@ implementation. What the document says now:
   family file (section 2) until Open Rails has the change.
 - Recommended: `COMPLEX` a known role whose `LOD` blocks are skipped
   unread and which never enters the profile list. Open Rails then needs no
-  knowledge of the new modes, now or later (`Blade`, `Nose`, `Buffer`).
+  knowledge of the new modes, now or later (`SwitchDrive`,
+  `SwitchIndicator`, perhaps `Blade` and `Nose`).
   `ComplexTrack` and `StretchZone` are already skipped silently by the STF
   reader.
 - The road centre roles `CENTERLEFT`, `CENTERRIGHT`, `CENTER` (section
@@ -770,10 +806,15 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    assets they need (the check rail section). Then the Open Rails document
    (section 10) after phase 2 (decision 32). It describes the format as of
    phase 2; the format is not finished (decision 35).
-7. Later: switch motors and indicators (decision 35; part of the format
-   before Open Rails' implementation), slips' obtuse crossings, blades from
-   the junction state, the
-   buffer stop mesh, bridge guard rails' curved ends, 3D bridges, bed
+7. Switch drives and indicators (decisions 35, 36, 38: `SwitchDrive`
+   with `Spacing` and `HandOperated`, `SwitchIndicator`, the filters'
+   `HandOperated` and `SwitchSideFlip`, ties lengthened under drives),
+   buffers by a buffer family (decision 39); one example of each in
+   assets-gen; viewer captures on 7.5° points, long points, three-way
+   points, a double slip, and PRUDNIK.
+8. Later: slips' obtuse crossings, blades from the junction state (and
+   the hand lever usable, the indicator's state), bridge guard rails'
+   curved ends, 3D bridges, bed
    splits, steep crossing beds, turntables, the overhead wire on junctions,
    road junction parts (`ROAD COMPLEX`), the road centre roles, conductor
    rail ramps and rack points, DB-style 3D sleepers for PRUDNIK's
@@ -794,6 +835,7 @@ Each step stops for the user's visual check before the next.
 | 5 one example per feature | built (2026-11-23) | `0c4400bc`; assets-gen `21a9e84` |
 | 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
 | 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
+| 7 switch drives, indicators, buffers | built (2026-11-24) | see step 7 below; assets-gen see step 7 below |
 
 Steps 1-3 (2026-11-23):
 
@@ -951,6 +993,41 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
   second; TSRE draws them at key 0. It needs the simulation's switch
   positions sent to the views, static shapes posed by them, and the
   procedural blades as a per-object piece); `Blade`/`Nose` meshes.
+
+Step 7 (2026-11-24, the user's go the same day):
+
+- `ComplexTrackPlan` finds the switches (`Switch`: main and other path,
+  diverging side, blade length) and places their parts
+  (`switchPlacements`, `switchSide`); the ties under drives are
+  lengthened (section 2). Where two paths starting together part by less
+  than a gauge (a slip's half switch), the blade is found by the side the
+  other path leaves towards: phase 2's blades now draw on slip halves too
+  (before, both rails ran plain there).
+- `SwitchDrive` and `SwitchIndicator` read in `COMPLEX` members;
+  `HandOperated` on `SwitchDrive` only; a drive's `Spacing` below 0 is one
+  drive. Filters: `HandOperated ( 1 )`, `SwitchSideFlip ( 1 )` (shown in
+  the object's properties with the filter), the part names; included
+  shapes give no switch parts by default.
+- assets-gen (one example each): the concrete family's `COMPLEX` member
+  has a point motor (1.1 m long, its rods in the crib between the first
+  two ties; a second one 6 m on where the blades are long enough), a hand
+  lever with a counterweight (`HandOperated`) and an indicator in two
+  states (a white bar lying, standing), on one atlas
+  (`pl_track_hardware.ace`); the tunnel and third-rail examples carry
+  them too. A buffer family, `PL_60E1_Buffer`: the 3D track whose `MAIN`
+  places a buffer stop of old rails, its sleepers and a short bed with
+  `Place` at `PathEnd` (decision 39).
+- Checked in the Shape Viewer capture (assets-gen
+  `checks/complex-switch-parts.json`, OR_PSK_NEW's tsection.dat): 7.5°
+  points (motor, hand lever, side flipped, parts excluded), 4.7° points
+  (two motors 6 m apart), three-way points (two switches, a motor each
+  side), the 7.5° double slip with its half switches' drives, the buffer
+  stop; and on PRUDNIK in `Forced`
+  (`reports/complex-tracks/step7/trackprofiles-prudnik-step7.dat`: plain
+  DB points flipped, `_M2` not, buffers to the buffer family).
+- Not yet: the parts' state (indicator, lever) and using the lever (the
+  junction-state task); the motor can sink into terrain higher than the
+  bed's shoulder (the route's terrain, as with DBTracks' own motors).
 
 ## Acceptance
 

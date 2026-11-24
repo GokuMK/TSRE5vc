@@ -1469,6 +1469,21 @@ void appendBed(QVector<float> &target, const OrtsProfilePolyline &polyline,
         appendBedSpan(target, polyline, slices[i - 1], slices[i], alpha);
 }
 
+// A SwitchDrive or SwitchIndicator template as the plan places it (step 7):
+// its Offset, Spacing (drives only) and mesh extents.
+ComplexTrackPlan::SwitchPart switchPart(const OrtsProfileTemplate3D &source, const ObjFile &mesh) {
+    ComplexTrackPlan::SwitchPart part;
+    std::copy(source.offset, source.offset + 3, part.offset);
+    part.spacing = source.generationMode == OrtsProfileTemplate3D::GenerationMode::SwitchDrive
+            ? source.spacing : 0;
+    const MeshExtent extent = meshExtent(mesh);
+    part.minX = extent.minX;
+    part.maxX = extent.maxX;
+    part.minZ = extent.minZ;
+    part.maxZ = extent.maxZ;
+    return part;
+}
+
 const OrtsProfileTemplate3D *firstTemplate(const OrtsTrackProfile &profile,
         OrtsProfileTemplate3D::GenerationMode mode) {
     for(const OrtsProfileLod &lod : profile.lods)
@@ -1502,6 +1517,24 @@ ComplexTrackPlan::Settings OrtsTrackProfileRenderer::complexSettings(
             const MeshExtent extent = meshExtent(*mesh);
             settings.tieLength = extent.maxX - extent.minX;
             settings.tieWidth = extent.maxZ - extent.minZ;
+        }
+    }
+    // Step 7: the drives of the nearest LOD having any, motors and
+    // hand-operated ones apart, for the ties under them.
+    for(bool hand : {false, true}){
+        QVector<ComplexTrackPlan::SwitchPart> &drives = hand ? settings.handDrives : settings.drives;
+        for(const OrtsProfileLod &lod : member.lods){
+            for(const OrtsProfileLodItem &item : lod.items)
+                for(const OrtsProfileTemplate3D &source : item.templates3D){
+                    if(source.generationMode != OrtsProfileTemplate3D::GenerationMode::SwitchDrive
+                            || source.handOperated != hand || source.shapes.isEmpty())
+                        continue;
+                    const QSharedPointer<const ObjFile> mesh = templateMesh(member, source.shapes.first(), diagnostics);
+                    if(mesh != nullptr)
+                        drives.append(switchPart(source, *mesh));
+                }
+            if(!drives.isEmpty())
+                break;
         }
     }
     return settings;
@@ -1585,6 +1618,30 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
                             appendTie(mesh.vertices, *part, source, tie, alpha);
                         }
                     break;
+                case Mode::SwitchDrive:
+                case Mode::SwitchIndicator: {
+                    // Step 7: at every switch whose main path lays the
+                    // part; a hand-operated switch's drives are the marked
+                    // templates, others' the unmarked (decision 38). The
+                    // indicator shows the main route (its first Shape)
+                    // until the junction-state task.
+                    const bool drive = source.generationMode == Mode::SwitchDrive;
+                    if(drive && source.handOperated != plan.settings.handOperated)
+                        break;
+                    const unsigned bit = drive ? TrackProfileFilters::SwitchDrive
+                                               : TrackProfileFilters::SwitchIndicator;
+                    const ComplexTrackPlan::SwitchPart placed = switchPart(source, *part);
+                    const float offset[3] = {std::abs(source.offset[0]), source.offset[1], 0};
+                    for(const ComplexTrackPlan::Switch &sw : plan.switches){
+                        if((plan.paths[sw.main].parts & bit) == 0)
+                            continue;
+                        for(const ComplexTrackPlan::SwitchPlacement &at : plan.switchPlacements(sw, placed))
+                            appendRigidTemplate(mesh.vertices, *part,
+                                    complexFrame(at.position[0], at.position[1], at.heading, 0),
+                                    offset, alpha, at.side < 0);
+                    }
+                    break;
+                }
                 case Mode::Fastener: {
                     const float offset[3] = {0, source.offset[1], source.offset[2]};
                     for(const ComplexTrackPlan::Group &group : plan.groups)

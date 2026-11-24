@@ -256,6 +256,9 @@ void reviewChecks(Checks &check) {
                         .arg(tie.centre[0], 0, 'f', 2).arg(tie.centre[1], 0, 'f', 2)
                         .arg(tie.heading * 180 / Pi, 0, 'f', 1).arg(tie.length, 0, 'f', 2);
         }
+        for (const ComplexTrackPlan::Switch &sw : plan.switches)
+            qInfo().noquote() << QString("[tests:track-shape-analysis] dump switch main %1 other %2 diverging %3 blades %4 m")
+                    .arg(sw.main).arg(sw.other).arg(sw.diverging).arg(sw.bladeLength, 0, 'f', 2);
     }
 
     // With TSRE_COMPLEX_PROFILE (a family file with a COMPLEX member): the
@@ -788,6 +791,183 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                 check(upward, "the bed's normals up");
             }
         }
+
+        // Step 7: switch drives and indicators (decisions 35, 36, 38).
+        {
+            auto planOf = [&](const Shape &shape, const QVector<int> &mainPaths, const ComplexTrackPlan::Settings &settings) {
+                QVector<ComplexTrackPlan::Path> shapePaths;
+                for(int i = 0; i < shape.shape.numpaths; i++){
+                    ComplexTrackPlan::Path planPath;
+                    planPath.line = TrackShapeAnalysis::samplePath(shape.shape, i, sections.map);
+                    planPath.main = mainPaths.contains(i);
+                    shapePaths.append(planPath);
+                }
+                return ComplexTrackPlan::make(shapePaths, settings);
+            };
+            ComplexTrackPlan::SwitchPart motor;
+            motor.offset[0] = 1.6f;
+            motor.offset[1] = 0.15f;
+            motor.offset[2] = -0.25f;
+            motor.spacing = 5;
+            motor.minX = -0.65f;
+            motor.maxX = 0.75f;
+            motor.minZ = -0.25f;
+            motor.maxZ = 0.25f;
+
+            const ComplexTrackPlan points75 = planOf(points, {1}, ComplexTrackPlan::Settings());
+            const ComplexTrackPlan::Switch sw = points75.switches.value(0);
+            check(points75.switches.size() == 1 && sw.main == 1 && sw.other == 0 && sw.diverging == -1
+                    && near(sw.bladeLength, 9.41f, 0.1f),
+                    QString("7.5 degree points: one switch, the straight main, the curve leaving left, blades to "
+                            "where the gap is 0.16 m: 9.4 m (%1 switches, %2 m)")
+                        .arg(points75.switches.size()).arg(sw.bladeLength));
+            const QVector<ComplexTrackPlan::SwitchPlacement> one = points75.switchPlacements(sw, motor);
+            check(one.size() == 1 && one[0].side == -1 && near(one[0].along, 0.25f)
+                    && near(one[0].position[0], 0) && near(one[0].position[1], 0.25f, 0.002f),
+                    QString("one drive (Spacing 5 leaves less than 5 m before the heel), on the diverging side "
+                            "(Offset x +), 0.25 m past the toe (%1)").arg(one.size()));
+            ComplexTrackPlan::SwitchPart indicator = motor;
+            indicator.offset[0] = -1.8f;
+            indicator.spacing = 0;
+            check(points75.switchSide(sw, indicator) == 1, "Offset x -: the straight side");
+
+            ComplexTrackPlan::Settings flipped;
+            flipped.switchSideFlip = true;
+            const ComplexTrackPlan points75Flipped = planOf(points, {1}, flipped);
+            check(points75Flipped.switchSide(points75Flipped.switches.value(0), motor) == 1
+                    && points75Flipped.switchSide(points75Flipped.switches.value(0), indicator) == -1,
+                    "SwitchSideFlip: every part on the other side");
+
+            // 4.7 degrees, blades 15 m: two drives 5 m apart (DB2_a1tPnt4_7d).
+            Shape points47(2, {path(0, 0, 0, {sections.curve(482.2754f, -4.75f)}), path(0, 0, 0, {sections.straight(40)})});
+            const ComplexTrackPlan long47 = planOf(points47, {1}, ComplexTrackPlan::Settings());
+            const QVector<ComplexTrackPlan::SwitchPlacement> two = long47.switches.isEmpty()
+                    ? QVector<ComplexTrackPlan::SwitchPlacement>() : long47.switchPlacements(long47.switches[0], motor);
+            check(long47.switches.size() == 1 && near(long47.switches[0].bladeLength, 14.96f, 0.15f)
+                    && two.size() == 2 && near(two[1].along, 5.25f) && near(two[1].position[1], 5.25f, 0.002f),
+                    QString("4.7 degree points: blades 15 m, two drives 5 m apart (%1 m, %2 drives)")
+                        .arg(long47.switches.value(0).bladeLength).arg(two.size()));
+
+            // A slip's half switch: 0.26 m apart in 10 m, less than a gauge;
+            // its blades and its switch all the same (A1tPnt7_5dLftSlip).
+            Shape slipHalf(4, {path(0, 0, 0, {sections.curve(190.713f, -3.75f)}), path(0, 0, 0, {sections.straight(10)})});
+            const ComplexTrackPlan slipPlan = planOf(slipHalf, {1}, ComplexTrackPlan::Settings());
+            int slipBlades = 0;
+            for(const ComplexTrackPlan::RailPiece &piece : slipPlan.railPieces)
+                slipBlades += piece.kind == ComplexTrackPlan::RailPiece::Kind::Blade;
+            check(slipPlan.switches.size() == 1 && slipPlan.switches[0].main == 1 && slipPlan.switches[0].diverging == -1
+                    && near(slipPlan.switches[0].bladeLength, 9.43f, 0.1f) && slipBlades == 2,
+                    QString("a slip's half switch: blades and a switch though the paths part by 0.26 m "
+                            "(%1 switches, %2 blades)").arg(slipPlan.switches.size()).arg(slipBlades));
+
+            // A three-way point: two switches with the main path.
+            Shape threeWay(3, {path(0, 0, 0, {sections.curve(190.713f, -7.5f)}), path(0, 0, 0, {sections.straight(25)}),
+                               path(0, 0, 0, {sections.curve(190.713f, 7.5f)})});
+            const ComplexTrackPlan threeWayPlan = planOf(threeWay, {1}, ComplexTrackPlan::Settings());
+            int left = 0, right = 0;
+            for(const ComplexTrackPlan::Switch &s3 : threeWayPlan.switches)
+                if(s3.main == 1)
+                    (s3.diverging < 0 ? left : right)++;
+            check(threeWayPlan.switches.size() == 2 && left == 1 && right == 1,
+                  QString("three-way point: two switches, left and right of the straight (%1)")
+                      .arg(threeWayPlan.switches.size()));
+
+            // The ties under the drive lengthened on its side, as bearers.
+            ComplexTrackPlan::Settings driven;
+            driven.drives.append(motor);
+            const ComplexTrackPlan drivenPlan = planOf(points, {1}, driven);
+            int lengthened = 0;
+            float leftEnd = 0;
+            if(drivenPlan.groups.size() == 1 && points75.groups.size() == 1)
+                for(int t = 0; t < drivenPlan.groups[0].ties.size(); t++){
+                    const ComplexTrackPlan::Tie &a = points75.groups[0].ties[t];
+                    const ComplexTrackPlan::Tie &b = drivenPlan.groups[0].ties[t];
+                    if(near(a.length, b.length, 1e-4f))
+                        continue;
+                    lengthened++;
+                    leftEnd = b.centre[0] - b.length / 2 * std::cos(b.heading);
+                    check(b.kind == ComplexTrackPlan::Tie::Kind::Bearer && near(b.centre[1], 0.3f, 0.01f)
+                            && near(b.centre[0] + b.length / 2 * std::cos(b.heading),
+                                    a.centre[0] + a.length / 2 * std::cos(a.heading), 0.002f),
+                            "the tie under the drive: a bearer, its other end where it was");
+                }
+            check(lengthened == 1 && near(leftEnd, -2.35f, 0.01f),
+                    QString("one tie under the drive reaches under its far edge, 2.35 m left (%1 ties, end %2)")
+                        .arg(lengthened).arg(leftEnd));
+            ComplexTrackPlan::Settings handSettings = driven;
+            handSettings.handOperated = true;
+            const ComplexTrackPlan handPlan = planOf(points, {1}, handSettings);
+            bool unchanged = handPlan.groups.size() == 1 && points75.groups.size() == 1;
+            for(int t = 0; unchanged && t < handPlan.groups[0].ties.size(); t++)
+                unchanged = near(handPlan.groups[0].ties[t].length, points75.groups[0].ties[t].length, 1e-4f);
+            check(unchanged, "hand-operated without a marked drive: no drive, ties as they were");
+
+            // The member's templates: motor, hand lever, indicator.
+            writeObj("motor.obj", -0.65f, 0.75f, 0, 0.3f, -0.25f, 0.25f);
+            writeObj("lever.obj", -0.3f, 0.4f, 0, 0.5f, -0.2f, 0.2f);
+            writeObj("flag.obj", -0.1f, 0.1f, 0, 1.0f, -0.05f, 0.05f);
+            writeObj("flag2.obj", -0.2f, 0.2f, 0, 1.0f, -0.05f, 0.05f);
+            QFile switchStf(directory.filePath("Switch.stf"));
+            switchStf.open(QIODevice::WriteOnly);
+            switchStf.write("SIMISA@@@@@@@@@@JINX0p0t______\n"
+                      "TrProfile ( ObjectType ( TRACK COMPLEX ) ComplexTrack ( TieSpacing ( 0.6 ) TiePhase ( 0.3 ) )\n"
+                      " LOD ( CutoffRadius ( 150 )\n"
+                      "  LODItem ( Name ( \"ties\" ) TexName ( \"t.ace\" ) ShaderName ( TexDiff )\n"
+                      "   Template3D ( GenerationMode ( Tie ) Shape ( \"tie.obj\" ) Offset ( 0 0.14 0 ) ) )\n"
+                      "  LODItem ( Name ( \"switch\" ) TexName ( \"s.ace\" ) ShaderName ( TexDiff )\n"
+                      "   Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"motor.obj\" ) Offset ( 1.6 0.15 -0.25 ) Spacing ( 5 ) )\n"
+                      "   Template3D ( GenerationMode ( SwitchDrive ) Shape ( \"lever.obj\" ) Offset ( 1.6 0.15 -0.3 ) HandOperated ( 1 ) )\n"
+                      "   Template3D ( GenerationMode ( SwitchIndicator ) Shape ( \"flag.obj\" ) Shape ( \"flag2.obj\" )"
+                      " Offset ( -1.8 0 -0.85 ) ) ) ) )\n");
+            switchStf.close();
+            QStringList switchWords;
+            const QSharedPointer<OrtsTrackProfile> switchMember =
+                    OrtsTrackProfileParser::parseFile(directory.filePath("Switch.stf"), &switchWords);
+            check(switchMember != nullptr && switchMember->valid && switchWords.isEmpty(),
+                    "a COMPLEX member with switch parts read: " + switchWords.join("; "));
+            if(switchMember != nullptr && switchMember->valid){
+                const ComplexTrackPlan::Settings memberSettings = OrtsTrackProfileRenderer::complexSettings(*switchMember);
+                check(memberSettings.drives.size() == 1 && memberSettings.handDrives.size() == 1
+                        && near(memberSettings.drives[0].spacing, 5) && near(memberSettings.drives[0].maxX, 0.75f)
+                        && near(memberSettings.handDrives[0].maxX, 0.4f),
+                        "the drives' footprints from their meshes, motors and hand-operated apart");
+                auto switchMesh = [&](bool hand, bool flip, unsigned parts, int *vertices) {
+                    ComplexTrackPlan::Settings settings = memberSettings;
+                    settings.handOperated = hand;
+                    settings.switchSideFlip = flip;
+                    QVector<ComplexTrackPlan::Path> shapePaths;
+                    for(int i = 0; i < 2; i++){
+                        ComplexTrackPlan::Path planPath;
+                        planPath.line = paths[i].line;
+                        planPath.main = i == 1;
+                        planPath.parts = parts;
+                        shapePaths.append(planPath);
+                    }
+                    const ComplexTrackPlan switchPlan = ComplexTrackPlan::make(shapePaths, settings);
+                    QVector<OrtsGeneratedProfileMesh> meshes;
+                    OrtsTrackProfileRenderer::buildComplexMeshes(*switchMember, switchPlan, meshes);
+                    *vertices = meshes.size() == 2 ? meshes[1].vertices.size() / 9 : -1;
+                    return meshes.size() == 2 ? meshes[1] : OrtsGeneratedProfileMesh();
+                };
+                int vertices = 0;
+                // Mirrored as the renderer's static paths: MSTS left at x > 0.
+                const OrtsGeneratedProfileMesh motorMesh = switchMesh(false, false, TrackProfileFilters::AllParts, &vertices);
+                check(vertices == 24 && near(motorMesh.bounds[0], 2.35f, 0.01f) && near(motorMesh.bounds[1], -1.9f, 0.01f)
+                        && near(motorMesh.bounds[2], 1.0f, 0.001f),
+                        QString("a motor on the diverging side (to 2.35 m), the indicator on the straight side "
+                                "(1.8 m), its first shape (%1 vertices, x %2 to %3)")
+                            .arg(vertices).arg(motorMesh.bounds[1]).arg(motorMesh.bounds[0]));
+                const OrtsGeneratedProfileMesh leverMesh = switchMesh(true, false, TrackProfileFilters::AllParts, &vertices);
+                check(vertices == 24 && near(leverMesh.bounds[0], 2.0f, 0.01f) && near(leverMesh.bounds[2], 1.0f, 0.001f),
+                        QString("hand-operated: the marked lever in place of the motor (x to %1)").arg(leverMesh.bounds[0]));
+                const OrtsGeneratedProfileMesh flippedMesh = switchMesh(false, true, TrackProfileFilters::AllParts, &vertices);
+                check(vertices == 24 && near(flippedMesh.bounds[1], -2.35f, 0.01f) && near(flippedMesh.bounds[0], 1.9f, 0.01f),
+                        QString("SwitchSideFlip: motor and indicator change sides (x %1 to %2)")
+                            .arg(flippedMesh.bounds[1]).arg(flippedMesh.bounds[0]));
+                switchMesh(false, false, TrackProfileFilters::AllParts & ~TrackProfileFilters::SwitchDrive, &vertices);
+                check(vertices == 12, QString("ExcludedParts ( SwitchDrive ): the indicator alone (%1 vertices)").arg(vertices));
+            }
+        }
     }
 
     check(TrackShapeAnalysis::kindFromName("complex") == TrackShapeAnalysis::Complex
@@ -858,7 +1038,7 @@ int TsreTests::runTrackProfileFiltersSuite(bool verbose) {
         check(filters[1].profile == "PL_60E1_Tunnel" && filters[1].parts == Filters::AllParts
                 && filters[1].kinds == 0, "a plain filter: every part, any kind");
         check(filters[3].parts == (Filters::Rail | Filters::ConductorRail | Filters::RackRail | Filters::Other
-                                   | Filters::CheckRail),
+                                   | Filters::CheckRail | Filters::SwitchDrive | Filters::SwitchIndicator),
                 "ExcludedParts ( Tie Fastener Bed )");
         const QVector<Filters::IncludedTrackShape> &included = filters[4].includedTrackShapes;
         check(included.size() == 4 && included[1].shape == "A1tPnt7_5dRgtSlip.s"
@@ -950,6 +1130,29 @@ int TsreTests::runTrackProfileFiltersSuite(bool verbose) {
                 && none.contains("Missing TrackProfileFilters block"), "no TrackProfileFilters block");
         check(Filters::partFromName("conductorrail") == Filters::ConductorRail
                 && Filters::partNames(Filters::Rail | Filters::Bed) == "Rail Bed", "part names");
+
+        // Step 7: the switch parts by name, hand operation and the side flip.
+        QStringList switchWords;
+        const QVector<Filters::Filter> switches = Filters::parse(
+                "TrackProfileFilters (\n"
+                "  Filter ( Shapes ( \"*Mnl*\" ) Profile ( P ) HandOperated ( 1 ) )\n"
+                "  Filter ( Shapes ( \"*Lft.s\" ) Profile ( P ) SwitchSideFlip ( 1 ) ExcludedParts ( SwitchIndicator ) )\n"
+                "  Filter ( Shapes ( \"*\" ) Profile ( P ) HandOperated ( yes ) SwitchSideFlip ( 0 ) )\n"
+                ")\n", &switchWords);
+        check(switches.size() == 3 && switches[0].handOperated && !switches[0].switchSideFlip
+                && switches[1].switchSideFlip && !switches[1].handOperated
+                && switches[1].parts == (Filters::AllParts & ~Filters::SwitchIndicator)
+                && !switches[2].handOperated && !switches[2].switchSideFlip,
+                "HandOperated, SwitchSideFlip, the switch parts excluded by name");
+        check(switchWords.size() == 1 && switchWords[0] == "line 4: HandOperated needs ( 0 ) or ( 1 ); ignored",
+                "HandOperated ( yes ) warned about: " + switchWords.join(" | "));
+        check(switches.size() == 3 && switches[0].description().endsWith("Profile ( P ) HandOperated ( 1 )")
+                && switches[1].description().endsWith("SwitchSideFlip ( 1 )"),
+                "the object's properties show HandOperated and SwitchSideFlip");
+        check(Filters::partFromName("switchdrive") == Filters::SwitchDrive
+                && Filters::partNames(Filters::SwitchDrive | Filters::SwitchIndicator) == "SwitchDrive SwitchIndicator"
+                && (Filters::DefaultIncludedTrackShapeParts & (Filters::SwitchDrive | Filters::SwitchIndicator)) == 0,
+                "switch part names; included track shapes give none by default");
     }
 
     // Loaded with the route's profiles, again on Reload Track Profiles.
