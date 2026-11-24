@@ -835,7 +835,7 @@ Each step stops for the user's visual check before the next.
 | 5 one example per feature | built (2026-11-23) | `0c4400bc`; assets-gen `21a9e84` |
 | 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
 | 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
-| 7 switch drives, indicators, buffers | built (2026-11-24) | see step 7 below; assets-gen see step 7 below |
+| 7 switch drives, indicators, buffers | built; waiting for the user's check (2026-11-24) | `ea30b5a9`; assets-gen `35481a3` |
 
 Steps 1-3 (2026-11-23):
 
