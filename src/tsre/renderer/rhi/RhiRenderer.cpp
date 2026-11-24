@@ -1842,7 +1842,7 @@ void RhiRenderer::createShadowMaps(int nearSize, int middleSize, int farSize, in
         shadowMaps[map].openGlRows = true;
         targets[TARGET_SHADOW_NEAR + map].attachments = &shadowMaps[map];
     }
-    // The cab's (16 MB at 2048): the near map's dynamic size.
+    // The cab's (16 MB at 2048): 2048 (cabShadowSize).
     const QSize cabSize(cabShadowSize(), cabShadowSize());
     if (!cabShadowMap.valid() || cabShadowMap.size != cabSize)
         createAttachments(cabShadowMap, QRhiTexture::UnknownFormat, cabSize, {});
@@ -1891,16 +1891,18 @@ QRhiTexture *RhiRenderer::dynamicShadowDepth(int map) const {
     return shadowMaps[map].valid() ? shadowMaps[map].depth : dummyDepth;
 }
 
-// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else the near
-// map's dynamic size (task 48: 2048 at a 4096 near map with half-size
-// dynamic maps, the user's choice of 2026-11-16).
+// The cab's map's size: TSRE_CAB_SHADOW_SIZE (512 to 4096), else 2048
+// whatever the near map's size (task renderer 50, the user, 2026-11-24:
+// cached, it is drawn only when it changes; the setting Interior shadows
+// chooses its filter). It followed the near map's dynamic size before
+// (task 48: 2048 at a 4096 near map with half-size dynamic maps).
 int RhiRenderer::cabShadowSize() const {
     static const int forced = [] {
         bool ok = false;
         const int s = qEnvironmentVariable("TSRE_CAB_SHADOW_SIZE").toInt(&ok);
         return ok ? std::clamp(s, 512, 4096) : 0;
     }();
-    return forced > 0 ? forced : std::clamp(frameShadowMapSize(0), 512, 4096);
+    return forced > 0 ? forced : 2048;
 }
 
 // The car's map (task renderer 49): made the first time the camera is in a

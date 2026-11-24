@@ -890,6 +890,10 @@ private:
     // lampsByDay; core.rendering.movingLampShadows too (trains' head lamps).
     int lampShadows = 2;
     int movingLampShadows = 1;
+    // core.rendering.shadow.interiorQuality (1 low, 2 medium, 3 high: the
+    // cab's and car's map read with one tap, a tent over 3 texels or over
+    // 7), kept as lampsByDay.
+    int interiorShadows = 3;
     // core.rendering.warmth, the view's white balance, kept as lampsByDay.
     float warmth = 0.0f;
     // Auto exposure (task 29): this frame's control, set by applyTimeOfDay

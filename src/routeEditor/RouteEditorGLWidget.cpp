@@ -175,6 +175,7 @@ viewRole(role) {
     lampsByDay = Settings::variant("core.rendering.lampsByDay", SettingType::Enum).toInt();
     lampShadows = Settings::variant("core.rendering.lampShadows", SettingType::Enum).toInt();
     movingLampShadows = Settings::variant("core.rendering.movingLampShadows", SettingType::Enum).toInt();
+    interiorShadows = Settings::variant("core.rendering.shadow.interiorQuality", SettingType::Enum).toInt();
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
     exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
     warmth = float(Settings::floating("core.rendering.warmth"));
@@ -223,6 +224,8 @@ viewRole(role) {
                 lampShadows = Settings::variant("core.rendering.lampShadows", SettingType::Enum).toInt();
             if (key == "core.rendering.movingLampShadows")
                 movingLampShadows = Settings::variant("core.rendering.movingLampShadows", SettingType::Enum).toInt();
+            if (key == "core.rendering.shadow.interiorQuality")
+                interiorShadows = Settings::variant("core.rendering.shadow.interiorQuality", SettingType::Enum).toInt();
             if (key == "core.rendering.mist")
                 mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
             if (key == "core.rendering.exhaust")
@@ -2183,14 +2186,24 @@ constexpr bool CabShadowTurns = false;
 // changes gently (the disc left the texels' steps, which re-formed as the
 // sun turned against the cab: bbb's circle, the user, 2026-11-16). 1: one
 // filtered 2 x 2 comparison, the cheapest (task renderer 50: with a cached
-// finer map, TSRE_CAB_SHADOW_SIZE=4096, for the user to try).
+// finer map, TSRE_CAB_SHADOW_SIZE=4096, for the user to try). The setting
+// Interior shadows chooses 1, 3 or 7 (cabShadowKernel);
+// TSRE_CAB_SHADOW_KERNEL any of them over it.
 constexpr int CabShadowKernel = 7;
+
+// The kernel for core.rendering.shadow.interiorQuality (1 low, 2 medium, 3
+// high).
+static int cabShadowKernel(int interiorQuality) {
+    return interiorQuality <= 1 ? 1 : interiorQuality == 2 ? 3 : 7;
+}
 
 struct CabShadowTuning {
     float filter = CabShadowFilterTexels;
     float offset = CabShadowNormalOffsetTexels;
     float bias = CabShadowDepthBiasTexels;
+    // TSRE_CAB_SHADOW_KERNEL's (kernelForced), else the setting's.
     int kernel = CabShadowKernel;
+    bool kernelForced = false;
     bool plane = true;
     bool turns = CabShadowTurns;
     bool off = false;
@@ -2216,8 +2229,10 @@ const CabShadowTuning &cabShadowTuning(int size) {
         t.off = qEnvironmentVariable("TSRE_CAB_SHADOW_OFF") == "1";
         bool ok = false;
         const int kernel = qEnvironmentVariable("TSRE_CAB_SHADOW_KERNEL").toInt(&ok);
-        if (ok && (kernel == 0 || kernel == 1 || kernel == 3 || kernel == 5 || kernel == 7))
+        if (ok && (kernel == 0 || kernel == 1 || kernel == 3 || kernel == 5 || kernel == 7)) {
             t.kernel = kernel;
+            t.kernelForced = true;
+        }
         t.plane = qEnvironmentVariable("TSRE_CAB_SHADOW_PLANE") != "0";
         const QString slope = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_SLOPE")
                 ? qEnvironmentVariable("TSRE_CAB_SHADOW_SLOPE") : QString("1");
@@ -2225,7 +2240,8 @@ const CabShadowTuning &cabShadowTuning(int size) {
                                      "texels; per-tap correction %7; casters' slope bias %8; axes %9")
                                  .arg(t.off ? "off" : "on").arg(size)
                                  .arg(2000.0f * CabShadowHalfExtent / float(std::max(size, 1)), 0, 'f', 1)
-                                 .arg(t.kernel == 0 ? QString("16-point disc, radius %1 texels").arg(t.filter)
+                                 .arg(!t.kernelForced ? QString("the filter of the setting Interior shadows")
+                                      : t.kernel == 0 ? QString("16-point disc, radius %1 texels").arg(t.filter)
                                       : t.kernel == 1 ? QString("one filtered 2 x 2 tap")
                                                       : QString("tent over %1 texels").arg(t.kernel))
                                  .arg(t.offset).arg(t.bias).arg(t.plane ? "on" : "off")
@@ -3020,7 +3036,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     gluu->cabShadowParams[1] = tuning.offset * cabTexel;
     gluu->cabShadowParams[2] = tuning.bias * cabTexel / (CabShadowColumn + behind + 1.0f);
     gluu->cabShadowParams[3] = cabFilter / (2.0f * halfWidth);
-    gluu->cabShadowFilter[0] = float(tuning.kernel);
+    gluu->cabShadowFilter[0] = float(tuning.kernelForced ? tuning.kernel : cabShadowKernel(interiorShadows));
     gluu->cabShadowFilter[1] = 1.0f / float(mapWidth);
     gluu->cabShadowFilter[2] = tuning.plane ? 1.0f : 0.0f;
     gluu->cabShadowFilter[3] = 1.0f / float(mapHeight);

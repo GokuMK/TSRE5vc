@@ -204,6 +204,23 @@ high, the ET22 cab, 24 to 67 km/h, 90 s): 198 drawings for the turn with
 cab's content either way; bbb's circle at 07:00 (23 to 31 degrees): 1,246
 against 1,222.
 
+### The setting Interior shadows (the user, 2026-11-24)
+
+`core.rendering.shadow.interiorQuality` (Settings, Rendering, Shadows): Low,
+Medium, High read the cab's or car's map with one tap, a tent over 3 texels
+or over 7 (`cabShadowKernel`); default High (as before). Applied at once
+(kept by `RouteEditorGLWidget::interiorShadows`, a uniform each frame);
+`TSRE_CAB_SHADOW_KERNEL` over it for tests. The cab's map is 2048 whatever
+the near map's size (`RhiRenderer::cabShadowSize`; it followed the near
+map's dynamic size, so 1024 at the default near map's 2048), the car's 4096
+x 1024; `TSRE_CAB_SHADOW_SIZE` and `TSRE_CAR_SHADOW_SIZE` as before. The
+settings suite's counts 148. Its texts' catalogue entries (and Polish) wait
+for the user's go, as `shapelights.problem.selflit`'s.
+
+At 1920 x 1080 (the ET22 cab, two views, every timed pass): Low 41.2 and
+45.6 ms (with the near map at 2048 too, the cab's map still 2048), High
+43.1 and 47.6; the filters alone as in the table above.
+
 ### The lookups at high resolution (measured 2026-11-24)
 
 Task 10 and task 48 were tuned at 842 x 755 (the maps doubled, static and

@@ -127,9 +127,8 @@ public:
     // when the renderer has one: fine texels moving with the train, so its
     // casters do not crawl over the near map's grid.
     virtual bool cabShadows() const { return false; }
-    // Its size in texels, 0 without: the near map's dynamic size (task 48:
-    // half the near map, 2048 at 4096, by default; the user, 2026-11-16),
-    // TSRE_CAB_SHADOW_SIZE over it.
+    // Its size in texels, 0 without: 2048 (task renderer 50; it followed the
+    // near map's dynamic size before), TSRE_CAB_SHADOW_SIZE over it.
     virtual int cabShadowSize() const { return 0; }
     // The car's map instead, set each frame (task renderer 49: the camera
     // in a car with the walking character): the same target and lookups,
