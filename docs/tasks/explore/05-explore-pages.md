@@ -2,8 +2,9 @@
 
 Status 2026-11-24: built on `feature/explore` the same day (the user's
 go: "ok, proceed"), not merged; its questions answered (at the end); see
-"As built". Part of the [explore set](00-task-roadmap.md). Reworks task 02's
-three-column window ([02](02-explore-window.md)); keeps its readers, the
+"As built". Narrow and wide views (at the end) built the same day (the
+user's go: "Ok, proceed"). Part of the [explore set](00-task-roadmap.md).
+Reworks task 02's three-column window ([02](02-explore-window.md)); keeps its readers, the
 run's start, the game menu and the remembered choices, and task 04's
 walking ([04](04-walking-runs.md)).
 
@@ -351,6 +352,84 @@ Answers (the user, 2026-11-24):
   Start, the 21:03 TLK chosen by keys (its comment readable under the
   table), the explore page with "nysa" and "en57" typed into its filters.
   Screens in the session's scratchpad (live/), not kept.
-- **Left:** a 4:3 window not looked at live (the layout is in shares and
-  dp); the route's picture a fixed 400 dp tall; the menu folded beside
-  the run pages (question 1) later.
+- **Left:** the route's picture a fixed 400 dp tall; the menu folded beside the run pages
+  (question 1) later.
+
+## Narrow and wide views (2026-11-24, built the same day)
+The user, on the 4:3 view left unchecked: "For 4:3, the tab window
+should just cover menu. Proportions should stay +- the same and design
+consistent." On wider views: "maximum should be set. When we have route
+background, users will get nice view on the sides."
+
+The view is 1080 dp tall at any size. The window is 960 dp tall, 430 dp
+from the left (right of the menu) and 40 dp from the right:
+
+| View | Beside the menu (now) | Over the menu, 40 dp from both edges |
+|---|---|---|
+| 21:9 (2520 dp wide) | 2050 x 960 | - |
+| 16:9 (1920) | **1450 x 960** (1.51) | - |
+| 16:10 (1728) | 1258 x 960 (1.31) | 1648 x 960 |
+| 3:2 (1620) | 1150 x 960 (1.20) | 1540 x 960 |
+| 4:3 (1440) | 970 x 960 (1.01) | **1360 x 960** (1.42) |
+| 5:4 (1350) | 880 x 960 (0.92) | 1270 x 960 (1.32) |
+
+- **At most its 16:9 width:** the window at most 1450 dp wide; a wider
+  view centres it in the space right of the menu, the route's background
+  seen on both sides (21:9: 300 dp more each side). In `explore.rcss`
+  alone: `max-width` and auto margins (RmlUi centres an absolutely placed
+  box with both `left` and `right` so, its `LayoutDetails::BuildBoxWidth`).
+- **Narrow views cover the menu:** at 3:2 and narrower
+  (`@media (max-aspect-ratio: 3/2)`) the window goes 40 dp from both
+  edges, over the menu, capped and centred the same: 3:2 1450 dp, 4:3
+  1360, 5:4 1270. 16:10 stays beside the menu (1258); moved under the
+  rule if its screen shows it too tight. The window is then 1258 to 1450
+  dp wide and 960 tall on every view: the same pages, no rules of their
+  own.
+- **Back to the menu when covered:** the menu cannot stay live beside the
+  window. Esc on the route page, or Left from its routes, hides the
+  window and focuses Explore (still marked current); Enter, Right or a
+  click opens it again on the same route and page (as now). Beside the
+  menu, as now. The ratio only in the stylesheet: the code asks whether
+  the window's box overlaps the menu's items.
+- **The mouse:** the menu's items are under the window, so the route
+  page's routes heading gets a `< Menu` button, shown only when covered
+  (in the same `@media` block), as a run page's `< route`.
+- **Checks:** screens at 21:9, 16:9, 16:10, 3:2, 4:3 and 5:4 on PRUDNIK
+  (the route, timetables and explore pages); `explore-window` cases at
+  4:3 (Esc from the route page hides the window and focuses Explore,
+  Right opens it on the same route, `< Menu` shown) and at 16:9 (the
+  window beside the menu, no `< Menu`).
+
+### As built
+- **`explore.rcss`:** `.window` with `max-width: 1450dp` and auto
+  margins; `@media (max-aspect-ratio: 3/2)` puts its left at 40 dp and
+  shows the routes' `< Main menu` (the game menu's text, none new). 16:10
+  stays beside the menu: its screen fits (the Engine column clips as it
+  does at 16:9).
+- **Found on the screens:** the window's background is not opaque, so the
+  menu's items showed through it at 4:3; they are hidden while a window is
+  over them (`#items.under`, TSRE's class).
+- **`Explore::Menu`:** whether the window covers the menu is its style's
+  `left` (computed while hidden too) left of the items' right edge.
+  Esc on the route page, Left from the routes and `< Main menu` send the
+  keys to the Explore item; while they are there a window over the menu
+  is hidden (and the items shown), and opening it again shows it. Each
+  frame the window is put right: a view made wider shows it beside the
+  menu again; one made narrower with the keys on the menu hides it. Esc
+  on the item hides a window over the menu that no route took the keys
+  into (a root without routes). For the checks: `covering()`,
+  `windowShown()`, `box(id)` in dp, `shows(id)`.
+- **Checks:** `explore-window` 70 (was 54): its walk now at 1280x720
+  (16:9; was 1024x768), then the views by resizing the window (the
+  resolution setting offers 4:3 and 16:9 only; other screens come by Fill
+  screen): 16:9 beside (430 dp to 40 dp from the right, no `< Main menu`,
+  the items shown); 21:9 at most 1450 dp, centred right of the menu;
+  16:10 beside; 4:3 with the keys on the menu hidden, Right over the menu
+  (40 dp from both edges, `< Main menu`, the items hidden), Esc, Left from
+  the routes and a click on `< Main menu` back to the menu with the window
+  hidden; 16:9 again shows it; 5:4 over the menu; 3:2 over the menu at
+  most 1450 dp, centred.
+- **Live, Xvfb at each ratio 720 pixels tall, Fill screen, PRUDNIK by
+  keys:** the route page, the timetables page and the menu after Esc Esc
+  at 21:9, 16:9, 16:10, 3:2, 4:3 and 5:4 (4:3 and 3:2 again after the
+  items' fix). Screens in the session's scratchpad (views/), not kept.

@@ -13,6 +13,7 @@
 
 #include <explore/ExploreChoice.h>
 
+#include <QRectF>
 #include <QString>
 #include <functional>
 #include <memory>
@@ -32,7 +33,9 @@ class Panel;
 // a menu (modal: the keys are its own). In the menu Up and Down move, Enter
 // or a click opens; Right or Enter on the marked item goes into its window;
 // Left from the window's first column, or Esc in it, back to the item. Esc
-// on the menu does nothing.
+// on the menu does nothing. A view of 3:2 and narrower has the window over
+// the menu (task explore 05, explore.rcss): back on the item, the window is
+// hidden, shown again as it opens.
 class Menu {
 public:
     enum class Page { Main, Explore };
@@ -61,6 +64,15 @@ public:
     QString focused() const;
     // The Explore window's content, null before the document loaded.
     Panel *panel() const;
+    // The window over the menu (a view of 3:2 and narrower): the menu then
+    // hides it while the keys are on the menu.
+    bool covering() const;
+    // The window shown (its page may be Explore with the window hidden).
+    bool windowShown() const;
+    // The checks: an element's border box in dp (the view's for an empty
+    // id), an empty box for none; whether it is shown.
+    QRectF box(const QString &id) const;
+    bool shows(const QString &id) const;
 
 private:
     struct Data;
@@ -75,6 +87,11 @@ private:
     bool load();
     // The keys into the window: its entry once the model made it.
     void enterWindow();
+    // The window over the menu hidden while the keys are on the menu, and
+    // shown again when the view no longer puts it over the menu.
+    void placeWindow();
+    // The keys back to the menu's Explore item.
+    void toMenu();
 };
 
 }

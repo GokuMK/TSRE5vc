@@ -27,7 +27,7 @@
              route's picture, facts and description, and its pages. -->
         <div id="route-page" data-if="page == 'route'">
             <div id="routes-column" class="column">
-                <h2>ui.explore.routes</h2>
+                <h2><button id="to-menu"><span class="arrow">&lt;</span>ui.explore.main.menu</button>ui.explore.routes</h2>
                 <div id="routes" class="list">
                     <button data-for="r : routes" class="item" data-class-chosen="it_index == route"
                             data-event-click="chooseRoute(it_index)">{{r.name}}</button>

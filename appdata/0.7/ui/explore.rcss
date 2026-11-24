@@ -89,7 +89,9 @@ scrollbarvertical sliderbar
     color: #808080;
 }
 
-/* A window right of the menu, shown with its item (class "shown"). */
+/* A window right of the menu, shown with its item (class "shown"). At most
+   its 16:9 width (task explore 05): a wider view centres it right of the
+   menu, the route's background on both sides. */
 .window
 {
     display: none;
@@ -98,6 +100,9 @@ scrollbarvertical sliderbar
     right: 40dp;
     top: 60dp;
     bottom: 60dp;
+    max-width: 1450dp;
+    margin-left: auto;
+    margin-right: auto;
     background-color: #0b0d10e6;
     border: 1dp #c4a48066;
     pointer-events: auto;
@@ -107,6 +112,55 @@ scrollbarvertical sliderbar
 .window.shown
 {
     display: block;
+}
+
+/* A view of 3:2 and narrower: the window over the menu, as wide as at 16:9
+   or nearly (4:3 1360 dp). The menu is then back on Esc or Left from the
+   routes, the window hidden (TSRE asks whether the window's left is left
+   of the menu's right: the ratio only here), and by the routes' "< Main
+   menu" for the mouse. */
+#to-menu
+{
+    display: none;
+    font-size: 19dp;
+    padding: 4dp 10dp;
+    margin-right: 14dp;
+    color: #c8c8c8;
+    border: 1dp #ffffff33;
+    focus: none;
+    nav: none;
+    tab-index: none;
+}
+
+#to-menu:hover
+{
+    color: #ffffff;
+    border-color: #c4a480;
+}
+
+#to-menu .arrow
+{
+    margin-right: 6dp;
+}
+
+/* The items under a window over them (TSRE's class): hidden, as they
+   would show through it. */
+#items.under
+{
+    visibility: hidden;
+}
+
+@media (max-aspect-ratio: 3/2)
+{
+    .window
+    {
+        left: 40dp;
+    }
+
+    #to-menu
+    {
+        display: inline-block;
+    }
 }
 
 .window h2

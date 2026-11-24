@@ -178,6 +178,8 @@ places outside the view; its setting goes (question 2: yes).
   of those a page of the window's whole width: the timetable's table
   full width with a train's calls, an activity's briefing and train, the
   explore choices as lists; one bottom bar with Drive or Walk and Start.
+  Narrow and wide views (over the menu at 3:2 and narrower, at most
+  1450 dp wide) built the same day.
 
 Later, not designed yet:
 - **Options** in RmlUi: pages made from the settings registry (names,

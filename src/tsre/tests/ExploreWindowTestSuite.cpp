@@ -33,6 +33,7 @@
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QThread>
+#include <cmath>
 
 namespace {
 
@@ -195,7 +196,8 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     check(makeRoute(rootA, "R1", "Route One") && makeRoute(rootA, "R2", "Route Two"), "two routes made");
     Game::root = rootA;
     Explore::Panel::setRememberedFile(workspace.filePath("explore.json"));
-    settings.setSessionValue("core.explore.resolution", "1024x768");
+    // 16:9: the window beside the menu.
+    settings.setSessionValue("core.explore.resolution", "1280x720");
     settings.setSessionValue("core.explore.fillScreen", false);
     Explore::Window *window = new Explore::Window("SOMEROUTE");
     bool exited = false;
@@ -203,10 +205,10 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     window->open();
     RouteEditorGLWidget *view = window->view();
     QScreen *screen = window->screen();
-    const QSize expected = Explore::Window::logicalSize(QSize(1024, 768), screen->devicePixelRatio(),
+    const QSize expected = Explore::Window::logicalSize(QSize(1280, 720), screen->devicePixelRatio(),
                                                         screen->availableGeometry().size());
     settleUntil([window] { return window->menu() != nullptr; }, 5000);
-    check(window->size() == expected, QString("the window 1024 x 768 screen pixels (%1 x %2, expected %3 x %4)")
+    check(window->size() == expected, QString("the window 1280 x 720 screen pixels (%1 x %2, expected %3 x %4)")
               .arg(window->width()).arg(window->height()).arg(expected.width()).arg(expected.height()));
     check(window->chosenRoute() == "SOMEROUTE", "the route to choose first kept");
 
@@ -343,6 +345,92 @@ int TsreTests::runExploreWindowSuite(bool verbose) {
     key(view, Qt::Key_Down);
     check(menu->focused() == "exit", "Down from Explore with the window shown: Exit (" + menu->focused() + ")");
     key(view, Qt::Key_Up);
+
+    // Narrow and wide views (task explore 05): the window at most 1450 dp
+    // wide (its 16:9 width), centred right of the menu; at 3:2 and narrower
+    // over the menu, hidden while the keys are on the menu. In dp: the view
+    // is 1080 tall; 8 dp spare for a small view's pixels. The window sized
+    // as its frame dragged would (the resolutions offered are 4:3 and 16:9),
+    // small enough for the offscreen screen (800 x 600).
+    {
+        const auto viewAt = [window](int width, int height) {
+            window->resize(width, height);
+            settle(400);
+        };
+        const auto near = [](double a, double b) { return std::fabs(a - b) < 8.0; };
+        const QRectF items = menu->box("items");
+        QRectF canvas = menu->box(QString());
+        QRectF box = menu->box("explore-window");
+        const auto boxText = [&canvas, &box] {
+            return QString("the view %1 dp wide, the window %2 to %3").arg(canvas.width(), 0, 'f', 0)
+                    .arg(box.left(), 0, 'f', 0).arg(box.right(), 0, 'f', 0);
+        };
+        const auto measure = [&] {
+            canvas = menu->box(QString());
+            box = menu->box("explore-window");
+        };
+        check(items.right() > 300 && items.right() < 430, QString("the menu's items end at %1 dp").arg(items.right()));
+        check(!menu->covering() && menu->windowShown() && near(box.left(), 430) && near(box.right(), canvas.width() - 40)
+                      && !menu->shows("to-menu") && menu->shows("items"),
+              "16:9: the window beside the menu, no Main menu button (" + boxText() + ")");
+        viewAt(784, 336);
+        measure();
+        const double leftGap = box.left() - 430, rightGap = canvas.width() - 40 - box.right();
+        check(!menu->covering() && menu->windowShown() && box.width() < 1458 && box.width() > 1440 && leftGap > 250
+                      && near(leftGap, rightGap),
+              "21:9: at most 1450 dp wide, centred right of the menu (" + boxText() + ")");
+        viewAt(768, 480);
+        measure();
+        check(!menu->covering() && menu->windowShown() && near(box.left(), 430) && near(box.right(), canvas.width() - 40),
+              "16:10: beside the menu (" + boxText() + ")");
+        // 4:3, the keys on the menu: the window over it is hidden.
+        viewAt(640, 480);
+        check(menu->covering() && !menu->windowShown() && menu->focused() == "explore",
+              "4:3 with the keys on the menu: the window hidden (" + menu->focused() + ")");
+        key(view, Qt::Key_Right);
+        settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+        settle(100);
+        measure();
+        check(menu->windowShown() && menu->focused() == "open-explore" && near(box.left(), 40)
+                      && near(box.right(), canvas.width() - 40) && box.left() < items.left() && menu->shows("to-menu"),
+              "Right: the window over the menu, the Main menu button (" + menu->focused() + ", " + boxText() + ")");
+        check(!menu->shows("items"), "the menu's items under it hidden");
+        key(view, Qt::Key_Escape);
+        check(menu->focused() == "explore" && !menu->windowShown() && menu->shows("items"),
+              "Esc on the route page: the menu, the window hidden (" + menu->focused() + ")");
+        key(view, Qt::Key_Right);
+        settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+        key(view, Qt::Key_Left);
+        check(menu->windowShown() && menu->focused() == "routes:item",
+              "Right, Left: the routes, the window shown (" + menu->focused() + ")");
+        key(view, Qt::Key_Left);
+        check(menu->focused() == "explore" && !menu->windowShown(),
+              "Left from the routes: the menu, the window hidden (" + menu->focused() + ")");
+        check(menu->click("explore") && menu->windowShown(), "a click on Explore: the window again");
+        settleUntil([menu] { return menu->focused() != "explore"; }, 1000);
+        check(menu->click("to-menu") && menu->focused() == "explore" && !menu->windowShown(),
+              "a click on Main menu: the menu, the window hidden (" + menu->focused() + ")");
+        // Made wider with the window hidden: beside the menu again.
+        viewAt(expected.width(), expected.height());
+        check(!menu->covering() && menu->windowShown() && menu->focused() == "explore",
+              "16:9 again: the window shown beside the menu, the keys on it (" + menu->focused() + ")");
+        key(view, Qt::Key_Right);
+        settleUntil([menu] { return menu->focused() == "open-explore"; }, 1000);
+        viewAt(600, 480);
+        measure();
+        check(menu->covering() && menu->windowShown() && near(box.left(), 40) && near(box.right(), canvas.width() - 40),
+              "5:4 with the keys in the window: over the menu, shown (" + boxText() + ")");
+        viewAt(720, 480);
+        measure();
+        const double gap = box.left() - 40;
+        check(menu->covering() && menu->windowShown() && box.width() < 1458 && box.width() > 1440 && gap > 30
+                      && near(gap, canvas.width() - 40 - box.right()),
+              "3:2: over the menu, at most 1450 dp wide, centred (" + boxText() + ")");
+        key(view, Qt::Key_Escape);
+        viewAt(expected.width(), expected.height());
+        check(!menu->covering() && menu->windowShown() && menu->focused() == "explore",
+              "back to 16:9 (" + menu->focused() + ")");
+    }
     menu->open(Explore::Menu::Page::Main);
     check(menu->click("explore") && menu->page() == Explore::Menu::Page::Explore, "a click: the Explore window");
     check(menu->click("options") && menu->page() == Explore::Menu::Page::Explore && !exited,
