@@ -478,6 +478,52 @@ float lampScale(float enclosed) {
 }
 #endif
 
+// A near or middle map's filter tap i: the point moved by the disc's
+// offset, its depth along the receiver's plane.
+vec3 cascadeTap(vec3 pos, float res, float bias, vec2 gradient, float limit, int i) {
+    return vec3(pos.xy + poissonDisk[i]/res,
+            pos.z - bias + receiverPlaneBias(gradient, poissonDisk[i]/res, limit));
+}
+
+#ifdef TSRE_RHI
+// A near or middle map's 16 taps: the share in shadow in its static map
+// (occludedStatic) and, lit where both are, with its dynamic map's taps at
+// the same places (occluded; task 48), those only where dynamicTaps (its
+// cells); vegetation's every fourth (task 37). The test stands outside the
+// loops: an `if` round each dynamic tap in the one loop left the Deck
+// fetching them all (task renderer 50).
+void cascadeTaps(sampler2DShadow staticMap, sampler2DShadow dynamicMap, sampler2DShadow vegetationMap,
+        bool dynamicTaps, vec3 pos, float res, float bias, vec2 gradient, float limit, float dynamicBias,
+        float crown, out float occluded, out float occludedStatic, out float vegetation,
+        out float vegetationDeep) {
+    occluded = 0.0;
+    occludedStatic = 0.0;
+    vegetation = 0.0;
+    vegetationDeep = 0.0;
+    if (dynamicTaps) {
+        for (int i = 0; i < 16; i++) {
+            vec3 tap = cascadeTap(pos, res, bias, gradient, limit, i);
+            float lit = texture(staticMap, tap);
+            occludedStatic += (1.0 - lit)/16.0;
+            occluded += (1.0 - lit*texture(dynamicMap, vec3(tap.xy, tap.z - dynamicBias)))/16.0;
+        }
+    } else {
+        for (int i = 0; i < 16; i++)
+            occludedStatic += (1.0 - texture(staticMap, cascadeTap(pos, res, bias, gradient, limit, i)))/16.0;
+        occluded = occludedStatic;
+    }
+    if (vegetationShadowsOn != 0) {
+        for (int i = 0; i < 16; i += 4) {
+            vec3 tap = cascadeTap(pos, res, bias, gradient, limit, i);
+            float leaves = 1.0 - texture(vegetationMap, tap);
+            vegetation += leaves/4.0;
+            if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
+                vegetationDeep += (1.0 - texture(vegetationMap, vec3(tap.xy, tap.z - crown)))/2.0;
+        }
+    }
+}
+#endif
+
 float shadowedVisibility(float cosTheta) {
     float visibility = (1.0-enableNormals) + cosTheta*enableNormals;
     // The shadow's contrast: the near and mid maps' sum reaches 1.6, the far
@@ -550,77 +596,60 @@ float shadowedVisibility(float cosTheta) {
     float vegetationDeep = 0.0;
     float weight = 0.0;
     float contrast = 0.0;
-#ifdef TSRE_RHI
-    bool vegetationMaps = vegetationShadowsOn != 0;
-#else
-    bool vegetationMaps = false;
-#endif
+    // The dynamic maps' taps in loops of their own, chosen outside them
+    // (cascadeTaps).
     if (t0 > 0.0) {
-        for (int i = 0; i < 16; i++) {
-            vec3 tap = vec3(shadow0Pos2.xy + poissonDisk[i]/shadow0Res,
-                    shadow0Pos2.z - bias0 + receiverPlaneBias(gradient0, poissonDisk[i]/shadow0Res, limit0));
-            float lit = texture(shadow0, tap);
 #ifdef TSRE_RHI
-            occludedStatic += (1.0 - lit)/16.0;
-            if (dynamic0Taps)
-                lit *= texture(dynamicShadow0, vec3(tap.xy, tap.z - dynamic0));
+        cascadeTaps(shadow0, dynamicShadow0, vegetationShadow0, dynamic0Taps, shadow0Pos2.xyz, shadow0Res,
+                bias0, gradient0, limit0, dynamic0, vegetationCrown.x, occluded, occludedStatic, vegetation,
+                vegetationDeep);
+#else
+        for (int i = 0; i < 16; i++)
+            occluded += (1.0 - texture(shadow0, cascadeTap(shadow0Pos2.xyz, shadow0Res, bias0, gradient0, limit0, i)))/16.0;
 #endif
-            occluded += (1.0 - lit)/16.0;
-#ifdef TSRE_RHI
-            if (vegetationMaps && (i & 3) == 0) {
-                float leaves = 1.0 - texture(vegetationShadow0, tap);
-                vegetation += leaves/4.0;
-                if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
-                    vegetationDeep += (1.0 - texture(vegetationShadow0,
-                            vec3(tap.xy, tap.z - vegetationCrown.x)))/2.0;
-            }
-#endif
-        }
         weight = t0;
         contrast = 16.0*shadowIntensity;
     } else if (t > 0.0) {
-        for (int i = 0; i < 16; i++) {
-            vec3 tap = vec3(shadowPos2.xy + poissonDisk[i]/shadowMidRes,
-                    shadowPos2.z - biasMid + receiverPlaneBias(gradientMid, poissonDisk[i]/shadowMidRes, limitMid));
-            float lit = texture(shadow1, tap);
 #ifdef TSRE_RHI
-            occludedStatic += (1.0 - lit)/16.0;
-            if (dynamicMidTaps)
-                lit *= texture(dynamicShadow1, vec3(tap.xy, tap.z - dynamicMid));
+        cascadeTaps(shadow1, dynamicShadow1, vegetationShadow1, dynamicMidTaps, shadowPos2.xyz, shadowMidRes,
+                biasMid, gradientMid, limitMid, dynamicMid, vegetationCrown.y, occluded, occludedStatic,
+                vegetation, vegetationDeep);
+#else
+        for (int i = 0; i < 16; i++)
+            occluded += (1.0 - texture(shadow1, cascadeTap(shadowPos2.xyz, shadowMidRes, biasMid, gradientMid, limitMid, i)))/16.0;
 #endif
-            occluded += (1.0 - lit)/16.0;
-#ifdef TSRE_RHI
-            if (vegetationMaps && (i & 3) == 0) {
-                float leaves = 1.0 - texture(vegetationShadow1, tap);
-                vegetation += leaves/4.0;
-                if (materialVegetation != 0 && (i & 7) == 0 && leaves > 0.0)
-                    vegetationDeep += (1.0 - texture(vegetationShadow1,
-                            vec3(tap.xy, tap.z - vegetationCrown.y)))/2.0;
-            }
-#endif
-        }
         weight = t;
         contrast = 16.0*shadowIntensity;
     } else {
-        for (int i = 0; i < 2; i++) {
-            vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
-            float lit = texture(shadow2, tap);
 #ifdef TSRE_RHI
-            occludedStatic += (1.0 - lit)/2.0;
-            if (dynamic2Taps)
-                lit *= texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
-#endif
-            occluded += (1.0 - lit)/2.0;
-#ifdef TSRE_RHI
-            if (vegetationMaps) {
+        if (dynamic2Taps) {
+            for (int i = 0; i < 2; i++) {
+                vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
+                float lit = texture(shadow2, tap);
+                occludedStatic += (1.0 - lit)/2.0;
+                occluded += (1.0 - lit*texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2)))/2.0;
+            }
+        } else {
+            for (int i = 0; i < 2; i++)
+                occludedStatic += (1.0 - texture(shadow2, vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res,
+                        shadow2Pos2.z - bias2)))/2.0;
+            occluded = occludedStatic;
+        }
+        if (vegetationShadowsOn != 0) {
+            for (int i = 0; i < 2; i++) {
+                vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
                 float leaves = 1.0 - texture(vegetationShadow2, tap);
                 vegetation += leaves/2.0;
                 if (materialVegetation != 0 && leaves > 0.0)
                     vegetationDeep += (1.0 - texture(vegetationShadow2,
                             vec3(tap.xy, tap.z - vegetationCrown.z)))/2.0;
             }
-#endif
         }
+#else
+        for (int i = 0; i < 2; i++)
+            occluded += (1.0 - texture(shadow2, vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res,
+                    shadow2Pos2.z - bias2)))/2.0;
+#endif
         weight = (1.0 - tMid)*t2;
         contrast = 2.0*farShadowIntensity;
     }

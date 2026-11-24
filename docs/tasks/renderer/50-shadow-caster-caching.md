@@ -261,9 +261,53 @@ only the pairs compare):
 
 At Prudnik the maps marked 10, 29 and 62 of 1,024 cells (the freight
 station), 14 and 19 (the forest). The forest gained less than a shader
-without the dynamic taps did earlier (4.2 ms): to look into (the branch
-may be flattened there). Images as before (Prudnik pixel for pixel, the
-coach and cab within 2 levels).
+without the dynamic taps did earlier (4.2 ms). Images as before (Prudnik
+pixel for pixel, the coach and cab within 2 levels).
+
+Reviewed (2026-11-24, checks only, the user: no implementation change;
+shader copies swapped in and put back). Every timed pass at 1920 x 1080,
+Prudnik:
+
+| Shader | Forest | Freight station |
+| --- | --- | --- |
+| The cells off (`TSRE_DYNAMIC_SHADOW_CELLS=0`) | 44.7 | 78.9 |
+| The early-out as committed | 44.2 | 69.4 |
+| The near map's test out of its loop (two loops) | 40.6 | 63.5 |
+| No dynamic taps at all | 39.0 | 58.4 |
+
+A probe (full shadow where the map in use takes its dynamic taps) shows
+the cells right: in the forest a small patch far off, at the freight
+station two patches round moving objects. So the cells are not the cause:
+the test inside the unrolled 16-tap loop does not spare the dynamic
+lookups on the Deck's driver (the branch flattened, or the samples issued
+for the whole wave); taken once outside the loop, a loop with the dynamic
+taps and one without, the near map alone recovers 3.6 ms in the forest
+and 6 ms at the freight station. Doing so for all three maps should come
+near the shader without dynamic taps (about 5 and 11 ms).
+
+Done for all three maps (the user's go, 2026-11-24): `cascadeTaps` takes a
+near or middle map's 16 taps in one of two loops, with the dynamic taps or
+without, chosen once before them; the far map's 2 taps the same way inline;
+vegetation's taps in a loop of their own after. Every timed pass at 1920 x
+1080, the three shaders back to back per scene (Prudnik's committed one run
+twice, before the others and after: within 0.4 ms), ms:
+
+| View | Committed | Test outside the loops | No dynamic taps at all |
+| --- | --- | --- | --- |
+| ET22 cab, two views | 54.0, 60.0 | 43.7, 47.9 | 38.4, 42.0 |
+| Bhp coach, lower and upper deck | 37.9, 31.2 | 36.4, 29.7 | 35.0, 28.6 |
+| Prudnik forest | 42.4 | 36.7 | 36.6 |
+| Prudnik freight station | 65.4 | 55.1 | 54.5 |
+
+The cab gains most: inside its box the dynamic taps were meant to be
+skipped (above) but were fetched all the same, over most of the screen.
+What remains there against no dynamic taps is presumably the world outside
+the box round the train, where the train's own cells are set. Images the
+same: Prudnik pixel for pixel, the cab within 1 level, the coach within 3
+(one pixel of the compass, which differs as much between two runs of one
+shader); one run of the coach's upper aisle stood the camera elsewhere, run
+again identical. The OpenGL renderer's shaders compile (its path keeps one
+loop a map, without dynamic or vegetation maps).
 
 ## Ideas to weigh
 

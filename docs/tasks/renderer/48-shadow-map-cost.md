@@ -385,7 +385,8 @@ saved the near map's 8.4 ms against +2.6 of lookups at 842 x 755; at 1920
 x 1080 the lookups (about 3.3 times the pixels) take most of that back.
 The drawing saved does not change with the resolution; the lookups grow
 with it. Done the same day: the early-out (task 50, "The dynamic maps'
-early-out").
+early-out"), its test moved outside the tap loops after: every timed
+pass now within 0.6 ms of a shader without dynamic taps at Prudnik.
 
 ### Measuring noise
 
