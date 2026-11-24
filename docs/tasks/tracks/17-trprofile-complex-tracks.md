@@ -342,8 +342,9 @@ New `Template3D` generation modes, read only in `COMPLEX` members
   opposite every crossing nose; without one the rail section. Later:
   optional `Blade` and `Nose` meshes; without them both come from the rail
   section (as now).
-- Later: `Buffer`, a buffer stop mesh the profile names, on buffer shapes
-  chosen by a name filter (decision 37; PRUDNIK: `A1tbuffer-PL_1.s` 442
+- Buffers need no mode (decision 39): a buffer family's `MAIN` places the
+  stop mesh with `Place` at the path's end, on buffer shapes chosen by a
+  name filter (decision 37; PRUDNIK: `A1tbuffer-PL_1.s` 442
   objects, `DB/DB30_A1tBuffer.s` 90, `A1tUSBuffer.s` 29, `A1tBuffer.s`
   24). No automatic placement at track database end nodes. First steps
   draw buffer shapes as track only.
@@ -791,7 +792,7 @@ Each step stops for the user's visual check before the next.
 | 3 `COMPLEX` parsing, first profiles | checked by the user (2026-11-23) | `0e36300f`, `eee62168`; assets-gen `b0ab7e5` |
 | 4 phase 1: ties, bearers, fasteners, bed, rails | checked by the user (2026-11-23) | `86274020`, `82a68097`; assets-gen `d8294f8` |
 | 5 one example per feature | built (2026-11-23) | `0c4400bc`; assets-gen `21a9e84` |
-| 6 phase 2: blades, frogs, check rails | built, waiting for the user's check | `2af05063`; assets-gen `01405ca` |
+| 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
 | 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
 
 Steps 1-3 (2026-11-23):
@@ -1112,13 +1113,12 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
     the hand-operated part, and a filter's `HandOperated ( 1 )` makes its
     switches hand-operated (section 2). The label and the throwing come
     with the junction-state task.
+39. Buffers (the user, 2026-11-24): nothing new in the format. A buffer
+    family's `MAIN` draws the track plus the stop mesh with the existing
+    `Place` mode at `PathEnd` (or `PathStart`, whichever end the shape's
+    stop is at); a name filter picks it for the buffer shapes. Open Rails
+    draws it today. Not a `Buffer` part (section 2's earlier plan).
 
 ## Open questions
 
-1. Buffers (decision 37): how a filter gives buffer shapes their stop.
-   Proposal: nothing new in the format. A buffer family's `MAIN` draws the
-   track plus the stop mesh with the existing `Place` mode at `PathEnd`
-   (or `PathStart`, whichever end the shape's stop is at); a name filter
-   picks it for the buffer shapes. Open Rails draws it today. Alternative:
-   a `Buffer` part in every family, turned on by a filter option; a new
-   mode in `MAIN` that today's Open Rails warns about.
+None now.
