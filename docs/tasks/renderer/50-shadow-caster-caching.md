@@ -221,6 +221,48 @@ At 1920 x 1080 (the ET22 cab, two views, every timed pass): Low 41.2 and
 45.6 ms (with the near map at 2048 too, the cab's map still 2048), High
 43.1 and 47.6; the filters alone as in the table above.
 
+### The environment cube's shadow lookups (the user, 2026-11-24)
+
+The cube's faces are drawn with the lit programs, reading the same shadow
+maps as the view with the same filters. Measured with the whole cube drawn
+each frame (`facesPerFrame` 6; the user's two a frame is a third of it),
+256 px faces, objects to 300 m, every timed pass, ms:
+
+| The cube | Prudnik forest | Freight station | ET22 cab (2 views) |
+| --- | --- | --- | --- |
+| Full filters (before) | 11.4 | 15.6 | 13.6, 14.4 |
+| One filtered tap of each map (done) | 9.6 | 11.9 | 11.6, 12.3 |
+| No shadow lookups at all | 7.5 | 7.8 | 8.7, 9.2 |
+
+Done: the cube's own lit programs (`cubeMainProgram`, `cubeTerrainProgram`,
+`cubePbrProgram`, `cubeWaterProgram`, `cubeSkinnedPbrProgram`,
+`TSRE_SHADOW_CHEAP`), chosen by `programFor` while the cube is drawn: one
+filtered tap of each map (the static, the dynamic where its cells say,
+vegetation's, the cab's, the passing trains'). A 256 px face's texel is far
+wider than the filters. The view's images are the same (Prudnik pixel for
+pixel, the cab within 3 levels); no startup time measurable.
+`TSRE_SHADOW_FILTER_CHEAP=0` keeps the full filters in the cube; `=view`
+gives the main view's static items the cube's programs (measuring only).
+
+First tried as a uniform in the shared programs: the branch, never taken
+in the view, made the ET22 cab's view 9 ms slower (44 against 35 ms) where
+the near and middle maps' filter took it (moved to the call sites, written
+as an if and else: the same). The far map's took nothing. Programs of their
+own leave the view's exactly as they were.
+
+One tap saves only about half the lookups' cost: one fetch a pixel still
+misses the cache as the first of 16 did (the other 15 found its lines).
+Tried: the cube from the middle map on, without the near one (4096 at 80
+m: its texels far finer than a face's): 10.1 to 9.0 at the forest, 12.1 to
+9.6 at the freight station, 11.4 and 12.1 to 10.4 and 10.9 in the cab (a
+run of its own); the view's images the same. Left to the user.
+
+The main view with one tap (static items; measuring): the forest 27.3 to
+23.1 ms (18.6 without lookups), the freight station 44.4 to 36.6 (26.4),
+the cab 35.4 and 39.6 to 33.1 and 37.1 (21.8 and 25.4; the cab's train
+keeps its filters, its parts move). Images: the wires' shadows on the
+ballast broken into dashes, hard edges everywhere; not for the view.
+
 ### The lookups at high resolution (measured 2026-11-24)
 
 Task 10 and task 48 were tuned at 842 x 755 (the maps doubled, static and

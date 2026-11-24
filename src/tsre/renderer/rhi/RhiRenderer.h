@@ -193,6 +193,13 @@ private:
     // behind; -1 until made.
     int opaqueShadowProgram = -1;
     int opaqueLampShadowProgram = -1;
+    // The environment cube's lit programs (task renderer 50): TSRE_SHADOW_
+    // CHEAP, one filtered tap of each shadow map; -1 until made.
+    int cubeMainProgram = -1;
+    int cubeTerrainProgram = -1;
+    int cubePbrProgram = -1;
+    int cubeWaterProgram = -1;
+    int cubeSkinnedPbrProgram = -1;
     struct PipelineKeyHash { size_t operator()(const PipelineKey &key) const; };
     // Textures and samplers of a draw: one resource set per distinct key.
     struct BindingKey {

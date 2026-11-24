@@ -500,6 +500,21 @@ void cascadeTaps(sampler2DShadow staticMap, sampler2DShadow dynamicMap, sampler2
     occludedStatic = 0.0;
     vegetation = 0.0;
     vegetationDeep = 0.0;
+#ifdef TSRE_SHADOW_CHEAP
+    // The environment cube's programs: one filtered tap of each map at the
+    // point (a 256 px face's texel is far wider than the filter).
+    vec3 tap = vec3(pos.xy, pos.z - bias);
+    float lit = texture(staticMap, tap);
+    occludedStatic = 1.0 - lit;
+    occluded = occludedStatic;
+    if (dynamicTaps)
+        occluded = 1.0 - lit*texture(dynamicMap, vec3(tap.xy, tap.z - dynamicBias));
+    if (vegetationShadowsOn != 0) {
+        vegetation = 1.0 - texture(vegetationMap, tap);
+        if (materialVegetation != 0 && vegetation > 0.0)
+            vegetationDeep = 1.0 - texture(vegetationMap, vec3(tap.xy, tap.z - crown));
+    }
+#else
     if (dynamicTaps) {
         for (int i = 0; i < 16; i++) {
             vec3 tap = cascadeTap(pos, res, bias, gradient, limit, i);
@@ -521,6 +536,7 @@ void cascadeTaps(sampler2DShadow staticMap, sampler2DShadow dynamicMap, sampler2
                 vegetationDeep += (1.0 - texture(vegetationMap, vec3(tap.xy, tap.z - crown)))/2.0;
         }
     }
+#endif
 }
 #endif
 
@@ -621,7 +637,20 @@ float shadowedVisibility(float cosTheta) {
         weight = t;
         contrast = 16.0*shadowIntensity;
     } else {
-#ifdef TSRE_RHI
+#if defined(TSRE_RHI) && defined(TSRE_SHADOW_CHEAP)
+        // The cube's programs: one tap of each map at the point.
+        vec3 tap = vec3(shadow2Pos2.xy, shadow2Pos2.z - bias2);
+        float lit = texture(shadow2, tap);
+        occludedStatic = 1.0 - lit;
+        occluded = occludedStatic;
+        if (dynamic2Taps)
+            occluded = 1.0 - lit*texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
+        if (vegetationShadowsOn != 0) {
+            vegetation = 1.0 - texture(vegetationShadow2, tap);
+            if (materialVegetation != 0 && vegetation > 0.0)
+                vegetationDeep = 1.0 - texture(vegetationShadow2, vec3(tap.xy, tap.z - vegetationCrown.z));
+        }
+#elif defined(TSRE_RHI)
         if (dynamic2Taps) {
             for (int i = 0; i < 2; i++) {
                 vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
@@ -694,6 +723,10 @@ float shadowedVisibility(float cosTheta) {
         if (inside > 0.0) {
             float cabBias = cabShadowParams.z;
             float occludedCab = 0.0;
+#ifdef TSRE_SHADOW_CHEAP
+            // The cube's programs: one filtered tap.
+            occludedCab = 1.0 - texture(cabShadowMap, vec3(cab.xy, cab.z - cabBias));
+#else
             if (cabShadowFilter.x > 0.5) {
                 occludedCab = 1.0 - cabTentLit(cab, cab.z - cabBias, gradientCab, 3.0*cabBias);
             } else {
@@ -705,15 +738,20 @@ float shadowedVisibility(float cosTheta) {
                     occludedCab += (1.0 - texture(cabShadowMap, tap))/16.0;
                 }
             }
+#endif
             // Trains passing through the column (task renderer 50): four
             // filtered taps of their small map (half the texels across, so
             // twice the bias), a texel apart, while one passes.
             if (cabShadowWorld.y > 0.5) {
+#ifdef TSRE_SHADOW_CHEAP
+                float occludedPassing = 1.0 - texture(cabPassingMap, vec3(cab.xy, cab.z - 2.0*cabBias));
+#else
                 float occludedPassing = 0.0;
                 for (int i = 0; i < 4; i++) {
                     vec2 offset = vec2(i == 1 || i == 3 ? 1.0 : -1.0, i >= 2 ? 1.0 : -1.0)*cabShadowWorld.zw;
                     occludedPassing += (1.0 - texture(cabPassingMap, vec3(cab.xy + offset, cab.z - 2.0*cabBias)))/4.0;
                 }
+#endif
                 occludedCab = occludedCab + occludedPassing - occludedCab*occludedPassing;
             }
             float cabVisibility = (1.0-enableNormals) + cosTheta*enableNormals

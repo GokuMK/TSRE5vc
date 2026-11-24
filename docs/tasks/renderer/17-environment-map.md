@@ -471,3 +471,12 @@ include waits, so the CPU work was counted as the thread's cycles
 `main`. Left for later: option 5 (the far cube, with the double buffer and
 PBR's environment colours), option 6 (multiview), halving L1's prefilter
 samples, the first-face stall.
+
+## Shadow lookups in the faces (2026-11-24, task renderer 50)
+
+The faces read the view's shadow maps with the view's filters: 34 to 52 %
+of the cube's GPU time (Prudnik, the ET22 cab; the whole cube 11.4 to 15.6
+ms, 7.5 to 9.2 without lookups). Since, the cube has lit programs of its
+own taking one filtered tap of each map (`TSRE_SHADOW_CHEAP`): 1.8 to 3.7
+ms less a whole cube, 0.6 to 1.2 a frame at two faces; the view's images
+the same. Task 50, "The environment cube's shadow lookups".

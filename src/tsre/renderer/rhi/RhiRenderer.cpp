@@ -292,6 +292,20 @@ RhiRenderer::RhiRenderer(RhiContext *context)
     definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", opaque});
     opaqueLampShadowProgram = int(definitions.size());
     definitions.push_back({RhiProgram::SHADOW, "Shadows", "Shadows", opaque + QStringList{"TSRE_LAMP_SHADOW"}});
+    // The environment cube's lit programs (task renderer 50): one filtered
+    // tap of each shadow map (programFor). Programs of their own: a branch
+    // in the main ones, never taken, made the ET22 cab's view 9 ms slower.
+    const QStringList cheap{"TSRE_SHADOW_CHEAP"};
+    cubeMainProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::MAIN, "StandardFog", mainFragment, cheap});
+    cubeTerrainProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::TERRAIN, "StandardFog", mainFragment, cheap + QStringList{"TSRE_TERRAIN"}});
+    cubePbrProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", cheap + QStringList{"TSRE_PBR"}});
+    cubeWaterProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::WATER, "StandardFog", "StandardFog", cheap + QStringList{"TSRE_WATER"}});
+    cubeSkinnedPbrProgram = int(definitions.size());
+    definitions.push_back({RhiProgram::PBR, "StandardFog", "StandardFog", cheap + skinned + QStringList{"TSRE_PBR"}});
     for (const Definition &definition : definitions) {
         auto program = std::make_unique<RhiProgram>();
         program->kind = definition.kind;
@@ -501,18 +515,26 @@ RhiProgram *RhiRenderer::programFor(const RenderItem *item, int pass, bool movin
             return variant(lampShadowDrawing ? opaqueLampShadowProgram : opaqueShadowProgram);
         return variant(lampShadowDrawing ? lampShadowProgram : int(RhiProgram::SHADOW));
     }
+    // The environment cube's faces: the lit programs reading the shadow maps
+    // with one filtered tap each (task renderer 50: a 256 px face's texel is
+    // far wider than the filters, which took 34 to 52 % of the cube's GPU
+    // time). TSRE_SHADOW_FILTER_CHEAP=0: the full filters there too; =view:
+    // the main view's static items too (for measuring).
+    static const QString cheapMode = qEnvironmentVariable("TSRE_SHADOW_FILTER_CHEAP");
+    const bool cheap = cheapMode == "view" ? !moving
+            : cheapMode != "0" && secondaryView && currentTarget == TargetEnvironment;
     if (skinned && !isUnlitPass(pass) && !usesTerrainProgram(item))
-        return variant(skinnedPbrProgram);
+        return variant(cheap ? cubeSkinnedPbrProgram : skinnedPbrProgram);
     if (usesTerrainProgram(item))
-        return variant(RhiProgram::TERRAIN);
+        return variant(cheap ? cubeTerrainProgram : int(RhiProgram::TERRAIN));
     // Moving instances write the velocity (task 38).
     if (isUnlitPass(pass))
         return variant(moving ? MovingUnlit : RhiProgram::UNLIT);
     if (item->pbr.enabled)
-        return variant(moving ? MovingPbr : RhiProgram::PBR);
+        return variant(cheap ? cubePbrProgram : moving ? int(MovingPbr) : int(RhiProgram::PBR));
     if (item->water.enabled)
-        return variant(RhiProgram::WATER);
-    return variant(moving ? MovingMain : RhiProgram::MAIN);
+        return variant(cheap ? cubeWaterProgram : int(RhiProgram::WATER));
+    return variant(cheap ? cubeMainProgram : moving ? int(MovingMain) : int(RhiProgram::MAIN));
 }
 
 // The values GLUU::setMatrixUniforms gives a program, from the GLUU fields.
