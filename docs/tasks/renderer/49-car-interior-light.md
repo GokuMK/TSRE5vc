@@ -89,7 +89,9 @@ holds that car instead (`computeShadowMatrices`):
 - Its texture (`RhiRenderer::carShadowMap`, made the first time): four
   times as wide as high, as long as the cab's map is wide (2048 x 512 at
   the default 2048; `TSRE_CAR_SHADOW_SIZE` its length, 512 to 8192): 12 mm
-  texels over a Bhp. Drawn with the cab map's pipelines (a compatible
+  texels over a Bhp. Since task 50 (cached, the user, 2026-11-24) twice as
+  long, as many texels as the cab's: 4096 x 1024, 6 mm. Drawn with the cab
+  map's pipelines (a compatible
   pass). The lookups take a texel of each axis (`cabShadowFilter.w`).
 - `TSRE_CAR_SHADOW_OFF=1`: none (the cascades).
 

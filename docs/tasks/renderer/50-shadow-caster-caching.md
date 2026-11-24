@@ -136,6 +136,38 @@ nearer a real sun's edge close to a window frame (about 1 cm at 1 m) than
 today's soft one (about 8 cm). For the user's tests: `TSRE_CAB_SHADOW_SIZE=4096
 TSRE_CAB_SHADOW_KERNEL=3`; cheapest: `TSRE_CAB_SHADOW_KERNEL=3` at 2048.
 
+### Redrawn twice as often, the car's map as large as the cab's (the user, 2026-11-24)
+
+The user, testing the cache: the shadows inside step visibly as the sun
+turns against the vehicle; drawing the map again at least twice as often is
+a must. 2048 still looks fine with one tap. A car's map of 2048 x 512 had a
+quarter of the cab's texels: as many, 4096 x 1024.
+
+Done: the turn threshold 0.05 degree (a shadow cast 3 m away steps 2.6 mm,
+under a 2048 cab map's texel), tested as the chord between the sun's two
+directions (`cos(0.05)` lies a few float steps under 1); `TSRE_CAB_SHADOW_CACHE_TURN`
+as before, 0 now drawing every frame (for measuring). A car's map twice as
+long as the cab's is wide (`carShadowLength`: 4096 x 1024 at a 2048 cab map,
+6 mm texels over a Bhp; `TSRE_CAR_SHADOW_SIZE` as before).
+
+Measured (1920 x 1080, the Deck, still views, every timed pass, ms; after
+the dynamic taps' fix above, so smaller than item 6's table):
+
+| | ET22 cab (2048) | Bhp coach (4096 x 1024) |
+| --- | --- | --- |
+| Tent 7 | 43.2, 47.4 | 36.8, 30.3 |
+| Tent 3 | 42.4, 46.9 | 35.6, 29.3 |
+| One tap | 42.1, 46.5 | 34.7, 28.5 |
+| A drawing of the map | 2.2 | 1.5 (0.6 at 2048 x 512) |
+
+The coach at 2048 x 512 with tent 7: 36.4 and 29.7 (the larger map's
+lookups 0.4 to 0.6 more). How often the map is drawn: the sun turns
+against the train as fast as the train turns (less its elevation's
+cosine), speed over radius; at 80 km/h about 0.4 degree a second on a
+3,000 m curve (8 drawings a second now, 4 before), 1.3 on 1,000 m (25,
+nearly every frame at 30 fps), every frame on tighter ones. A drawing every
+frame costs the cab 2.2 ms, the car 1.5.
+
 ### The lookups at high resolution (measured 2026-11-24)
 
 Task 10 and task 48 were tuned at 842 x 755 (the maps doubled, static and
@@ -190,7 +222,8 @@ Built:
   vehicle, the map's size, the train's content (`CarBox::content` of its
   cars: shapes, doors at rest, worked cab controls) or the sun's direction
   in the vehicle's frame (more than `TSRE_CAB_SHADOW_CACHE_TURN` degrees,
-  0.1) changes; otherwise the cached matrix times the vehicle's inverse.
+  0.1; 0.05 since, below) changes; otherwise the cached matrix times the
+  vehicle's inverse.
 - `renderShadowMaps`: when drawn, the train's own casters alone
   (`Renderer::renderTrainShadowCasters`, `QueueRenderer::planTrainCasters`);
   each frame the other trains' moving casters in the column

@@ -2809,8 +2809,11 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // vehicle or its map's size another, the train's content (its shapes, a
     // door at rest, a worked cab control: RenderQueue::CarBox::content), or
     // the sun's direction in the vehicle's frame turned by more than
-    // TSRE_CAB_SHADOW_CACHE_TURN degrees (0.1: a shadow cast 3 m away
-    // steps 5 mm, a cab map texel 2.9 mm). Between its drawings it is held in
+    // TSRE_CAB_SHADOW_CACHE_TURN degrees (0.05: a shadow cast 3 m away
+    // steps 2.6 mm, a 2048 cab map's texel 2.9 mm; 0.1 at first, the user
+    // saw the steps: twice as often at least, 2026-11-24; tested as the
+    // chord between the two directions, exact where the cosine's float is
+    // not; 0: every frame, for measuring). Between its drawings it is held in
     // the vehicle's frame: it moves and turns with the vehicle, so running
     // straight draws nothing. Inside its box the world's shadows come from
     // the static maps (cabShadowWorld.x), other trains passing through its
@@ -2820,10 +2823,11 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // again). TSRE_CAB_SHADOW_CACHE=0: everything in the column every frame,
     // centred on the eye, as before.
     static const bool cacheEnabled = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE") != "0";
-    static const float cacheTurnCos = [] {
+    static const float cacheTurnChord2 = [] {
         bool ok = false;
         const float degrees = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE_TURN").toFloat(&ok);
-        return std::cos((ok && degrees >= 0.0f ? degrees : 0.1f) * float(M_PI) / 180.0f);
+        const float chord = 2.0f * std::sin(0.5f * (ok && degrees >= 0.0f ? degrees : 0.05f) * float(M_PI) / 180.0f);
+        return chord * chord;
     }();
     Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
     const CabShadowTuning &tuning = cabShadowTuning(renderer->cabShadowSize());
@@ -2912,10 +2916,11 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         cache.centreLocal[2] = axes[2][0] * e[0] + axes[2][1] * e[1] + axes[2][2] * e[2];
         cache.centred = true;
     }
+    const float turned[3] = {sunLocal[0] - cache.sunLocal[0], sunLocal[1] - cache.sunLocal[1],
+                             sunLocal[2] - cache.sunLocal[2]};
     const bool keep = caching && sameVehicle && cache.width == mapWidth && cache.height == mapHeight
             && cache.content == content
-            && sunLocal[0] * cache.sunLocal[0] + sunLocal[1] * cache.sunLocal[1] + sunLocal[2] * cache.sunLocal[2]
-                    >= cacheTurnCos;
+            && turned[0] * turned[0] + turned[1] * turned[1] + turned[2] * turned[2] < cacheTurnChord2;
     float cabUp[3] = {0.0f, std::fabs(sun[1]) > 0.999f ? 0.0f : 1.0f, std::fabs(sun[1]) > 0.999f ? 1.0f : 0.0f};
     float cabCentre[3] = {position[0], position[1], position[2]};
     float halfWidth = CabShadowHalfExtent, halfHeight = CabShadowHalfExtent, behind = CabShadowBehind;

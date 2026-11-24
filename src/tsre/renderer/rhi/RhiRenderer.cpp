@@ -1924,17 +1924,20 @@ void RhiRenderer::setCarShadowMap(bool car) {
 }
 
 // A car's map: TSRE_CAR_SHADOW_SIZE texels along (512 to 8192), a quarter
-// of that across; else as long as the cab's is wide (2048 x 512, 12 mm
-// texels over a 20 m coach). Its drawing is fill-bound (a coach's floors,
-// seats and roofs over each other): 4096 x 1024 cost 4.4 ms of the Deck's
-// GPU a frame, 2048 x 512 1.1 ms (task renderer 49).
+// of that across; else twice as long as the cab's is wide, as many texels
+// as the cab's (4096 x 1024 at a 2048 cab map: 6 mm texels over a Bhp's
+// 24 m; the user, 2026-11-24: 2048 x 512 had a quarter of the cab's).
+// Its drawing is fill-bound (a coach's floors, seats and roofs over each
+// other): 4096 x 1024 cost 4.4 ms of the Deck's GPU, 2048 x 512 1.1 ms,
+// with the whole column every frame (task renderer 49); cached, only when
+// it is drawn again (task 50).
 static int carShadowLength(int cabSize) {
     static const int forced = [] {
         bool ok = false;
         const int s = qEnvironmentVariable("TSRE_CAR_SHADOW_SIZE").toInt(&ok);
         return ok ? std::clamp(s, 512, 8192) : 0;
     }();
-    return forced > 0 ? forced : cabSize;
+    return forced > 0 ? forced : std::min(2 * cabSize, 8192);
 }
 
 // The cab's or car's map holding the train alone (task renderer 50): the
