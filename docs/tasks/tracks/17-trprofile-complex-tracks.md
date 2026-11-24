@@ -918,8 +918,8 @@ Each step stops for the user's visual check before the next.
 | 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
 | 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
 | 7 switch drives, indicators, buffers | built; waiting for the user's check (2026-11-24) | `ea30b5a9`; assets-gen `35481a3` |
-| 8 repeats in step with the databases | built (2026-11-24) | `f020fe7f` |
-| 9 switch state on the shape side | built (2026-11-24) | see step 9 below |
+| 8 repeats in step with the databases | built (2026-11-24) | `f020fe7f`; assets-gen reports `prudnik-vector-phase.jpg` |
+| 9 switch state on the shape side | built (2026-11-24) | `2cb026eb`; assets-gen `2afbd21` |
 | 7 bed review: beds per track, own end planes (decision 40) | built, joints checked with the user (2026-11-24) | `74c306ef`, `2848d513`; assets-gen `46c8366`, `391100d`, `81e78be` |
 
 Steps 1-3 (2026-11-23):
