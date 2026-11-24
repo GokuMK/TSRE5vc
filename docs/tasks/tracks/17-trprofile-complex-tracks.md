@@ -342,9 +342,11 @@ New `Template3D` generation modes, read only in `COMPLEX` members
   opposite every crossing nose; without one the rail section. Later:
   optional `Blade` and `Nose` meshes; without them both come from the rail
   section (as now).
-- Later: `Buffer`, a buffer stop mesh placed at a path end that is a track
-  database end node (the user: the profile names it). First steps draw
-  buffer shapes as track only.
+- Later: `Buffer`, a buffer stop mesh the profile names, on buffer shapes
+  chosen by a name filter (decision 37; PRUDNIK: `A1tbuffer-PL_1.s` 442
+  objects, `DB/DB30_A1tBuffer.s` 90, `A1tUSBuffer.s` 29, `A1tBuffer.s`
+  24). No automatic placement at track database end nodes. First steps
+  draw buffer shapes as track only.
 - Later (decision 35, design, not built): `SwitchMotor` and
   `SwitchIndicator`, optional; a family without the mesh draws none, and
   filters turn them off per shape (part names as the modes). Each switch
@@ -1066,6 +1068,17 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
       points reach out under the motor alike).
     - Drive count: `Spacing` along the blades from the first drive, as many
       as fit with at least one `Spacing` left before the blades' heel.
+37. Buffers by name filter (the user, 2026-11-24): a filter matching buffer
+    shapes is enough; no automatic buffer at a path end that is a track
+    database end node. That may come later in plain track generation,
+    which reads the track database anyway (superelevation, task 16), as
+    may the tie phase from the track database: each piece's first tie at
+    the vector's distance at the piece's start modulo the spacing, so ties
+    run on evenly over the joints between pieces. Not implemented (checked
+    2026-11-24): `Repeat` places at `Phase + n * Spacing` from each piece's
+    own start, for static track objects and DynTracks alike, so the pattern
+    restarts at every joint. The data is at hand: `OrtsProfileRoll::forObject`
+    already finds each object's vector sections (node, index, reversed).
 
 ## Open questions
 
