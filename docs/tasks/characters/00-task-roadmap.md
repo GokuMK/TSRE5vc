@@ -323,8 +323,8 @@ floors is needed (the 3D cab's head rides so now).
   train is the later question.
 - **In a car** it collides with that car only (its mesh is still in its
   frame, the train moving or not); the platform outside is not tested
-  while the doors are shut. Walking through gangways to the next car
-  later.
+  while the doors are shut. Walking through gangways to the next car:
+  task [05](05-walking-between-cars.md).
 - **The camera** rides with it (its eyes in the car's frame, the view
   turned with the car), so curves, the car's roll on cant and its bounce
   move the view as in the cab.
@@ -429,6 +429,11 @@ server's task 06; 01-03 on the renderer's side.
   walked through (saloons; classic carriages' compartments later).
 - [ ] `04-in-the-simulation.md`: the character's state in the core, local
   first; then the server's task 07 over the network.
+- [x] [`05-walking-between-cars.md`](05-walking-between-cars.md) (built
+  2026-11-23, merged into main): end passages in the `.sd` (the seats
+  tool), open where coupled to a matching one, each car's own floor plate
+  over the gap (the user's design: overlapping, fixed in its frame), the
+  character handed from car to car.
 - Later: characters in the activity and switching; IK.
 
 ## Questions for the user

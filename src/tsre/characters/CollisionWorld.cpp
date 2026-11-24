@@ -62,12 +62,13 @@ void CollisionWorld::placeOne(Placed &p, const float *matrix) {
     }
 }
 
-int CollisionWorld::add(std::shared_ptr<const CollisionMesh> mesh, const float *matrix, int tag) {
+int CollisionWorld::add(std::shared_ptr<const CollisionMesh> mesh, const float *matrix, int tag, bool openable) {
     if (!mesh)
         return -1;
     Placed p;
     p.mesh = std::move(mesh);
     p.tag = tag;
+    p.openable = openable;
     placeOne(p, matrix);
     if (!free.empty()) {
         const int index = free.back();
@@ -216,8 +217,25 @@ bool CollisionWorld::ray(const float *origin, const float *dir, float length, fl
     return any;
 }
 
-void CollisionWorld::addOpening(const float *box) {
+int CollisionWorld::addOpening(const float *box) {
+    if (!freeOpenings.empty()) {
+        const int index = freeOpenings.back();
+        freeOpenings.pop_back();
+        std::copy(box, box + 6, openings.begin() + index * 6);
+        return index;
+    }
     openings.insert(openings.end(), box, box + 6);
+    return int(openings.size() / 6) - 1;
+}
+
+void CollisionWorld::removeOpening(int index) {
+    if (index < 0 || size_t(index) * 6 >= openings.size()
+            || std::find(freeOpenings.begin(), freeOpenings.end(), index) != freeOpenings.end())
+        return;
+    // An empty box: nothing is in it.
+    const float none[6] = {1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f};
+    std::copy(none, none + 6, openings.begin() + index * 6);
+    freeOpenings.push_back(index);
 }
 
 void CollisionWorld::contacts(const float *a, const float *b, float radius, std::vector<Contact> &out) const {
@@ -240,7 +258,7 @@ void CollisionWorld::contacts(const float *a, const float *b, float radius, std:
             Contact w;
             point(p.matrix, c.onTriangle, w.contact.onTriangle);
             bool open = false;
-            for (size_t o = 0; o + 5 < openings.size() && !open; o += 6) {
+            for (size_t o = 0; p.openable && o + 5 < openings.size() && !open; o += 6) {
                 const float *box = &openings[o];
                 open = w.contact.onTriangle[0] >= box[0] && w.contact.onTriangle[0] <= box[3]
                         && w.contact.onTriangle[1] >= box[1] && w.contact.onTriangle[1] <= box[4]

@@ -18865,32 +18865,38 @@ Missing local elevation files (downloaded automatically when supported):
     </message>
     <message id="shapeseats.seat">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="94"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="150"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="161"/>
         <source>a Seat without its four numbers (x y z heading) left out</source>
         <translation>a Seat without its four numbers (x y z heading) left out</translation>
     </message>
     <message id="shapeseats.aisle">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="106"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="162"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="173"/>
         <source>an Aisle without its four numbers (x y z0 z1) left out</source>
         <translation>an Aisle without its four numbers (x y z0 z1) left out</translation>
     </message>
     <message id="shapeseats.passage">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="114"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="170"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="181"/>
         <source>a Passage without its four numbers (x y z width) left out</source>
         <translation>a Passage without its four numbers (x y z width) left out</translation>
     </message>
-    <message id="shapeseats.door">
+    <message id="shapeseats.endpassage">
         <location filename="../src/tsre/shape/ShapeSeats.cpp" line="125"/>
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="181"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="192"/>
+        <source>an EndPassage without its four numbers (x y z width) left out</source>
+        <translation>an EndPassage without its four numbers (x y z width) left out</translation>
+    </message>
+    <message id="shapeseats.door">
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="136"/>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="203"/>
         <source>a Door without its four numbers (x y z width) left out</source>
         <translation>a Door without its four numbers (x y z width) left out</translation>
     </message>
     <message id="shapeseats.unknown">
-        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="135"/>
-        <source>%1 is not one of its lines (Seat, Aisle, Passage, Door)</source>
-        <translation>%1 is not one of its lines (Seat, Aisle, Passage, Door)</translation>
+        <location filename="../src/tsre/shape/ShapeSeats.cpp" line="146"/>
+        <source>%1 is not one of its lines (Seat, Aisle, Passage, EndPassage, Door)</source>
+        <translation>%1 is not one of its lines (Seat, Aisle, Passage, EndPassage, Door)</translation>
     </message>
     <message id="shape.hierarchy.emitter">
         <location filename="../src/shapeViewer/ShapeHierarchyWindow.cpp" line="166"/>
@@ -19125,32 +19131,32 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>The archive could not be written: %1</translation>
     </message>
     <message id="characters.use.board">
-        <location filename="../src/tsre/characters/Character.cpp" line="685"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="822"/>
         <source>Board</source>
         <translation>Board</translation>
     </message>
     <message id="characters.use.step.off">
-        <location filename="../src/tsre/characters/Character.cpp" line="687"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="824"/>
         <source>Step off</source>
         <translation>Step off</translation>
     </message>
     <message id="characters.use.drive">
-        <location filename="../src/tsre/characters/Character.cpp" line="714"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="851"/>
         <source>Drive</source>
         <translation>Drive</translation>
     </message>
     <message id="characters.use.cab.out">
-        <location filename="../src/tsre/characters/Character.cpp" line="731"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="868"/>
         <source>Get out</source>
         <translation>Get out</translation>
     </message>
     <message id="characters.use.cab.in">
-        <location filename="../src/tsre/characters/Character.cpp" line="733"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="870"/>
         <source>Climb in</source>
         <translation>Climb in</translation>
     </message>
     <message id="characters.use.sit">
-        <location filename="../src/tsre/characters/Character.cpp" line="760"/>
+        <location filename="../src/tsre/characters/Character.cpp" line="897"/>
         <source>Sit down</source>
         <translation>Sit down</translation>
     </message>

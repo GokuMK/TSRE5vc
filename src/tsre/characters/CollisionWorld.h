@@ -26,7 +26,9 @@ class CollisionWorld {
 public:
     // Adds a mesh placed by `matrix` (its space to the world's, column
     // major); its index, given again after remove(). `tag` is the caller's.
-    int add(std::shared_ptr<const CollisionMesh> mesh, const float *matrix, int tag = 0);
+    // Not `openable`: openings leave its triangles as they are (a gangway's
+    // walls inside its own door's opening, task characters 05).
+    int add(std::shared_ptr<const CollisionMesh> mesh, const float *matrix, int tag = 0, bool openable = true);
     void place(int index, const float *matrix);
     void remove(int index);
     void clear();
@@ -65,10 +67,16 @@ public:
     // Openings (task characters 03: a partition's door drawn on its wall,
     // an .sd Passage): boxes in the world's frame (min x, y, z, max x, y,
     // z) where no triangle touches a body (contacts() leaves out those met
-    // inside one); floors and rays as they are.
-    void addOpening(const float *box);
-    void clearOpenings() { openings.clear(); }
-    int openingCount() const { return int(openings.size() / 6); }
+    // inside one); floors and rays as they are. Its index, given again
+    // after removeOpening() (an end door's, open while its car is coupled
+    // to a matching one: task characters 05).
+    int addOpening(const float *box);
+    void removeOpening(int index);
+    void clearOpenings() {
+        openings.clear();
+        freeOpenings.clear();
+    }
+    int openingCount() const { return int(openings.size() / 6 - freeOpenings.size()); }
 
 private:
     struct Placed {
@@ -78,12 +86,14 @@ private:
         float scale = 1.0f;
         float box[6];
         int tag = 0;
+        bool openable = true;
     };
     std::vector<Placed> placed;
     std::vector<int> free;
     std::function<bool(float, float, float *)> terrain;
     bool terrainFallback = false;
     std::vector<float> openings;
+    std::vector<int> freeOpenings;
     static void placeOne(Placed &p, const float *matrix);
     void terrainFloor(float x, float z, float height, Floor &out) const;
 };

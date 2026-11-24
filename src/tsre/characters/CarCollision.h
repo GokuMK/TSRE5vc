@@ -11,8 +11,13 @@
 #define CHARACTERS_CARCOLLISION_H
 
 #include <tsre/characters/CollisionWorld.h>
+#include <tsre/characters/Gangways.h>
 
 class Eng;
+
+namespace ShapeSeats {
+struct EndPassage;
+}
 
 namespace Characters {
 
@@ -38,7 +43,8 @@ public:
     const CollisionWorld &world() const { return collisions; }
     CollisionWorld &world() { return collisions; }
     // Within its footprint (across, along), `margin` metres in from its
-    // sides (negative: out).
+    // sides (negative: out), or over one of its open gangways' plates
+    // (Gangways::within).
     bool within(float x, float z, float margin = 0.0f) const;
     float halfWidth() const { return half[0]; }
     float halfLength() const { return half[1]; }
@@ -50,7 +56,20 @@ public:
     // either side of the wall; read once its seats are (StationPeople's,
     // on a worker: asked each tick until then). How many.
     void readPassages();
-    int passages() const { return collisions.openingCount(); }
+    int passages() const { return passageCount; }
+    // Its ends' gangways (task characters 05, Gangways): one opened at its
+    // EndPassage's end with the narrower door's width (its plate, and its
+    // door's opening), closed (both taken away). An end: 1 its front, -1
+    // its rear.
+    // `otherX`: the facing door's middle across in this car's frame
+    // (Gangways::facingX).
+    void openEnd(const ShapeSeats::EndPassage &door, float width, float otherX);
+    void closeEnd(int end);
+    const Gangways::Plate &plate(int end) const { return ends[end > 0 ? 0 : 1].plate; }
+    // Its coupling end along it (m): half its full length, as the train
+    // spaces its cars (Consist::initPos).
+    float couplingEnd() const { return coupling; }
+    static float couplingEndOf(const Eng &eng);
 
 private:
     CollisionWorld collisions;
@@ -59,6 +78,16 @@ private:
     float tall = 0.0f;
     float floor = 0.0f;
     bool passagesRead = false;
+    int passageCount = 0;
+    float coupling = 0.0f;
+    struct End {
+        Gangways::Plate plate;
+        float doorX = 0.0f;
+        float doorWidth = 0.0f;
+        int mesh = -1;
+        int opening = -1;
+    };
+    End ends[2];
 };
 
 }
