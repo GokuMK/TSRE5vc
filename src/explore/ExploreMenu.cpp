@@ -56,21 +56,44 @@ struct Menu::Data {
     std::unique_ptr<Panel> panel;
     std::vector<std::unique_ptr<Listener>> listeners;
     // Each listener with what it listens on, to be removed.
-    std::vector<std::pair<Rml::Element *, std::pair<Rml::EventId, Listener *>>> attached;
+    struct Attached {
+        Rml::Element *element;
+        Rml::EventId event;
+        Listener *listener;
+        bool capture;
+    };
+    std::vector<Attached> attached;
     // The keys go into the window once its entry is made (the model's
     // elements come with the next update).
     bool enterPending = false;
     int enterTries = 0;
+    // The keys sent back to the menu (Esc, Left, "< Main menu"); the window
+    // hidden then while it is over the menu.
+    bool aside = false;
 
-    void listen(Rml::Element *element, Rml::EventId event, std::function<void(Rml::Event &)> handler) {
+    // `capture`: before the element the event is for (a text field stops
+    // every key it is given).
+    void listen(Rml::Element *element, Rml::EventId event, std::function<void(Rml::Event &)> handler,
+                bool capture = false) {
         if (element == nullptr)
             return;
         listeners.push_back(std::make_unique<Listener>(std::move(handler)));
-        element->AddEventListener(event, listeners.back().get());
-        attached.push_back({element, {event, listeners.back().get()}});
+        element->AddEventListener(event, listeners.back().get(), capture);
+        attached.push_back({element, event, listeners.back().get(), capture});
     }
     Rml::Element *item(const char *id) const {
         return document != nullptr ? document->GetElementById(id) : nullptr;
+    }
+    // The window's left (its style's, hidden too) left of the menu's
+    // right: explore.rcss puts it over the menu on a narrow view.
+    bool covers() const {
+        Rml::Element *items = item("items");
+        if (window == nullptr || items == nullptr)
+            return false;
+        const Rml::Style::LengthPercentageAuto left = window->GetComputedValues().left();
+        if (left.type != Rml::Style::LengthPercentageAuto::Length)
+            return false;
+        return left.value < items->GetAbsoluteLeft() + items->GetBox().GetSize(Rml::BoxArea::Border).x;
     }
 };
 
@@ -83,8 +106,8 @@ Menu::Menu(Ui::Screen &screen, const QString &root, const QString &route,
 }
 
 Menu::~Menu() {
-    for (const auto &[element, listener] : d->attached)
-        element->RemoveEventListener(listener.first, listener.second);
+    for (const Data::Attached &a : d->attached)
+        a.element->RemoveEventListener(a.event, a.listener, a.capture);
     if (d->document != nullptr)
         d->document->Close();
     // The document goes at the context's next update; its model after it.
@@ -153,8 +176,11 @@ bool Menu::load() {
         });
     });
     // The keys between the menu and its window: Right on the marked item
-    // in; Esc in the window back to it (a picker closed first). Esc on the
-    // menu stays (the screen would hide the document).
+    // in; Esc in the window back to it (a picker closed first; a run's page
+    // back to the route page first, task explore 05). Esc on the menu stays
+    // (the screen would hide the document), but hides a window over the
+    // menu (no route took the keys into it). In the capture phase: a text
+    // field (a filter) would stop Esc and Down itself.
     d->listen(d->document, Rml::EventId::Keydown, [this](Rml::Event &event) {
         Rml::Element *focus = screen.context() != nullptr ? screen.context()->GetFocusElement() : nullptr;
         const bool inWindow = d->window != nullptr && inside(focus, d->window);
@@ -163,9 +189,22 @@ bool Menu::load() {
             event.StopPropagation();
             if (d->panel && d->panel->picking())
                 d->panel->closePicker();
-            else if (inWindow)
-                if (Rml::Element *explore = d->item("explore"))
-                    explore->Focus(true);
+            else if (inWindow && d->panel && d->panel->back())
+                return;
+            else if (inWindow || (d->window != nullptr && d->window->IsClassSet("shown") && d->covers()))
+                toMenu();
+            return;
+        }
+        // A list's first row and its filter (task explore 05); the page's
+        // text scrolled by Page Up and Page Down.
+        if ((key == Rml::Input::KI_UP || key == Rml::Input::KI_DOWN) && inWindow && d->panel
+                && !d->panel->picking() && d->panel->moveUpDown(focus, key == Rml::Input::KI_DOWN)) {
+            event.StopPropagation();
+            return;
+        }
+        if ((key == Rml::Input::KI_PRIOR || key == Rml::Input::KI_NEXT) && inWindow && d->panel
+                && !d->panel->picking() && d->panel->scrollDetails(key == Rml::Input::KI_NEXT)) {
+            event.StopPropagation();
             return;
         }
         if (key == Rml::Input::KI_RIGHT && focus != nullptr && focus->GetId() == "explore") {
@@ -176,9 +215,19 @@ bool Menu::load() {
         // Across the window's columns (RmlUi's arrows stay in a list); none
         // while a picker is open.
         if ((key == Rml::Input::KI_LEFT || key == Rml::Input::KI_RIGHT) && inWindow && d->panel) {
-            if (d->panel->picking() || d->panel->moveAcross(focus, key == Rml::Input::KI_RIGHT))
+            if (d->panel->picking() || d->panel->moveAcross(focus, key == Rml::Input::KI_RIGHT)) {
                 event.StopPropagation();
+            } else if (key == Rml::Input::KI_LEFT && inside(focus, d->item("routes"))) {
+                // The routes' Left: the menu's item (their nav-left), the
+                // window hidden when it is over the menu.
+                event.StopPropagation();
+                toMenu();
+            }
         }
+    }, true);
+    // The routes' "< Main menu", shown when the window is over the menu.
+    d->listen(d->item("to-menu"), Rml::EventId::Click, [this](Rml::Event &) {
+        toMenu();
     });
     return true;
 }
@@ -198,8 +247,32 @@ void Menu::frame() {
     d->panel->frame();
     if (showing && !d->document->IsVisible())
         screen.showMenu(d->document);
+    placeWindow();
     if (d->enterPending)
         enterWindow();
+}
+
+void Menu::placeWindow() {
+    if (d->window == nullptr)
+        return;
+    // Over the menu while the keys were sent to it: hidden; beside it (a
+    // view made wider): shown again. The menu's items under a shown window
+    // hidden (they showed through its background).
+    const bool covers = d->covers();
+    const bool show = current == Page::Explore && (!d->aside || !covers);
+    if (d->window->IsClassSet("shown") != show)
+        d->window->SetClass("shown", show);
+    if (Rml::Element *items = d->item("items"))
+        if (items->IsClassSet("under") != (show && covers))
+            items->SetClass("under", show && covers);
+}
+
+void Menu::toMenu() {
+    d->aside = true;
+    // The items shown before the keys go to them.
+    placeWindow();
+    if (Rml::Element *explore = d->item("explore"))
+        explore->Focus(true);
 }
 
 void Menu::open(Page page) {
@@ -207,12 +280,14 @@ void Menu::open(Page page) {
     if (!loaded || failed)
         return;
     const bool window = page == Page::Explore;
+    d->aside = false;
     if (window)
         d->panel->open();
     if (d->window != nullptr)
         d->window->SetClass("shown", window);
     if (Rml::Element *explore = d->item("explore"))
         explore->SetClass("current", window);
+    placeWindow();
     if (showing && !d->document->IsVisible())
         screen.showMenu(d->document);
     if (window) {
@@ -255,8 +330,39 @@ bool Menu::click(const QString &id) {
     Rml::Element *element = d->document->GetElementById(id.toStdString());
     if (element == nullptr)
         return false;
+    // Focused first, as a mouse click focuses it (a text field).
+    element->Focus();
     element->Click();
     return true;
+}
+
+bool Menu::covering() const {
+    return loaded && !failed && d->covers();
+}
+
+bool Menu::windowShown() const {
+    return loaded && !failed && d->window != nullptr && d->window->IsClassSet("shown");
+}
+
+QRectF Menu::box(const QString &id) const {
+    Rml::Context *context = screen.context();
+    if (!loaded || failed || context == nullptr)
+        return QRectF();
+    const float dp = context->GetDensityIndependentPixelRatio() > 0.0f ? context->GetDensityIndependentPixelRatio() : 1.0f;
+    if (id.isEmpty())
+        return QRectF(0.0, 0.0, context->GetDimensions().x / dp, context->GetDimensions().y / dp);
+    Rml::Element *element = d->document->GetElementById(id.toStdString());
+    if (element == nullptr)
+        return QRectF();
+    const Rml::Vector2f size = element->GetBox().GetSize(Rml::BoxArea::Border);
+    return QRectF(element->GetAbsoluteLeft() / dp, element->GetAbsoluteTop() / dp, size.x / dp, size.y / dp);
+}
+
+bool Menu::shows(const QString &id) const {
+    if (!loaded || failed)
+        return false;
+    Rml::Element *element = d->document->GetElementById(id.toStdString());
+    return element != nullptr && element->IsVisible(true);
 }
 
 QString Menu::focused() const {

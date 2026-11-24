@@ -80,6 +80,8 @@ struct ConsistRead {
     QString name;
     QString engineName;
     QString engineFolder;
+    // Its Engine and Wagon blocks.
+    int cars = 0;
 };
 
 bool readConsist(const QString &path, ConsistRead &out) {
@@ -99,8 +101,12 @@ bool readConsist(const QString &path, ConsistRead &out) {
                             const QString shown = ParserX::GetStringInside(data.get()).trimmed();
                             if (!shown.isEmpty())
                                 out.name = shown;
-                        } else if (sh == "engine" && out.engineName.isEmpty()) {
-                            while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                        } else if (sh == "wagon") {
+                            ++out.cars;
+                        } else if (sh == "engine") {
+                            ++out.cars;
+                            while (out.engineName.isEmpty()
+                                   && !(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
                                 if (sh == "enginedata") {
                                     out.engineName = ParserX::GetString(data.get());
                                     out.engineFolder = ParserX::GetString(data.get());
@@ -234,6 +240,10 @@ QVector<RouteInfo> routes(const QString &root) {
         if (!loading.isEmpty())
             route.loadingScreen = ContentPath::textureSource(path + "/" + loading);
         route.latitude = startLatitude(trk, route.latitudeKnown);
+        route.metric = trk.milepostUnitsKilometers;
+        route.electrified = trk.electrified != 0;
+        route.lineVoltage = trk.maxLineVoltage;
+        route.speedLimit = trk.speedLimit;
         list << route;
     }
     sortBy(list, [](const RouteInfo &r) { return r.name; });
@@ -303,6 +313,14 @@ QVector<ActivityInfo> activities(const QString &root, const RouteInfo &route) {
                                             info.playerStops << stop;
                                         }
                                     }
+                                    ParserX::SkipToken(data.get());
+                                }
+                            } else if (sh == "traffic_definition") {
+                                // Its services: the other trains.
+                                ParserX::GetStringInside(data.get());
+                                while (!(sh = ParserX::NextTokenInside(data.get()).toLower()).isEmpty()) {
+                                    if (sh == "service_definition")
+                                        ++info.traffic;
                                     ParserX::SkipToken(data.get());
                                 }
                             }
@@ -424,6 +442,18 @@ QVector<TrainInfo> timetableTrains(const QString &root, const QString &routeFold
             };
             std::stable_sort(info.times.begin(), info.times.end(),
                              [&](const TrainInfo::Time &a, const TrainInfo::Time &b) { return from(a) < from(b); });
+            for (const TrainInfo::Time &t : info.times)
+                if (t.arrival >= 0 || t.departure >= 0)
+                    ++info.stops;
+            if (!info.times.isEmpty()) {
+                const TrainInfo::Time &last = info.times.last();
+                info.endTime = last.arrival >= 0 ? last.arrival : last.departure >= 0 ? last.departure : last.passing;
+            }
+            info.comment = train.comment.trimmed();
+            info.briefing = shownText(train.briefing);
+            info.path = train.pathName();
+            for (const OrTimetable::ConsistPart &part : train.consists)
+                info.consist += (info.consist.isEmpty() ? QString() : QString(" + ")) + part.name.trimmed();
             // Its first and last calls in time (the rows' order is the set's
             // own: Prudnik's has KK-Azoty last, the first call of trains
             // leaving it).
@@ -520,6 +550,7 @@ QVector<ConsistInfo> drivableConsists(const QString &root) {
         info.name = consist.name.trimmed().isEmpty() ? QFileInfo(file).completeBaseName() : consist.name.trimmed();
         info.engine = engine;
         info.engineName = engineNames[engine];
+        info.cars = consist.cars;
         list << info;
     }
     sortBy(list, [](const ConsistInfo &c) { return c.name; });
