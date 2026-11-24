@@ -345,6 +345,33 @@ New `Template3D` generation modes, read only in `COMPLEX` members
 - Later: `Buffer`, a buffer stop mesh placed at a path end that is a track
   database end node (the user: the profile names it). First steps draw
   buffer shapes as track only.
+- Later (decision 35, design, not built): `SwitchMotor` and
+  `SwitchIndicator`, optional; a family without the mesh draws none, and
+  filters turn them off per shape (part names as the modes). Each switch
+  of the plan (blade pair) gets a record: its toe (where the blades
+  start), heading, diverging side, main route.
+  - `SwitchMotor`: a static mesh placed from the toe by `Offset`: x out
+    from the track centre (its sign: the side, below), y up, z along the
+    switch. Longer switches have two or three drives: `Spacing` along the
+    blades from the first, as many as fit with at least one `Spacing` left
+    before the blades' heel (proposal). The user fine-tunes offsets in the
+    template.
+  - `SwitchIndicator`: a mesh placed from the toe by its own `Offset`, one
+    per switch. Its `Shape` list follows the switch's routes, main route
+    first; one shape shows no state. Until the junction-state task it
+    shows the main route, as the blades do.
+  - Defaults from PRUDNIK's DBTracks (`GLOBAL/SHAPES/DB`, measured
+    2026-11-24): 7.5° and 10° points, blades 8.7 m from the toe: one
+    motor, 0.95 to 2.34 m from the track centre, from the toe to 0.5 m
+    past it; the indicator 1.8 m out, 0.7 to 1.0 m past the toe, its head
+    0.6 to 1.0 m up. `DB2_a1tPnt4_7d*`, blades 15 m: two motors, at the toe
+    and 5 m on, each with rods to both blades. The side varies within the
+    set: `DB30_A1tPnt7_5dLft` has its motor on the straight side,
+    `..._Lft_M2` and `..._Rgt_M2` on the diverging side.
+  - In MSTS shapes the motors are static geometry; blades, the hand lever
+    and the indicator head are animated matrices with the junction's keys
+    (DB's indicator head turns 90° from key 0 to key 1). The junction-state
+    task poses them with the blades.
 
 Stretching (bearers, ballast): vertices with x < 0 follow the left end, x > 0
 the right end, as `GenAdvancedTie` did. `StretchZone ( x0 x1 )` on a
@@ -711,8 +738,11 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    reports there.
 6. Phase 2: switch blades, noses, wing rails, check rails, diamonds; the
    assets they need (the check rail section). Then the Open Rails document
-   (section 10), once phase 2 has shown the format complete (decision 32).
-7. Later: slips' obtuse crossings, blades from the junction state, the
+   (section 10) after phase 2 (decision 32). It describes the format as of
+   phase 2; the format is not finished (decision 35).
+7. Later: switch motors and indicators (decision 35; part of the format
+   before Open Rails' implementation), slips' obtuse crossings, blades from
+   the junction state, the
    buffer stop mesh, bridge guard rails' curved ends, 3D bridges, bed
    splits, steep crossing beds, turntables, the overhead wire on junctions,
    road junction parts (`ROAD COMPLEX`), the road centre roles, conductor
@@ -1017,7 +1047,29 @@ Step 6, phase 2 (2026-11-23, the user's go the same day):
     implementation; porting notes are added to the Open Rails document
     when the feature is finished (decision 32's rule: no external docs
     before the format is settled).
+35. The format is not finished (the user, 2026-11-24): switch motors and
+    switch indicators are needed as optional `COMPLEX` parts (section 2).
+    A motor is a static mesh placed with an offset; short switches have
+    one, longer ones two or three. The user fine-tunes offsets in the
+    template; defaults from PRUDNIK's shapes. Drawn wherever the family has
+    them; filters turn them off. No further parts imagined ahead of need;
+    `Buffer` is the one already needed. Design only; built on the user's
+    go.
 
 ## Open questions
 
-None now.
+From decision 35:
+
+1. The motor's side. DBTracks has both within one set (plain: straight
+   side, `_M2`: diverging side), so a family's `Offset` sign alone cannot
+   match PRUDNIK. Proposal: the sign gives the family's default (+ the
+   diverging side) and a filter flips it for the shapes it matches.
+2. Ties under the motor: lengthened by the planner under the motor mesh,
+   or baked into the motor mesh (the user: hard to say). DB's 7.5° points
+   reach out under the motor on its side (sleeper-textured faces from 1.2
+   to 3.0 m along, to the motor's outer end; not rendered to confirm).
+3. Hand operation: the user leans to one part shared by motor and hand
+   switches, with an option for hand operation enabled or disabled; how it
+   is chosen (family, filter) is open.
+4. The drive count rule (proposal in section 2) against real long
+   switches.

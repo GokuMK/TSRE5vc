@@ -149,8 +149,9 @@ are left out here, so the member can be pasted into a file as it stands.
   sets the band of the mesh that stretches when a tie is lengthened.
 - Polylines in a `COMPLEX` member are the bed: the single track's
   cross-section, stretched across all the tracks of a junction.
-- More `COMPLEX`-only modes may come later (`Blade`, `Nose`, `Buffer`).
-  The recommended change below does not need to know them.
+- The format is not finished. More `COMPLEX`-only modes are planned:
+  `SwitchMotor`, `SwitchIndicator`, `Buffer`, and perhaps `Blade` and
+  `Nose`. The recommended change below does not need to know them.
 
 The members TSRE wrote before (`MAIN`, `SINGLE`, `LEFT`, `MIDDLE`,
 `RIGHT`) are unchanged.
