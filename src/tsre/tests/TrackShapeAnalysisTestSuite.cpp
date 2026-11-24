@@ -256,6 +256,15 @@ void reviewChecks(Checks &check) {
                         .arg(tie.centre[0], 0, 'f', 2).arg(tie.centre[1], 0, 'f', 2)
                         .arg(tie.heading * 180 / Pi, 0, 'f', 1).arg(tie.length, 0, 'f', 2);
         }
+        for (const ComplexTrackPlan::Group &group : plan.groups)
+            for (const ComplexTrackPlan::BedSlice &slice : group.bed) {
+                QStringList tracks;
+                for (int k = 0; k < slice.tracks.size(); k++)
+                    tracks.append(QString("%1:%2").arg(slice.trackPaths[k]).arg(slice.tracks[k], 0, 'f', 2));
+                qInfo().noquote() << QString("[tests:track-shape-analysis] dump bed at %1 (%2 %3) tracks %4")
+                        .arg(slice.distance, 0, 'f', 2).arg(slice.position[0], 0, 'f', 2)
+                        .arg(slice.position[1], 0, 'f', 2).arg(tracks.join(' '));
+            }
         for (const ComplexTrackPlan::Switch &sw : plan.switches)
             qInfo().noquote() << QString("[tests:track-shape-analysis] dump switch main %1 other %2 diverging %3 blades %4 m")
                     .arg(sw.main).arg(sw.other).arg(sw.diverging).arg(sw.bladeLength, 0, 'f', 2);
@@ -967,6 +976,88 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                 switchMesh(false, false, TrackProfileFilters::AllParts & ~TrackProfileFilters::SwitchDrive, &vertices);
                 check(vertices == 12, QString("ExcludedParts ( SwitchDrive ): the indicator alone (%1 vertices)").arg(vertices));
             }
+        }
+
+        // Beds per track (design section 6, the user's review 2026-11-24):
+        // cross-sections where tracks start and end; between neighbours each
+        // track's own cross-section to the midpoint.
+        {
+            // The scissors middle (A2tFrog7_5dDbl): straights from 0 to
+            // 12.865, the crossing paths from -0.107 to 12.97.
+            const int straight = sections.straight(12.8652f);
+            const int crossing = sections.straight(13.1919f);
+            Shape scissors(5, {path(-2.4925f, 0, 0, {straight}), path(-0.861f, -0.1069f, 7.5f, {crossing}),
+                               path(0.861f, -0.1069f, -7.5f, {crossing}), path(2.4925f, 0, 0, {straight})});
+            QVector<ComplexTrackPlan::Path> scissorsPaths;
+            for(int i = 0; i < 4; i++){
+                ComplexTrackPlan::Path planPath;
+                planPath.line = TrackShapeAnalysis::samplePath(scissors.shape, i, sections.map);
+                scissorsPaths.append(planPath);
+            }
+            const ComplexTrackPlan scissorsPlan = ComplexTrackPlan::make(scissorsPaths, ComplexTrackPlan::Settings());
+            float firstFour = 1e9f, lastFour = -1e9f;
+            if(scissorsPlan.groups.size() == 1)
+                for(const ComplexTrackPlan::BedSlice &slice : scissorsPlan.groups[0].bed)
+                    if(slice.tracks.size() == 4){
+                        firstFour = std::min(firstFour, slice.position[1]);
+                        lastFour = std::max(lastFour, slice.position[1]);
+                    }
+            check(scissorsPlan.groups.size() == 1 && near(firstFour, 0, 0.005f) && near(lastFour, 12.865f, 0.005f),
+                    QString("scissors middle: the straights' bed from their start to their end (%1 to %2 m)")
+                        .arg(firstFour).arg(lastFour));
+
+            // Two straights 5 m apart, a crossing track leaving the left one
+            // at the start: open ground between the straights there, one bed
+            // where the crossing track has come within 2.4 m of the right one.
+            const int straight20 = sections.straight(20);
+            Shape apart(6, {path(-2.5f, 0, 0, {straight20}), path(-2.5f, 0, 7.5f, {straight20}),
+                            path(2.5f, 0, 0, {straight20})});
+            QVector<ComplexTrackPlan::Path> apartPaths;
+            for(int i = 0; i < 3; i++){
+                ComplexTrackPlan::Path planPath;
+                planPath.line = TrackShapeAnalysis::samplePath(apart.shape, i, sections.map);
+                apartPaths.append(planPath);
+            }
+            QFile bedStf(directory.filePath("Bed.stf"));
+            bedStf.open(QIODevice::WriteOnly);
+            bedStf.write("SIMISA@@@@@@@@@@JINX0p0t______\n"
+                      "TrProfile ( ObjectType ( TRACK COMPLEX )\n"
+                      " LOD ( CutoffRadius ( 150 )\n"
+                      "  LODItem ( Name ( \"bed\" ) TexName ( \"b.ace\" ) ShaderName ( TexDiff )\n"
+                      "   Polyline ( Name ( \"ballast\" ) DeltaTexCoord ( 0 0.5 )\n"
+                      "    Vertex ( Position ( -2.3 -0.05 0 ) Normal ( 0 1 0 ) TexCoord ( 0 0 ) )\n"
+                      "    Vertex ( Position ( -1.75 0.125 0 ) Normal ( 0 1 0 ) TexCoord ( 0.1 0 ) )\n"
+                      "    Vertex ( Position ( -1.3 0.1 0 ) Normal ( 0 1 0 ) TexCoord ( 0.2 0 ) )\n"
+                      "    Vertex ( Position ( 0 0.07 0 ) Normal ( 0 1 0 ) TexCoord ( 0.5 0 ) )\n"
+                      "    Vertex ( Position ( 1.3 0.1 0 ) Normal ( 0 1 0 ) TexCoord ( 0.8 0 ) )\n"
+                      "    Vertex ( Position ( 1.75 0.125 0 ) Normal ( 0 1 0 ) TexCoord ( 0.9 0 ) )\n"
+                      "    Vertex ( Position ( 2.3 -0.05 0 ) Normal ( 0 1 0 ) TexCoord ( 1 0 ) ) ) ) ) )\n");
+            bedStf.close();
+            const QSharedPointer<OrtsTrackProfile> bedMember =
+                    OrtsTrackProfileParser::parseFile(directory.filePath("Bed.stf"));
+            const ComplexTrackPlan apartPlan = ComplexTrackPlan::make(apartPaths, ComplexTrackPlan::Settings());
+            QVector<OrtsGeneratedProfileMesh> bedMeshes;
+            const bool bedBuilt = bedMember != nullptr && bedMember->valid && apartPlan.groups.size() == 1
+                    && OrtsTrackProfileRenderer::buildComplexMeshes(*bedMember, apartPlan, bedMeshes)
+                    && bedMeshes.size() == 1;
+            bool openAtStart = bedBuilt;
+            float middleHeight = -1;
+            if(bedBuilt){
+                const QVector<float> &v = bedMeshes[0].vertices;
+                // Mirrored as the renderer's static paths: x negated.
+                const float crossingEnd = -2.5f + 20 * std::sin(radians(7.5f));
+                const float middle = -(crossingEnd + 2.5f) / 2;
+                for(int i = 0; i + 8 < v.size(); i += 9){
+                    if(v[i + 2] < 0.3f && std::abs(v[i]) < 0.15f)
+                        openAtStart = false;
+                    if(v[i + 2] > 19.5f && std::abs(v[i] - middle) < 0.01f)
+                        middleHeight = std::max(middleHeight, v[i + 1]);
+                }
+            }
+            check(openAtStart, "tracks 5 m apart: open ground between their beds, as on plain track");
+            // 2.39 m apart: 1.2 m from each, in the crib (0.07 + 0.03 * 1.2 / 1.3).
+            check(near(middleHeight, 0.0975f, 0.003f),
+                    QString("tracks 2.4 m apart: their beds meet halfway at the crib's height (%1 m)").arg(middleHeight));
         }
     }
 

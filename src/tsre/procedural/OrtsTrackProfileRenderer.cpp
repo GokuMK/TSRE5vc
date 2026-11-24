@@ -1463,10 +1463,137 @@ void appendBedSpan(QVector<float> &target, const OrtsProfilePolyline &polyline,
     }
 }
 
+// A bed polyline: every vertex at or below the rail foot (design section
+// 6); others, such as a tunnel's tube, are stretched across the tracks.
+bool bedPolyline(const OrtsProfilePolyline &polyline, float railFoot) {
+    for(const OrtsProfileVertex &vertex : polyline.vertices)
+        if(vertex.position[1] > railFoot + 1e-4f)
+            return false;
+    return polyline.vertices.size() >= 2;
+}
+
+// The bed's height at x (from a track's centre, signed): the highest of the
+// bed polylines over x; none over it, the nearest vertex's.
+float bedHeight(const QVector<const OrtsProfilePolyline*> &bed, float x) {
+    float best = -std::numeric_limits<float>::max();
+    float nearestGap = std::numeric_limits<float>::max();
+    float nearestY = 0;
+    for(const OrtsProfilePolyline *polyline : bed)
+        for(int i = 0; i < polyline->vertices.size(); i++){
+            const OrtsProfileVertex &b = polyline->vertices[i];
+            if(std::abs(b.position[0] - x) < nearestGap){
+                nearestGap = std::abs(b.position[0] - x);
+                nearestY = b.position[1];
+            }
+            if(i == 0)
+                continue;
+            const OrtsProfileVertex &a = polyline->vertices[i - 1];
+            const float span = b.position[0] - a.position[0];
+            if(std::abs(span) < 1e-6f || (x - a.position[0]) * (x - b.position[0]) > 0)
+                continue;
+            best = std::max(best, a.position[1] + (b.position[1] - a.position[1]) * (x - a.position[0]) / span);
+        }
+    return best > -std::numeric_limits<float>::max() ? best : nearestY;
+}
+
+OrtsProfileVertex between(const OrtsProfileVertex &a, const OrtsProfileVertex &b, float f) {
+    OrtsProfileVertex result = a;
+    for(int c = 0; c < 3; c++){
+        result.position[c] = a.position[c] + f * (b.position[c] - a.position[c]);
+        result.normal[c] = a.normal[c] + f * (b.normal[c] - a.normal[c]);
+    }
+    const float length = std::sqrt(result.normal[0] * result.normal[0] + result.normal[1] * result.normal[1]
+            + result.normal[2] * result.normal[2]);
+    if(length > 1e-6f)
+        for(float &c : result.normal)
+            c /= length;
+    for(int c = 0; c < 2; c++)
+        result.texCoord[c] = a.texCoord[c] + f * (b.texCoord[c] - a.texCoord[c]);
+    return result;
+}
+
+// A bed polyline laid on track k of a slice: its own cross-section, each
+// side reaching to the midpoint between it and its neighbour there; past
+// it a polyline is cut where it crosses the midpoint, or (wholly past it)
+// pressed onto the midpoint at the bed's height.
+QVector<GeneratedVertex> placeOnTrack(const OrtsProfilePolyline &polyline,
+        const QVector<const OrtsProfilePolyline*> &bed, const ComplexTrackPlan::BedSlice &slice,
+        int k, float alpha) {
+    const int count = slice.tracks.size();
+    const float centre = count == 0 ? slice.left : slice.tracks[k];
+    const float open = std::numeric_limits<float>::max();
+    const float leftLimit = k > 0 && k < count ? (centre - slice.tracks[k - 1]) / 2 : open;
+    const float rightLimit = k + 1 < count ? (slice.tracks[k + 1] - centre) / 2 : open;
+    const GeneratedPathFrame frame = complexFrame(slice.position[0], slice.position[1], slice.heading,
+            slice.distance);
+    QVector<GeneratedVertex> vertices;
+    const QVector<OrtsProfileVertex> &source = polyline.vertices;
+    for(int i = 0; i < source.size(); i++){
+        OrtsProfileVertex vertex = source[i];
+        const float x = vertex.position[0];
+        const float limit = x < 0 ? leftLimit : rightLimit;
+        if(std::abs(x) > limit){
+            const float edge = x < 0 ? -limit : limit;
+            bool cut = false;
+            for(int j : {i - 1, i + 1}){
+                if(j < 0 || j >= source.size())
+                    continue;
+                const float w = source[j].position[0];
+                if((w - edge) * (x - edge) <= 0 && std::abs(x - w) > 1e-6f){
+                    vertex = between(source[j], source[i], (edge - w) / (x - w));
+                    cut = true;
+                    break;
+                }
+            }
+            if(!cut){
+                vertex.position[0] = edge;
+                vertex.position[1] = bedHeight(bed, edge);
+            }
+        }
+        vertex.position[0] += centre;
+        vertices.append(transformVertex(vertex, polyline, frame, alpha));
+    }
+    return vertices;
+}
+
+// A bed polyline between two cross-sections, per track: with as many
+// tracks on both, each to the one in its place across (crossing paths swap
+// places, their strips don't); else each to the same path's (a path on one
+// only lays none there).
+void appendBedTracks(QVector<float> &target, const OrtsProfilePolyline &polyline,
+        const QVector<const OrtsProfilePolyline*> &bed, const ComplexTrackPlan::BedSlice &previous,
+        const ComplexTrackPlan::BedSlice &current, float alpha) {
+    const int count = std::max(1, int(current.tracks.size()));
+    const bool inPlace = current.tracks.size() == previous.tracks.size();
+    for(int kc = 0; kc < count; kc++){
+        const int kp = inPlace ? kc : previous.trackPaths.indexOf(current.trackPaths.value(kc, -2));
+        if(kp < 0)
+            continue;
+        const QVector<GeneratedVertex> before = placeOnTrack(polyline, bed, previous, kp, alpha);
+        const QVector<GeneratedVertex> after = placeOnTrack(polyline, bed, current, kc, alpha);
+        for(int i = 1; i < after.size(); i++){
+            appendVertex(target, after[i]);
+            appendVertex(target, after[i - 1]);
+            appendVertex(target, before[i - 1]);
+            appendVertex(target, after[i]);
+            appendVertex(target, before[i - 1]);
+            appendVertex(target, before[i]);
+        }
+    }
+}
+
+// A polyline along a bed: bed polylines per track (bed holds the item's),
+// others stretched across.
 void appendBed(QVector<float> &target, const OrtsProfilePolyline &polyline,
-        const QVector<ComplexTrackPlan::BedSlice> &slices, float alpha) {
-    for(int i = 1; i < slices.size(); i++)
-        appendBedSpan(target, polyline, slices[i - 1], slices[i], alpha);
+        const QVector<ComplexTrackPlan::BedSlice> &slices, float alpha,
+        const QVector<const OrtsProfilePolyline*> &bed) {
+    const bool perTrack = bed.contains(&polyline);
+    for(int i = 1; i < slices.size(); i++){
+        if(perTrack)
+            appendBedTracks(target, polyline, bed, slices[i - 1], slices[i], alpha);
+        else
+            appendBedSpan(target, polyline, slices[i - 1], slices[i], alpha);
+    }
 }
 
 // A SwitchDrive or SwitchIndicator template as the plan places it (step 7):
@@ -1547,6 +1674,10 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
     if(!member.valid || plan.groups.isEmpty())
         return false;
     using Mode = OrtsProfileTemplate3D::GenerationMode;
+    // The rail foot (the Rail part's Offset y): polylines at or below it
+    // are the bed.
+    const OrtsProfileTemplate3D *railPart = firstTemplate(member, Mode::Rail);
+    const float railFoot = railPart != nullptr ? railPart->offset[1] : std::numeric_limits<float>::max();
     float previousCutoff = -1;
     for(const OrtsProfileLod &lod : member.lods){
         // Bearers by the Bearer mesh where this LOD has one, else the Tie
@@ -1572,11 +1703,17 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
             mesh.maximumDistance = lod.cutoffRadius;
             const float alpha = materialAlpha(item);
 
+            // The item's bed polylines (at or below the rail foot) are laid
+            // per track (design section 6).
+            QVector<const OrtsProfilePolyline*> bed;
+            for(const OrtsProfilePolyline &polyline : item.polylines)
+                if(bedPolyline(polyline, railFoot))
+                    bed.append(&polyline);
             for(const OrtsProfilePolyline &polyline : item.polylines)
                 for(const ComplexTrackPlan::Group &group : plan.groups){
-                    appendBed(mesh.vertices, polyline, group.bed, alpha);
-                    for(const QVector<ComplexTrackPlan::BedSlice> &bed : group.pathBeds)
-                        appendBed(mesh.vertices, polyline, bed, alpha);
+                    appendBed(mesh.vertices, polyline, group.bed, alpha, bed);
+                    for(const QVector<ComplexTrackPlan::BedSlice> &slices : group.pathBeds)
+                        appendBed(mesh.vertices, polyline, slices, alpha, bed);
                 }
 
             for(const OrtsProfileTemplate3D &source : item.templates3D){

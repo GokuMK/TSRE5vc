@@ -152,7 +152,9 @@ are left out here, so the member can be pasted into a file as it stands.
 - `HandOperated ( 1 )` may appear in `SwitchDrive` templates. It marks the
   drive that switches operated by hand draw instead of the others.
 - Polylines in a `COMPLEX` member are the bed: the single track's
-  cross-section, stretched across all the tracks of a junction.
+  cross-section, laid under every track of a junction, each reaching to
+  the midpoint between it and its neighbour. Polylines above the rail
+  foot (a tunnel's tube) are stretched across all the tracks.
 - The format is not finished. More `COMPLEX`-only modes may follow,
   perhaps `Blade` and `Nose`. The recommended change below does not need
   to know them.

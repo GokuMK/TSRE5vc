@@ -175,6 +175,12 @@ public:
         float right = 0;
         // Along the bed's line, for texture coordinates.
         float distance = 0;
+        // Every track across it (design section 6): the signed distances
+        // of their centres, ascending, and their paths; between two
+        // neighbours each track's own cross-section reaches to the
+        // midpoint. Empty: one track at 0 (a path's own bed).
+        QVector<float> tracks;
+        QVector<int> trackPaths;
     };
 
     // A switch (step 7): two paths starting together and parting, with

@@ -444,10 +444,13 @@ the right end, as `GenAdvancedTie` did. `StretchZone ( x0 x1 )` on a
 spread, the ones outside keep their distance from their end); default
 `( 0 0 )`. A mesh with a vertex column at x = 0 stretches cleanly.
 
-Polylines in a `COMPLEX` member are the bed: the single track's
-cross-section, stretched across the group in the same way (left half under
-the leftmost track, right half under the rightmost). A polyline wholly on
-one side follows that side's track.
+Polylines in a `COMPLEX` member at or below the rail foot (the `Rail`
+part's `Offset` y) are the bed: the single track's cross-section laid under
+every track, each side reaching to the midpoint between it and its
+neighbour (section 6, decision 40). Higher ones (a tunnel's tube) are
+stretched across the group (left half under the leftmost track, right half
+under the rightmost; a polyline wholly on one side follows that side's
+track).
 
 `ComplexTrack` values: tie spacing and phase as `Repeat`'s; `TieGap` the
 least gap between two tie ends; `MaxBearerLength` the longest shared tie
@@ -614,18 +617,26 @@ overlap.
 
 ### 6. Ballast bed
 
-The group's bed is swept along the reference line: on each cut line, the
-`COMPLEX` polylines stretched from the leftmost to the rightmost track whose
-ballast footprint (a strip of the bed's width, ended by the path's own start
-and end planes) crosses that line. Parts of a path outside the reference
-line's span (before its start plane, past its end plane) get the single
-track's bed, cut at that plane. Bed edges then follow the paths' own ends,
-so the next piece on any path starts where this one stops.
+The group's bed is swept along the reference line, on cross-sections every
+0.5 m and where a track starts or ends (2 mm inside it): each track's bed
+begins and stops at its own ends, so the next piece's bed meets it. On each
+cross-section, every track whose ballast footprint (a strip of the bed's
+width, ended by the path's own start and end planes) crosses it lays the
+bed polylines as its own cross-section, each side reaching to the midpoint
+between it and its neighbour there (decision 40): a polyline crossing the
+midpoint is cut there, one wholly past it pressed onto it at the bed's
+height. With the assets-gen ballast: tracks 1.6 m apart meet at about the
+crib's height, 3.3 m apart at the shoulders (0.12 m), and tracks more than
+4.6 m apart leave open ground between their beds, as plain track side by
+side does. Higher polylines (a tunnel's tube) are stretched from the
+leftmost to the rightmost track. Between two cross-sections each track's
+strip joins the one in its place across (crossing tracks swap places);
+where a track starts or ends there, the same path's. Parts of a path
+outside the reference line's span (before its start plane, past its end
+plane) get the single track's bed, cut at that plane.
 
-In phase 1 a group's bed never splits: XTracks' pieces end while their
-tracks are still close. Later: a split with a V where the gap between beds
-is wide. Steep crossings: two beds; the second cut where it overlaps the
-first (until then they overlap as today).
+Steep crossings: two beds; the second cut where it overlaps the first
+(until then they overlap as today).
 
 ### 7. Rails
 
@@ -1029,6 +1040,15 @@ Step 7 (2026-11-24, the user's go the same day):
   junction-state task); the motor can sink into terrain higher than the
   bed's shoulder (the route's terrain, as with DBTracks' own motors).
 
+Bed review (2026-11-24, decision 40): the user found the bed of PRUDNIK's
+scissors middle one big rectangle that does not fit the switches. Beds are
+now laid per track (section 6) with cross-sections at the tracks' ends; the
+gaps at the scissors' joints (terrain through up to 0.47 m of missing bed)
+are gone. Tests in track-shape-analysis (the scissors' straights' bed from
+0 to 12.865 m; open ground between tracks 5 m apart; tracks 2.4 m apart
+meeting at the crib's height). From above the scissors middle is still one
+band: its crossing tracks fill the space between the straights.
+
 ## Acceptance
 
 - PRUDNIK in `Forced` with a filter file: its DB track procedural apart
@@ -1195,6 +1215,16 @@ Step 7 (2026-11-24, the user's go the same day):
     `Place` mode at `PathEnd` (or `PathStart`, whichever end the shape's
     stop is at); a name filter picks it for the buffer shapes. Open Rails
     draws it today. Not a `Buffer` part (section 2's earlier plan).
+
+40. Beds per track (the user's review, 2026-11-24, of PRUDNIK's scissors
+    middle `DB/DB3f_A2tFrog7_5dDbl.s`: "one big rectangle" that does not
+    fit the switches; "build and show" the same day): a group's bed is no
+    longer one cross-section stretched from the leftmost to the rightmost
+    track but each track's own up to the midpoint between neighbours
+    (section 6), and cross-sections fall where tracks start and end (the
+    0.5 m grid alone began and ended a track's bed up to 0.5 m from its
+    ends: the terrain showed through at joints as dark wedges). Built;
+    waiting for the user's look.
 
 ## Open questions
 
