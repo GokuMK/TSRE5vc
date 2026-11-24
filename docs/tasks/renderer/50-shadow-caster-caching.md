@@ -467,6 +467,66 @@ out), the view 1.1 to 1.6 more: not the cache (off: 35.3 and 39.9) nor the
 cells (off: 34.8 and 39.1); open. The shadow phase's CPU at Prudnik 0.4 to
 0.5 ms more (the frame's within its spread); open.
 
+The cab's view checked after the merge (the user): today's build with
+`ShadowSampling.glsl` as at each commit, the ET22 cab, every timed pass of
+the view (ms, two views):
+
+| The shader as at | The view |
+| --- | --- |
+| main 5cd1889a | 32.9, 37.2 (main's build: 32.8, 37.3) |
+| faee5e84 (task 49) | 33.3, 37.9 |
+| 17cf5862 (the cache) | 31.6, 35.4 |
+| 30cd7a54 (the dynamic maps' cells, the test in the loops) | 44.7, 49.9 |
+| 12ec782a (the test outside the loops) | 34.5, 38.8 |
+| 1df2ef9b (now) | 34.5, 38.7 |
+
+So the shader, not the C++: the cache gained 1.3 to 1.8 ms in the cab's
+view; the early-out's structure (`cascadeTaps`, two loops, the maps as
+function arguments, the cells' tests) costs it about 3 ms again, though
+inside the cab's box only the static loop runs: the early-out made Prudnik
+5 to 10 ms faster and the cab slower (as the cube's branch, task 50 above:
+the cab's programs compile worse with more code there).
+
+Variants of the current shader (the user's go), the view's pass, ms (the
+cab's two views; Prudnik's forest, freight station), back to back:
+
+| Variant | ET22 cab | Forest | Freight |
+| --- | --- | --- | --- |
+| Now (three runs) | 34.6, 38.6 to 39.0 | 26.2 to 27.0 | 43.1 to 43.8 |
+| A: the near and middle loops inline again | 37.3, 43.9 | 26.3 | 43.4 |
+| B: each map's cell tested in its own branch | 34.1, 38.2 to 38.4 | 25.7, 26.2 | 41.8, 42.0 |
+| A and B | 38.7, 44.9 | 25.8 | 42.5 |
+| C: the near map always both lookups (17cf5862's loop) | 36.1, 40.4 | 27.5 | 46.3 |
+| E: B with the dynamic taps in a loop of their own | 34.1, 38.2 | 25.6 | 42.0 |
+| 17cf5862 (before the early-out) | 31.6, 35.5 | 27.2 | 46.4 |
+
+Diagnostics on B in the cab: the cells' test always true 34.6 and 39.0
+(not the uniform array's read); the box's skip off 35.4 and 39.7 (it
+helps); no dynamic taps at all 28.6 and 32.1, 3 ms under 17cf5862, which
+took them everywhere. E (no wave paying for both loops) gained nothing,
+so the cab's cost is the code's (its programs compiled with the loops'
+branches), not the taps.
+
+Done: B (the same images; cab 0.5 ms less, Prudnik up to 1.7). B over E:
+the same speed, B exact (each tap lit where both maps are, as before), E
+the two filters' shares combined (22 pixels over 2 levels at the freight
+station, where a moving shadow's penumbra meets a static one's); E only
+helps waves mixing both loops, which the measurement ruled out.
+
+Left (the user, 2026-11-24: for later): the cab about 2.6 ms over
+17cf5862's view. The idea, as the cube's programs: a define
+(`TSRE_SHADOW_NO_DYNAMIC`) round the dynamic maps' code in
+`ShadowSampling.glsl` (the cells' tests, the dynamic loop and tap), the
+near and middle maps then the static loop alone; program variants of MAIN
+and PBR with it (and their velocity variants, the viewer's train's parts
+being moving instances: 2 to 4 programs, from the same sources); picked in
+`programFor` for the items of the vehicle whose map is on: a 3D cab's own
+shape only (the rest of the locomotive, past the 6 m box, takes its own
+shadows from the dynamic maps), a car's whole shape (its box holds it).
+Towards the 28.6 and 32.1 ms above, about 5 ms under now. Costs: no
+dynamic shadow on those parts while the map fades in (0.5 s) and in the
+box's outer fade band.
+
 ## Ideas to weigh
 
 - The main view's shadow lookups (later, the user, 2026-11-24): 8.7 to 18
@@ -474,8 +534,10 @@ cells (off: 34.8 and 39.1); open. The shadow phase's CPU at Prudnik 0.4 to
   lookups"); one tap is not enough there. Fewer taps in a better pattern,
   and what of the cost is the large maps' cache misses.
 - The near map in tiles, with a fade before it ends: task 51.
-- The ET22 cab's view 1.1 to 1.6 ms slower than main's and the shadow
-  phase's CPU 0.4 ms more at Prudnik ("Against main before the merge").
+- The ET22 cab's view slower than main's: the early-out's shader code,
+  about 2.6 ms in the cab after variant B ("Against main before the
+  merge"); the cab's parts in a program without the dynamic maps' code to
+  weigh; the shadow phase's CPU 0.4 ms more at Prudnik.
 - A vehicle's own map in its frame (as its lamps' since task 46 C): drawn
   once for the sun's direction in that frame and kept until that direction
   turns by more than a threshold (curves), the vehicle's content changes
