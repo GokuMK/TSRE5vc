@@ -795,6 +795,62 @@ implementation. What the document says now:
   matches falls back to `RdProfile`, as road DynTracks do; `DefaultTrack`
   stays the rail fallback.
 
+### 12. Repeats in step with the track database (step 8, design)
+
+The user (2026-11-24): plain track and roads continue their repeating parts
+over the joints between pieces, from the track (road) database, as
+decision 37 noted. Today `Repeat` places at `Phase + n * Spacing` from each
+piece's own start and texture coordinates run from 0 at each piece's start,
+so the sleeper pattern and the ballast or road texture restart at every
+joint.
+
+- Each path of a procedural track or road object (a static object's paths,
+  a DynTrack's one) finds its vector section in the track database (roads:
+  the road database) as superelevation does (`OrtsProfileRoll::forObject`,
+  `forDynTrack`): `s0`, the distance along its vector at the path's start
+  (the lengths of the vector's sections before it). A path running against
+  its vector counts down from the distance at its end.
+- What repeats along the path takes `s0` as its origin: `Repeat`
+  templates (sleepers, insulator posts: the first copy where the vector
+  distance is `Phase + n * Spacing`, so sleepers run on evenly over joints)
+  and texture coordinates that grow with distance (polylines'
+  `DeltaTexCoord`: ballast, road surfaces and markings; `Sweep` with the
+  path-length texture: rails), offset by `s0` modulo the texture's period
+  (float precision on long vectors). Not: `Stretch`, `Place` (path ends,
+  nodes), anything whose texture does not run with distance.
+- A vector restarts at each junction or end node, so the pattern restarts
+  there; junctions (`COMPLEX`) keep their own tie plan. Without a database
+  entry (the Shape Viewer, an object not yet joined): as today.
+- The phase follows the database: moving an object or re-splitting a vector
+  rebuilds its meshes, as superelevation does (task 16's edit rebuild).
+- No format change. Open Rails places per piece; a note in the Open Rails
+  document (a behaviour it can adopt).
+
+### 13. Switch state on the shape side (step 9, design)
+
+The user (2026-11-24): blades, indicator and hand lever follow the
+switch's state on the shape side, tested with the Shape Viewer's animation
+controls; no simulation wiring yet, but made to take it later.
+
+- A junction track object gets a state: the route set (0 the `MainRoute`,
+  then the others; a three-way point's two switches both follow it) and a
+  pose moving to it over 0.5 s (Open Rails' `SwitchTrackShape`). One call
+  sets it (`setRoute(route, animate)`): the Shape Viewer's controls now,
+  the simulation later through the junction node's object (its UiD in the
+  track database).
+- Static MSTS junction shapes: their animated matrices posed between key
+  0 and key 1 by it (blades, DB's lever and indicator head), as Open Rails
+  does.
+- Procedural junctions: the blades leave the shared mesh for a small
+  per-object piece with both routes' lines (closed and open), its vertices
+  blended by the pose; the `SwitchIndicator` shows its route's `Shape`
+  (main route first, swapped halfway); a `HandOperated` `SwitchDrive` takes
+  a `Shape` per route alike (the lever's positions); motors stay static.
+- Using the hand lever as a walking character (characters' usables, a
+  label and E) comes with the simulation wiring, since it throws the
+  switch through the simulation; step 9 keeps where each marked part
+  stands for it.
+
 ## Steps
 
 Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
@@ -832,8 +888,15 @@ Work on `feature/complex-tracks` in the worktree `../TSRE5vc-complex-tracks`
    buffers by a buffer family (decision 39); one example of each in
    assets-gen; viewer captures on 7.5° points, long points, three-way
    points, a double slip, and PRUDNIK.
-8. Later: slips' obtuse crossings, blades from the junction state (and
-   the hand lever usable, the indicator's state), bridge guard rails'
+8. Repeats in step with the track and road databases (section 12, the
+   user 2026-11-24): `Repeat` and distance-running texture coordinates
+   from the vector distance at a path's start. Design; built on a go.
+9. Switch state on the shape side (section 13, the user 2026-11-24):
+   static and procedural junctions posed by a route state, tested in the
+   Shape Viewer; the simulation wiring and the usable lever later. Design;
+   built on a go.
+10. Later: slips' obtuse crossings, the switch state from the simulation
+   (and the hand lever usable), bridge guard rails'
    curved ends, 3D bridges (bed splits: done, decision 40), steep
    crossing beds, turntables, the overhead wire on junctions,
    road junction parts (`ROAD COMPLEX`), the road centre roles, conductor
