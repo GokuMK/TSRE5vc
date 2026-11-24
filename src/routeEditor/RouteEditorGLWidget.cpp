@@ -2809,11 +2809,12 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // vehicle or its map's size another, the train's content (its shapes, a
     // door at rest, a worked cab control: RenderQueue::CarBox::content), or
     // the sun's direction in the vehicle's frame turned by more than
-    // TSRE_CAB_SHADOW_CACHE_TURN degrees (0.05: a shadow cast 3 m away
-    // steps 2.6 mm, a 2048 cab map's texel 2.9 mm; 0.1 at first, the user
-    // saw the steps: twice as often at least, 2026-11-24; tested as the
-    // chord between the two directions, exact where the cosine's float is
-    // not; 0: every frame, for measuring). Between its drawings it is held in
+    // TSRE_CAB_SHADOW_CACHE_TURN degrees (0.025, the user's choice on bbb's
+    // circle, 2026-11-24, after 0.1 and 0.05 left visible steps: an edge h
+    // above a floor steps h x turn / sin(the sun's height) on it, more on a
+    // surface the light grazes; tested as the chord between the two
+    // directions, exact where the cosine's float is not; 0: every frame,
+    // for measuring). Between its drawings it is held in
     // the vehicle's frame: it moves and turns with the vehicle, so running
     // straight draws nothing. Inside its box the world's shadows come from
     // the static maps (cabShadowWorld.x), other trains passing through its
@@ -2826,7 +2827,7 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     static const float cacheTurnChord2 = [] {
         bool ok = false;
         const float degrees = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE_TURN").toFloat(&ok);
-        const float chord = 2.0f * std::sin(0.5f * (ok && degrees >= 0.0f ? degrees : 0.05f) * float(M_PI) / 180.0f);
+        const float chord = 2.0f * std::sin(0.5f * (ok && degrees >= 0.0f ? degrees : 0.025f) * float(M_PI) / 180.0f);
         return chord * chord;
     }();
     Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
@@ -2973,6 +2974,21 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         Mat4::ortho(cabProjection, -halfWidth, halfWidth, -halfHeight, halfHeight, -CabShadowColumn, behind + 1.0f);
         Mat4::multiply(gluu->cabShadowMatrix, cabProjection, cabView);
         if (caching) {
+            // TSRE_CAB_SHADOW_CACHE_LOG=1: each drawing, why, how far the
+            // sun turned in the vehicle's frame and how high it stands there.
+            static const bool cacheLog = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_CACHE_LOG");
+            if (cacheLog) {
+                const float chord = std::sqrt(turned[0] * turned[0] + turned[1] * turned[1] + turned[2] * turned[2]);
+                const char *why = !sameVehicle ? "vehicle"
+                        : cache.width != mapWidth || cache.height != mapHeight ? "size"
+                        : cache.content != content ? "content" : "turn";
+                qInfo().noquote() << QString("Cab shadow cache: drawn, frame %1, %2, turned %3 degrees, the sun %4 "
+                                             "degrees high")
+                                         .arg(Renderer::frameNumber()).arg(why)
+                                         .arg(sameVehicle ? 2.0 * std::asin(std::min(chord, 2.0f) / 2.0) * 180.0 / M_PI : 0.0,
+                                              0, 'f', 4)
+                                         .arg(std::asin(std::clamp(sunLocal[1], -1.0f, 1.0f)) * 180.0 / M_PI, 0, 'f', 2);
+            }
             Mat4::multiply(cache.local, gluu->cabShadowMatrix, frame);
             cache.vehicle = vehicleBox->car;
             cache.car = car != nullptr;
@@ -3179,9 +3195,6 @@ void RouteEditorGLWidget::renderShadowMaps() {
     // vegetation too.
     if (gluu->cabShadowParams[0] > 0.0f && gluu->cabShadowWorld[0] > 0.0f) {
         if (trainShadowRedraw) {
-            static const bool cacheLog = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_CACHE_LOG");
-            if (cacheLog)
-                qInfo().noquote() << QString("Cab shadow cache: drawn, frame %1").arg(Renderer::frameNumber());
             renderer->bindTarget(Renderer::TARGET_SHADOW_CAB);
             renderer->clear(true, true);
             drawWith(gluu->cabShadowMatrix);

@@ -136,17 +136,17 @@ nearer a real sun's edge close to a window frame (about 1 cm at 1 m) than
 today's soft one (about 8 cm). For the user's tests: `TSRE_CAB_SHADOW_SIZE=4096
 TSRE_CAB_SHADOW_KERNEL=3`; cheapest: `TSRE_CAB_SHADOW_KERNEL=3` at 2048.
 
-### Redrawn twice as often, the car's map as large as the cab's (the user, 2026-11-24)
+### Redrawn more often, the car's map as large as the cab's (the user, 2026-11-24)
 
 The user, testing the cache: the shadows inside step visibly as the sun
 turns against the vehicle; drawing the map again at least twice as often is
 a must. 2048 still looks fine with one tap. A car's map of 2048 x 512 had a
 quarter of the cab's texels: as many, 4096 x 1024.
 
-Done: the turn threshold 0.05 degree (a shadow cast 3 m away steps 2.6 mm,
-under a 2048 cab map's texel), tested as the chord between the sun's two
-directions (`cos(0.05)` lies a few float steps under 1); `TSRE_CAB_SHADOW_CACHE_TURN`
-as before, 0 now drawing every frame (for measuring). A car's map twice as
+Done: the turn threshold 0.05 degree, then 0.025 (below), tested as the
+chord between the sun's two directions (`cos(0.05)` lies a few float steps
+under 1); `TSRE_CAB_SHADOW_CACHE_TURN` as before, 0 now drawing every frame
+(for measuring). A car's map twice as
 long as the cab's is wide (`carShadowLength`: 4096 x 1024 at a 2048 cab map,
 6 mm texels over a Bhp; `TSRE_CAR_SHADOW_SIZE` as before).
 
@@ -161,12 +161,36 @@ the dynamic taps' fix above, so smaller than item 6's table):
 | A drawing of the map | 2.2 | 1.5 (0.6 at 2048 x 512) |
 
 The coach at 2048 x 512 with tent 7: 36.4 and 29.7 (the larger map's
-lookups 0.4 to 0.6 more). How often the map is drawn: the sun turns
-against the train as fast as the train turns (less its elevation's
-cosine), speed over radius; at 80 km/h about 0.4 degree a second on a
-3,000 m curve (8 drawings a second now, 4 before), 1.3 on 1,000 m (25,
-nearly every frame at 30 fps), every frame on tighter ones. A drawing every
-frame costs the cab 2.2 ms, the car 1.5.
+lookups 0.4 to 0.6 more). A drawing every frame costs the cab 2.2 ms,
+the car 1.5.
+
+Estimated first, wrongly: a step of 2.6 mm at 0.05 (a shadow cast 3 m
+away, the light square to the surface) and 25 drawings a second on a
+1,000 m curve at 80 km/h. The user saw steps over a centimetre with 0.05
+on bbb's circle (low sun; 0.025 fine) and no drawing every frame on its
+1,000 m part. Right:
+
+- The step: an edge h above a floor casts its shadow h / tan(e) away (e
+  the sun's height in the vehicle's frame); the vehicle turning by d moves
+  it h d / tan(e), and the sun's direction turns d cos(e), so a drawing
+  every t degrees steps h t / sin(e) on the floor, and more on a surface
+  the light grazes (divided by the sine of its angle to the light). At
+  e = 25 degrees, t = 0.05: 3 mm on the floor for an edge 1.5 m up; a
+  window post's shadow on the far wall 2.5 m off, the light grazing it at
+  20 degrees, 2 cm; at e = 10 degrees 2.5 times as much on the floor.
+- How often: the sun turns v / R cos(e) a second, and the map is drawn
+  at the first frame past t: every ceil(t / turn a frame) frames, not
+  turn a second / t times a second.
+
+Measured on bbb's circle (`file1.act`, the ET22 cab from 07:00:05, live
+60 s, 30 fps; `TSRE_CAB_SHADOW_CACHE_LOG=1` now logs why each drawing,
+the turn since the last and the sun's height in the vehicle's frame): the
+sun 23 to 31 degrees high in the cab (the cant); on the 1,000 m part at 18
+to 47 km/h a drawing every 5.2 frames with 0.05, every 2.8 with 0.025; on
+a 430 m part at 63 to 88 km/h the sun turns 0.08 degree a frame, a
+drawing every frame either way (83 and 89 % of frames). The shadow phase's
+CPU 2.1 against 2.9 ms (median, the whole ride). Since, 0.025 the default
+(the user's test).
 
 ### The lookups at high resolution (measured 2026-11-24)
 
@@ -222,7 +246,7 @@ Built:
   vehicle, the map's size, the train's content (`CarBox::content` of its
   cars: shapes, doors at rest, worked cab controls) or the sun's direction
   in the vehicle's frame (more than `TSRE_CAB_SHADOW_CACHE_TURN` degrees,
-  0.1; 0.05 since, below) changes; otherwise the cached matrix times the
+  0.1; 0.025 since, below) changes; otherwise the cached matrix times the
   vehicle's inverse.
 - `renderShadowMaps`: when drawn, the train's own casters alone
   (`Renderer::renderTrainShadowCasters`, `QueueRenderer::planTrainCasters`);
