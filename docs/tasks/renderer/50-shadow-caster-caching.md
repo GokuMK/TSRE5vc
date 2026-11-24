@@ -192,6 +192,18 @@ drawing every frame either way (83 and 89 % of frames). The shadow phase's
 CPU 2.1 against 2.9 ms (median, the whole ride). Since, 0.025 the default
 (the user's test).
 
+Then (the user: 0.025 good enough, fewer drawings when the sun is up
+welcome): the threshold follows the sun's height in the vehicle's frame
+above 25 degrees, 0.025 x sin(height) / sin(25), the floor's step as
+tested (0.05 at 58 degrees, 0.059 overhead), never below 0.025;
+`TSRE_CAB_SHADOW_CACHE_TURN_FIXED=1` the threshold alone; the log shows
+the limit. A sun in a live activity follows its clock (a view's `time`
+does not move it), so measured on CMK's ride at noon (the sun 61 degrees
+high, the ET22 cab, 24 to 67 km/h, 90 s): 198 drawings for the turn with
+0.025 alone, 94 following the height (0.052 there), 28 more for the
+cab's content either way; bbb's circle at 07:00 (23 to 31 degrees): 1,246
+against 1,222.
+
 ### The lookups at high resolution (measured 2026-11-24)
 
 Task 10 and task 48 were tuned at 842 x 755 (the maps doubled, static and

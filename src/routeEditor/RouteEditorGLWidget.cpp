@@ -2814,7 +2814,12 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // above a floor steps h x turn / sin(the sun's height) on it, more on a
     // surface the light grazes; tested as the chord between the two
     // directions, exact where the cosine's float is not; 0: every frame,
-    // for measuring). Between its drawings it is held in
+    // for measuring). With the sun higher than 25 degrees in the vehicle's
+    // frame (where the user tried it) the threshold grows with the sine of
+    // its height, the floor's step as there (0.05 at 58 degrees; the user,
+    // 2026-11-24: fewer drawings when the sun is up, never more);
+    // TSRE_CAB_SHADOW_CACHE_TURN_FIXED=1: the threshold alone. Between its
+    // drawings it is held in
     // the vehicle's frame: it moves and turns with the vehicle, so running
     // straight draws nothing. Inside its box the world's shadows come from
     // the static maps (cabShadowWorld.x), other trains passing through its
@@ -2824,12 +2829,13 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // again). TSRE_CAB_SHADOW_CACHE=0: everything in the column every frame,
     // centred on the eye, as before.
     static const bool cacheEnabled = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE") != "0";
-    static const float cacheTurnChord2 = [] {
+    static const float cacheTurn = [] {
         bool ok = false;
         const float degrees = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE_TURN").toFloat(&ok);
-        const float chord = 2.0f * std::sin(0.5f * (ok && degrees >= 0.0f ? degrees : 0.025f) * float(M_PI) / 180.0f);
-        return chord * chord;
+        return (ok && degrees >= 0.0f ? degrees : 0.025f) * float(M_PI) / 180.0f;
     }();
+    static const bool cacheTurnFixed = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE_TURN_FIXED") == "1";
+    constexpr float CacheTurnHeightSine = 0.42262f; // sin(25 degrees)
     Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
     const CabShadowTuning &tuning = cabShadowTuning(renderer->cabShadowSize());
     const bool maps = !tuning.off && renderer->cabShadows() && Game::shadowsEnabled > 0;
@@ -2919,6 +2925,10 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     }
     const float turned[3] = {sunLocal[0] - cache.sunLocal[0], sunLocal[1] - cache.sunLocal[1],
                              sunLocal[2] - cache.sunLocal[2]};
+    // The threshold at the sun's height in the vehicle's frame (its sine,
+    // the box's up axis), as a chord.
+    const float turnLimit = cacheTurn * (cacheTurnFixed ? 1.0f : std::max(1.0f, sunLocal[1] / CacheTurnHeightSine));
+    const float cacheTurnChord2 = 4.0f * std::sin(0.5f * turnLimit) * std::sin(0.5f * turnLimit);
     const bool keep = caching && sameVehicle && cache.width == mapWidth && cache.height == mapHeight
             && cache.content == content
             && turned[0] * turned[0] + turned[1] * turned[1] + turned[2] * turned[2] < cacheTurnChord2;
@@ -2982,11 +2992,12 @@ void RouteEditorGLWidget::computeShadowMatrices() {
                 const char *why = !sameVehicle ? "vehicle"
                         : cache.width != mapWidth || cache.height != mapHeight ? "size"
                         : cache.content != content ? "content" : "turn";
-                qInfo().noquote() << QString("Cab shadow cache: drawn, frame %1, %2, turned %3 degrees, the sun %4 "
-                                             "degrees high")
+                qInfo().noquote() << QString("Cab shadow cache: drawn, frame %1, %2, turned %3 degrees (limit %4), "
+                                             "the sun %5 degrees high")
                                          .arg(Renderer::frameNumber()).arg(why)
                                          .arg(sameVehicle ? 2.0 * std::asin(std::min(chord, 2.0f) / 2.0) * 180.0 / M_PI : 0.0,
                                               0, 'f', 4)
+                                         .arg(turnLimit * 180.0 / M_PI, 0, 'f', 4)
                                          .arg(std::asin(std::clamp(sunLocal[1], -1.0f, 1.0f)) * 180.0 / M_PI, 0, 'f', 2);
             }
             Mat4::multiply(cache.local, gluu->cabShadowMatrix, frame);
