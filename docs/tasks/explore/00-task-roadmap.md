@@ -172,7 +172,8 @@ places outside the view; its setting goes (question 2: yes).
   merged into main 2026-11-22): Drive or Walk in the Explore window; on foot at a station of
   the chosen train's timetable, at any station and time without a train,
   in activities and exploring (its train stopping at its path's
-  platforms); the character placed on the platform.
+  platforms); the character placed on the platform. Open (2026-11-25):
+  no place to stand at Zabrze (PRUDNIK, PSK_2026), the run fails.
 - [x] 05 [The Explore window in pages](05-explore-pages.md) (built
   2026-11-24, merged into main 2026-11-24): a route page (picture, facts,
   description, Activities / Timetables / Explore the route), then each

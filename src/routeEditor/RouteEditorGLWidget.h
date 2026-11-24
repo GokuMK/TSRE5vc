@@ -141,7 +141,10 @@ public:
     // again). False when it did not load.
     bool exploreEnterRoute(bool sameRoute);
     // A run's route left (the route switch: the simulation stopped) and no
-    // route shown: the UI over black, as before the first run.
+    // route shown: the UI over black, as before the first run. Called while
+    // a frame is painted (a run failing in its per-frame step, the UI's
+    // frame hook), it leaves right after that frame: the rest of the frame
+    // still uses the route (it crashed reading the null route, 2026-11-25).
     void exploreLeaveRoute();
     // Explore mode's walking runs (task explore 04): the run's character at
     // the place nearest `at` (the editor's tile and the place in it;
@@ -688,6 +691,11 @@ private:
     void drawEditorFpsHud();
     void setupVertexAttribs();
     bool routeChanging = false;
+    // A frame being painted (surfacePaint), and how many routes were entered
+    // (exploreEnterRoute): a leave asked for during a frame happens after
+    // it, unless another route was entered meanwhile.
+    bool painting = false;
+    quint64 routeEnters = 0;
     // A route was loaded before: the start options (core.startup.camera,
     // the start tile) were its, not the next one's.
     bool routeEntered = false;

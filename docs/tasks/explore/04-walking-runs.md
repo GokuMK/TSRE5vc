@@ -244,3 +244,28 @@ Where it differs from the design above, this is what is there.
 - **Not here:** the user's fine-tuning; a key for Walk and Fly in a run
   (the game's windows first).
 
+## Open: no place to stand at Zabrze (found 2026-11-25)
+
+The user, main at 78875cac, Explore: PRUDNIK, the timetable PSK_2026, on
+foot at Zabrze. The route loaded (4.3 s), the run pre-run to its start
+(55080 s, 9.4 s), the place chosen: "walking on Zabrze Towarowe at Zabrze
+(the train's stop)". For the 30 s wait no place was found: "Explore: the
+run did not start: No place to stand at Zabrze." Twice the same.
+
+- Zabrze Towarowe sounds like a freight station: perhaps no platform's
+  floor either side of the stop's track (the rule then takes the higher
+  side), or `placeNear` finds nothing there. In the same log, 3 s before
+  the wait: "Terrain tile -5399, 14867 lies far off its neighbours' at
+  their edges", to check whether that tile is Zabrze's.
+- To find out: the place search's steps logged at Zabrze (which side, the
+  floors met, `placeNear`'s result), `explore-start` with this choice.
+- Then: a fallback before failing, for example the ground beside the
+  stop's track, another platform of the station, or the station's
+  busiest platform as without a train.
+
+The failure also crashed TSRE: the run's `fail()` ran from the view's
+frame (`paintScene` -> the UI's frame hook -> `Run::walkFrame`), its
+`exploreLeaveRoute` set the view's route to null, and the same frame's
+status line read it (`Route::getTileHiddenObjCount`, an access violation;
+the stack from gdb). Fixed on main the same day: a leave asked for during
+a frame happens right after it.

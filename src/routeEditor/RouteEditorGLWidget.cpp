@@ -16,6 +16,7 @@
 #include <tsre/KeyTaker.h>
 #include <QMouseEvent>
 #include <QTimer>
+#include <QScopeGuard>
 #include <QOpenGLExtraFunctions>
 #include <QOpenGLShaderProgram>
 #include <QCoreApplication>
@@ -616,6 +617,7 @@ bool RouteEditorGLWidget::exploreEnterRoute(bool sameRoute) {
     if (sameRoute)
         RouteSwitch::reloadingSameRoute(path);
     RouteSwitch::entering(path);
+    ++routeEnters;
     return enterRoute(false);
 }
 
@@ -630,6 +632,14 @@ GameObj *RouteEditorGLWidget::riddenObject() const {
 void RouteEditorGLWidget::exploreLeaveRoute() {
     if (route == NULL)
         return;
+    if (painting) {
+        const quint64 entered = routeEnters;
+        QTimer::singleShot(0, this, [this, entered] {
+            if (routeEnters == entered)
+                exploreLeaveRoute();
+        });
+        return;
+    }
     leaveRoute();
     // The old route is kept, not freed (the route switch); the view shows
     // none, its UI over black, and takes the next one with enterRoute.
@@ -1468,6 +1478,8 @@ void RouteEditorGLWidget::paintEmpty() {
 }
 
 void RouteEditorGLWidget::surfacePaint(){
+    painting = true;
+    const auto paintEnds = qScopeGuard([this] { painting = false; });
     Game::currentShapeLib = currentShapeLib;
     if (!canRenderFrame()) {
         // Explore mode before any route: its UI over black (task explore
@@ -2098,7 +2110,7 @@ void RouteEditorGLWidget::paintScene(){
 
     
     // Set Info
-    if (this->isActiveWindow()) {
+    if (route != NULL && this->isActiveWindow()) {
         emit this->naviInfo(route->getTileObjCount((int) camera->pozT[0], (int) camera->pozT[1]), route->getTileHiddenObjCount((int) camera->pozT[0], (int) camera->pozT[1]));
         emit this->posInfo(camera->getCurrentPos());
         emit this->pointerInfo(aktPointerPos);
