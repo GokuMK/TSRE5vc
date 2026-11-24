@@ -2181,7 +2181,9 @@ constexpr bool CabShadowTurns = false;
 // 7 a tent over so many texels (Castaño's, four to sixteen filtered taps):
 // even weights over whole texels, so an edge moving a fraction of a texel
 // changes gently (the disc left the texels' steps, which re-formed as the
-// sun turned against the cab: bbb's circle, the user, 2026-11-16).
+// sun turned against the cab: bbb's circle, the user, 2026-11-16). 1: one
+// filtered 2 x 2 comparison, the cheapest (task renderer 50: with a cached
+// finer map, TSRE_CAB_SHADOW_SIZE=4096, for the user to try).
 constexpr int CabShadowKernel = 7;
 
 struct CabShadowTuning {
@@ -2194,7 +2196,7 @@ struct CabShadowTuning {
     bool off = false;
 };
 
-// TSRE_CAB_SHADOW_FILTER, _OFFSET, _BIAS (texels), _KERNEL (0, 3, 5, 7),
+// TSRE_CAB_SHADOW_FILTER, _OFFSET, _BIAS (texels), _KERNEL (0, 1, 3, 5, 7),
 // _PLANE (0: no per-tap receiver-plane correction), _TURN, _OFF here; _SIZE
 // and _SLOPE (the casters' slope-scaled bias) in RhiRenderer. Read once.
 const CabShadowTuning &cabShadowTuning(int size) {
@@ -2214,7 +2216,7 @@ const CabShadowTuning &cabShadowTuning(int size) {
         t.off = qEnvironmentVariable("TSRE_CAB_SHADOW_OFF") == "1";
         bool ok = false;
         const int kernel = qEnvironmentVariable("TSRE_CAB_SHADOW_KERNEL").toInt(&ok);
-        if (ok && (kernel == 0 || kernel == 3 || kernel == 5 || kernel == 7))
+        if (ok && (kernel == 0 || kernel == 1 || kernel == 3 || kernel == 5 || kernel == 7))
             t.kernel = kernel;
         t.plane = qEnvironmentVariable("TSRE_CAB_SHADOW_PLANE") != "0";
         const QString slope = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_SLOPE")
@@ -2224,7 +2226,8 @@ const CabShadowTuning &cabShadowTuning(int size) {
                                  .arg(t.off ? "off" : "on").arg(size)
                                  .arg(2000.0f * CabShadowHalfExtent / float(std::max(size, 1)), 0, 'f', 1)
                                  .arg(t.kernel == 0 ? QString("16-point disc, radius %1 texels").arg(t.filter)
-                                                    : QString("tent over %1 texels").arg(t.kernel))
+                                      : t.kernel == 1 ? QString("one filtered 2 x 2 tap")
+                                                      : QString("tent over %1 texels").arg(t.kernel))
                                  .arg(t.offset).arg(t.bias).arg(t.plane ? "on" : "off")
                                  .arg(slope.toFloat() > 0.0f ? slope : QString("none"))
                                  .arg(t.turns ? "turning with the vehicle" : "fixed to the world");

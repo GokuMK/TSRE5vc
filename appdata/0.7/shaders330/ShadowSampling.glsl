@@ -264,6 +264,10 @@ float cabTentLit(vec3 c, float depth, vec2 gradient, float limit) {
     base = (base - 0.5)*texel;
     float sum = 0.0;
     int kernel = int(cabShadowFilter.x + 0.5);
+    // One filtered 2 x 2 comparison (task renderer 50: a finer cached map's
+    // cheapest lookup).
+    if (kernel == 1)
+        return texture(cabShadowMap, vec3(c.xy, depth));
     if (kernel == 3) {
         vec2 uw = vec2(3.0 - 2.0*s, 1.0 + 2.0*s);
         vec2 u = vec2((2.0 - s)/uw.x - 1.0, s/uw.y + 1.0);

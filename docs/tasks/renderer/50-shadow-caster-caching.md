@@ -110,6 +110,32 @@ of tent 7's 16. Task 10 chose tent 7 against steps re-forming as the sun
 turned against the cab; at half the texel size they are half as large: to
 check by eye.
 
+Tried (2026-11-24, the cache on; env only, for the user's eye):
+`TSRE_CAB_SHADOW_SIZE` (512 to 4096: the cab's map square, the car's map
+as long, a quarter as high) and `TSRE_CAB_SHADOW_KERNEL` (7 the default, 5,
+3, 0 the disc, and 1: one filtered 2 x 2 comparison, added for this).
+Every timed pass at 1920 x 1080 on the Deck, ms (two views each):
+
+| Map, filter | ET22 cab | Bhp coach |
+| --- | --- | --- |
+| 2048, tent 7 (today) | 55.1, 61.2 | 38.8, 32.0 |
+| 2048, tent 3 | 54.2, 60.0 | 37.5, 31.1 |
+| 2048, one tap | 53.8, 59.9 | 37.0, 30.8 |
+| 4096, tent 7 | 56.7, 63.1 | 39.5, 32.7 |
+| 4096, tent 3 | 54.9, 60.5 | 38.2, 31.8 |
+| 4096, one tap | 54.5, 59.9 | 37.5, 31.4 |
+
+The cheaper filters save 1 to 1.8 ms; 4096 gives back 0.5 to 0.8 (larger
+texture, the environment cube 0.3 to 0.5 more). Drawing the cab's map at
+4096 costs 7.2 to 8.3 ms against 2.1 to 2.5 at 2048 (measured with the
+cache off; cached, only when it is drawn again, every frame or two in
+curves). The cab's map at 4096 takes 64 MB (D32F), the coach's 16 MB.
+Images (`item6-coach-sheet.png` in the session's scratchpad, the coach at
+noon): one tap leaves stair-steps; 4096 with tent 3 sharp and smooth,
+nearer a real sun's edge close to a window frame (about 1 cm at 1 m) than
+today's soft one (about 8 cm). For the user's tests: `TSRE_CAB_SHADOW_SIZE=4096
+TSRE_CAB_SHADOW_KERNEL=3`; cheapest: `TSRE_CAB_SHADOW_KERNEL=3` at 2048.
+
 ### The lookups at high resolution (measured 2026-11-24)
 
 Task 10 and task 48 were tuned at 842 x 755 (the maps doubled, static and
