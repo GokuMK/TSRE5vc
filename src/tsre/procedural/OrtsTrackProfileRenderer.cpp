@@ -1730,11 +1730,19 @@ ComplexTrackPlan::Settings OrtsTrackProfileRenderer::complexSettings(
 
 bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member,
         const ComplexTrackPlan &plan, QVector<OrtsGeneratedProfileMesh> &meshes,
-        QStringList *diagnostics) {
+        QStringList *diagnostics, const ComplexSelection &selection) {
     meshes.clear();
     if(!member.valid || plan.groups.isEmpty())
         return false;
     using Mode = OrtsProfileTemplate3D::GenerationMode;
+    using What = ComplexSelection::What;
+    const bool fixed = selection.what == What::Fixed;
+    // Step 9: the moving parts: switches' blades, indicators and (a switch
+    // operated by hand) its marked drives; drawn per switch and route.
+    auto moving = [&](const OrtsProfileTemplate3D &source) {
+        return source.generationMode == Mode::SwitchIndicator
+                || (source.generationMode == Mode::SwitchDrive && source.handOperated);
+    };
     // The rail foot (the Rail part's Offset y): polylines at or below it
     // are the bed.
     const OrtsProfileTemplate3D *railPart = firstTemplate(member, Mode::Rail);
@@ -1770,7 +1778,7 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
             for(const OrtsProfilePolyline &polyline : item.polylines)
                 if(bedPolyline(polyline, railFoot))
                     bed.append(&polyline);
-            for(const OrtsProfilePolyline &polyline : item.polylines)
+            for(const OrtsProfilePolyline &polyline : fixed ? item.polylines : QVector<OrtsProfilePolyline>())
                 for(const ComplexTrackPlan::Group &group : plan.groups){
                     appendBed(mesh.vertices, polyline, group.bed, alpha, bed);
                     for(const QVector<ComplexTrackPlan::BedSlice> &slices : group.pathBeds)
@@ -1780,24 +1788,40 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
             for(const OrtsProfileTemplate3D &source : item.templates3D){
                 if(!source.complexPart())
                     continue;
-                const QSharedPointer<const ObjFile> part = templateMesh(member, source.shapes.first(), diagnostics);
+                // What this selection lays of it.
+                if(fixed ? moving(source)
+                         : selection.what == What::Blades ? source.generationMode != Mode::Rail
+                         : !moving(source))
+                    continue;
+                // A moving part's Shape for the selection's route (main
+                // route first; one Shape: the same).
+                const QString shape = !fixed && moving(source)
+                        ? source.shapes.value(selection.route, source.shapes.first()) : source.shapes.first();
+                const QSharedPointer<const ObjFile> part = templateMesh(member, shape, diagnostics);
                 if(part == nullptr)
                     continue;
                 switch(source.generationMode){
                 case Mode::Rail:
                 case Mode::CheckRail:
                     // Running and stock rails, blades, wing rails; check
-                    // rails here without a CheckRail mesh.
+                    // rails here without a CheckRail mesh. A switch's
+                    // blades are its own (step 9): with one of its routes.
                     for(const ComplexTrackPlan::RailPiece &piece : plan.railPieces){
                         const bool check = piece.kind == ComplexTrackPlan::RailPiece::Kind::CheckRail;
                         if(source.generationMode == Mode::CheckRail ? !check : (check && checkRailMesh))
                             continue;
-                        appendSwept(mesh.vertices, *part, piece.line, piece.from, piece.to,
+                        if(fixed ? piece.switchIndex >= 0 : piece.switchIndex != selection.switchIndex)
+                            continue;
+                        const ComplexTrackPlan::Line &line = !fixed && selection.route == 1
+                                ? piece.otherLine : piece.line;
+                        appendSwept(mesh.vertices, *part, line, piece.from, piece.to,
                                 source.offset, alpha, piece.scale);
                     }
                     break;
                 case Mode::ConductorRail:
                 case Mode::RackRail: {
+                    if(!fixed)
+                        break;
                     const unsigned bit = source.generationMode == Mode::ConductorRail
                             ? TrackProfileFilters::ConductorRail : TrackProfileFilters::RackRail;
                     for(const ComplexTrackPlan::RailLine &rail : plan.conductorLines(source.offset[0], bit))
@@ -1808,6 +1832,8 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
                 }
                 case Mode::Tie:
                 case Mode::Bearer:
+                    if(!fixed)
+                        break;
                     for(const ComplexTrackPlan::Group &group : plan.groups)
                         for(const ComplexTrackPlan::Tie &tie : group.ties){
                             const bool bearer = tie.kind == ComplexTrackPlan::Tie::Kind::Bearer;
@@ -1830,8 +1856,9 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
                                                : TrackProfileFilters::SwitchIndicator;
                     const ComplexTrackPlan::SwitchPart placed = switchPart(source, *part);
                     const float offset[3] = {std::abs(source.offset[0]), source.offset[1], 0};
-                    for(const ComplexTrackPlan::Switch &sw : plan.switches){
-                        if((plan.paths[sw.main].parts & bit) == 0)
+                    for(int s = 0; s < plan.switches.size(); s++){
+                        const ComplexTrackPlan::Switch &sw = plan.switches[s];
+                        if((plan.paths[sw.main].parts & bit) == 0 || (!fixed && s != selection.switchIndex))
                             continue;
                         for(const ComplexTrackPlan::SwitchPlacement &at : plan.switchPlacements(sw, placed))
                             appendRigidTemplate(mesh.vertices, *part,
@@ -1841,6 +1868,8 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
                     break;
                 }
                 case Mode::Fastener: {
+                    if(!fixed)
+                        break;
                     const float offset[3] = {0, source.offset[1], source.offset[2]};
                     for(const ComplexTrackPlan::Group &group : plan.groups)
                         for(const ComplexTrackPlan::Fastener &fastener : group.fasteners)
@@ -1864,12 +1893,25 @@ bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member
     return !meshes.isEmpty();
 }
 
+bool OrtsTrackProfileRenderer::buildComplexMeshes(const OrtsTrackProfile &member,
+        const ComplexTrackPlan &plan, QVector<OrtsGeneratedProfileMesh> &meshes,
+        QStringList *diagnostics) {
+    return buildComplexMeshes(member, plan, meshes, diagnostics, ComplexSelection());
+}
+
 bool OrtsTrackProfileRenderer::generateComplex(const OrtsTrackProfile &member,
         const ComplexTrackPlan &plan, QVector<OglObj*> &objects, const QString &routePath,
         QStringList *diagnostics) {
     QVector<OrtsGeneratedProfileMesh> meshes;
     if(!buildComplexMeshes(member, plan, meshes, diagnostics))
         return false;
+    objects += complexObjects(meshes, routePath);
+    return true;
+}
+
+QVector<OglObj*> OrtsTrackProfileRenderer::complexObjects(const QVector<OrtsGeneratedProfileMesh> &meshes,
+        const QString &routePath) {
+    QVector<OglObj*> objects;
     const OrtsGeneratedProfileMesh::MaterialPass passes[] = {
         OrtsGeneratedProfileMesh::MaterialPass::Opaque,
         OrtsGeneratedProfileMesh::MaterialPass::AlphaTest,
@@ -1879,7 +1921,39 @@ bool OrtsTrackProfileRenderer::generateComplex(const OrtsTrackProfile &member,
         for(const OrtsGeneratedProfileMesh &mesh : meshes)
             if(mesh.materialPass == pass)
                 objects.append(profileObject(routePath, mesh));
-    return true;
+    return objects;
+}
+
+QVector<OrtsTrackProfileRenderer::SwitchMeshes> OrtsTrackProfileRenderer::buildSwitchMeshes(
+        const OrtsTrackProfile &member, const ComplexTrackPlan &plan, QStringList *diagnostics) {
+    QVector<SwitchMeshes> result(plan.switches.size());
+    for(int s = 0; s < plan.switches.size(); s++)
+        for(int route = 0; route < 2; route++){
+            ComplexSelection selection;
+            selection.switchIndex = s;
+            selection.route = route;
+            selection.what = ComplexSelection::What::Blades;
+            buildComplexMeshes(member, plan, result[s].blades[route], diagnostics, selection);
+            selection.what = ComplexSelection::What::Parts;
+            buildComplexMeshes(member, plan, result[s].parts[route], diagnostics, selection);
+        }
+    return result;
+}
+
+QVector<OrtsGeneratedProfileMesh> OrtsTrackProfileRenderer::blendMeshes(
+        const QVector<OrtsGeneratedProfileMesh> &a, const QVector<OrtsGeneratedProfileMesh> &b, float t) {
+    if(a.size() != b.size())
+        return {};
+    QVector<OrtsGeneratedProfileMesh> result = a;
+    for(int m = 0; m < a.size(); m++){
+        if(a[m].vertices.size() != b[m].vertices.size())
+            return {};
+        QVector<float> &v = result[m].vertices;
+        for(int i = 0; i < v.size(); i++)
+            v[i] = a[m].vertices[i] + t * (b[m].vertices[i] - a[m].vertices[i]);
+        updateBounds(result[m]);
+    }
+    return result;
 }
 
 void OrtsTrackProfileRenderer::clearTemplateMeshCache() {

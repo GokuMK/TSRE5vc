@@ -633,6 +633,18 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                     && near(gap(open, straightRight), 0.2032f, 0.002f) && near(closed->scale.first(), 0.2f, 0.01f),
                     QString("blade tips: closed beside its stock rail, open 0.16 m off (%1, %2 m)")
                         .arg(closed ? gap(closed, divergingLeft) : -1).arg(open ? gap(open, straightRight) : -1));
+            // Step 9: with the other path set they swap.
+            auto otherGap = [&](const ComplexTrackPlan::RailPiece *piece, int stock) {
+                if(piece->otherLine.isEmpty())
+                    return -1.0f;
+                const TrackShapeAnalysis::Point &a = piece->otherLine.first();
+                const TrackShapeAnalysis::Point &b = plan.rails[stock].line.first();
+                return std::hypot(a.x - b.x, a.z - b.z);
+            };
+            check(closed != nullptr && open != nullptr && closed->switchIndex == 0 && open->switchIndex == 0
+                    && near(otherGap(closed, divergingLeft), 0.2032f, 0.002f)
+                    && near(otherGap(open, straightRight), 0.0432f, 0.002f),
+                    "the other path set: the closed blade open, the open one closed");
             int onFirst = 0;
             for(const ComplexTrackPlan::Fastener &fastener : group.fasteners)
                 onFirst += fastener.tie == 0;
@@ -813,6 +825,33 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                 for(int v = 0; v + 8 < bed.vertices.size(); v += 9)
                     upward = upward && bed.vertices[v + 4] > 0.9f;
                 check(upward, "the bed's normals up");
+
+                // Step 9: the blades are the switch's own, per route: as many
+                // vertices in both (they blend), different, halfway between
+                // at a share of 0.5; the fixed rails without them.
+                const QVector<OrtsTrackProfileRenderer::SwitchMeshes> moving =
+                        OrtsTrackProfileRenderer::buildSwitchMeshes(*member, meshPlan);
+                bool alike = moving.size() == 1 && moving[0].blades[0].size() == 1
+                        && moving[0].blades[1].size() == 1;
+                bool differ = false;
+                if(alike){
+                    const QVector<float> &a = moving[0].blades[0][0].vertices;
+                    const QVector<float> &b = moving[0].blades[1][0].vertices;
+                    alike = !a.isEmpty() && a.size() == b.size();
+                    for(int i = 0; alike && i < a.size(); i++)
+                        differ = differ || std::abs(a[i] - b[i]) > 0.01f;
+                    const QVector<OrtsGeneratedProfileMesh> half =
+                            OrtsTrackProfileRenderer::blendMeshes(moving[0].blades[0], moving[0].blades[1], 0.5f);
+                    for(int i = 0; alike && i < a.size(); i++)
+                        alike = half.size() == 1 && near(half[0].vertices[i], (a[i] + b[i]) / 2, 1e-4f);
+                }
+                int bladePieces = 0;
+                for(const ComplexTrackPlan::RailPiece &piece : meshPlan.railPieces)
+                    bladePieces += piece.kind == ComplexTrackPlan::RailPiece::Kind::Blade && piece.switchIndex == 0
+                            && piece.otherLine.size() == piece.line.size();
+                // Two blade rails, each cut at the frog: four stretches.
+                check(alike && differ && bladePieces == 4,
+                        QString("the switch's blades per route, blending halfway (%1 blade pieces)").arg(bladePieces));
             }
         }
 
@@ -955,7 +994,10 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                         && near(memberSettings.drives[0].spacing, 5) && near(memberSettings.drives[0].maxX, 0.75f)
                         && near(memberSettings.handDrives[0].maxX, 0.4f),
                         "the drives' footprints from their meshes, motors and hand-operated apart");
-                auto switchMesh = [&](bool hand, bool flip, unsigned parts, int *vertices) {
+                // The switch item's fixed meshes (the motor) and its moving
+                // parts for a route (step 9: the indicator, a hand lever) as
+                // one vertex list, its bounds (maxX, minX, maxY, minY, ...).
+                auto switchMesh = [&](bool hand, bool flip, unsigned parts, int *vertices, int route = 0) {
                     ComplexTrackPlan::Settings settings = memberSettings;
                     settings.handOperated = hand;
                     settings.switchSideFlip = flip;
@@ -970,8 +1012,25 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                     const ComplexTrackPlan switchPlan = ComplexTrackPlan::make(shapePaths, settings);
                     QVector<OrtsGeneratedProfileMesh> meshes;
                     OrtsTrackProfileRenderer::buildComplexMeshes(*switchMember, switchPlan, meshes);
-                    *vertices = meshes.size() == 2 ? meshes[1].vertices.size() / 9 : -1;
-                    return meshes.size() == 2 ? meshes[1] : OrtsGeneratedProfileMesh();
+                    OrtsGeneratedProfileMesh combined;
+                    for(const OrtsGeneratedProfileMesh &mesh : meshes)
+                        if(mesh.textureName == "s.ace")
+                            combined.vertices += mesh.vertices;
+                    for(const OrtsTrackProfileRenderer::SwitchMeshes &moving
+                            : OrtsTrackProfileRenderer::buildSwitchMeshes(*switchMember, switchPlan))
+                        for(const OrtsGeneratedProfileMesh &mesh : moving.parts[route])
+                            combined.vertices += mesh.vertices;
+                    for(int c = 0; c < 3; c++){
+                        combined.bounds[c * 2] = -1e9f;
+                        combined.bounds[c * 2 + 1] = 1e9f;
+                    }
+                    for(int i = 0; i + 8 < combined.vertices.size(); i += 9)
+                        for(int c = 0; c < 3; c++){
+                            combined.bounds[c * 2] = std::max(combined.bounds[c * 2], combined.vertices[i + c]);
+                            combined.bounds[c * 2 + 1] = std::min(combined.bounds[c * 2 + 1], combined.vertices[i + c]);
+                        }
+                    *vertices = combined.vertices.size() / 9;
+                    return combined;
                 };
                 int vertices = 0;
                 // Mirrored as the renderer's static paths: MSTS left at x > 0.
@@ -990,6 +1049,12 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
                             .arg(flippedMesh.bounds[1]).arg(flippedMesh.bounds[0]));
                 switchMesh(false, false, TrackProfileFilters::AllParts & ~TrackProfileFilters::SwitchDrive, &vertices);
                 check(vertices == 12, QString("ExcludedParts ( SwitchDrive ): the indicator alone (%1 vertices)").arg(vertices));
+                // Step 9: the other route shows the indicator's second Shape
+                // (0.4 m wide, the first 0.2 m).
+                const OrtsGeneratedProfileMesh otherRoute = switchMesh(false, false, TrackProfileFilters::AllParts, &vertices, 1);
+                check(vertices == 24 && near(otherRoute.bounds[1], -2.0f, 0.01f) && near(otherRoute.bounds[0], 2.35f, 0.01f),
+                        QString("the other route: the indicator's second Shape, the motor as it was (x %1 to %2)")
+                            .arg(otherRoute.bounds[1]).arg(otherRoute.bounds[0]));
             }
         }
 

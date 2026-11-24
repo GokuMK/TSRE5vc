@@ -55,6 +55,11 @@
 #include <tsre/world/Ref.h>
 #include <tsre/world/objects/ForestObj.h>
 #include <tsre/world/Route.h>
+#include <tsre/world/Tile.h>
+#include <tsre/world/objects/TrackObj.h>
+#include <tsre/tdb/TDB.h>
+#include <tsre/tdb/TSectionDAT.h>
+#include <tsre/tdb/TrackShape.h>
 #include <tsre/world/TerrainLib.h>
 #include <tsre/shape/ShapeLoader.h>
 #include <settings/SettingsManager.h>
@@ -90,6 +95,31 @@
 #include <tsre/world/TerrainLibQt.h>
 
 namespace {
+
+// Tracks task 17 step 9: every junction track object in the loaded tiles
+// set at once to a path other than its MainRoute (other) or back to it.
+void setSwitchesOther(bool other) {
+    if (Game::currentRoute == nullptr || Game::trackDB == nullptr || Game::trackDB->tsection == nullptr)
+        return;
+    int set = 0;
+    for (Tile *tile : Game::currentRoute->tile) {
+        if (tile == nullptr || tile->loaded != 1)
+            continue;
+        for (const auto &entry : tile->obiekty) {
+            TrackObj *track = dynamic_cast<TrackObj *>(entry.second);
+            if (track == nullptr)
+                continue;
+            const auto found = Game::trackDB->tsection->shape.find(track->sectionIdx);
+            if (found == Game::trackDB->tsection->shape.end() || found->second == nullptr
+                    || found->second->numpaths < 2 || found->second->mainroute < 0)
+                continue;
+            const int main = found->second->mainroute;
+            track->setSwitchRoute(other ? (main == 0 ? 1 : 0) : -1, false);
+            set++;
+        }
+    }
+    qInfo().noquote() << "[tests:renderer-capture] switches" << (other ? "set to another path:" : "set back:") << set;
+}
 
 const char *CaptureLog = "[tests:renderer-capture]";
 
@@ -385,6 +415,11 @@ struct ViewSpec {
     // editor moves an object (cached shadow maps, task renderer 37).
     bool hasMoveObjects = false;
     float moveObjects[3] = {0.0f, 0.0f, 0.0f};
+    // Tracks task 17 step 9: every junction track object in the loaded
+    // tiles set at once to a path other than its MainRoute ("switchesOther":
+    // true), or back to it (false); absent: as they are.
+    bool hasSwitchesOther = false;
+    bool switchesOther = false;
     // Height above the terrain, replacing the view's own height.
     bool hasAboveGround = false;
     float aboveGround = 0.0f;
@@ -922,6 +957,8 @@ bool loadOptions(const QString &casesFile, Options &options, QString &error) {
         }
         view.editDistant = object.value("editDistant").toBool(false);
         view.hasMoveObjects = readFloatArray(object.value("moveObjects"), view.moveObjects, 3);
+        view.hasSwitchesOther = object.contains("switchesOther");
+        view.switchesOther = object.value("switchesOther").toBool(false);
         view.hasAboveGround = object.contains("aboveGround");
         if (object.value("windowSize").isArray() && object.value("windowSize").toArray().size() == 2) {
             view.windowWidth = object.value("windowSize").toArray()[0].toInt(0);
@@ -1475,6 +1512,8 @@ int TsreTests::runRendererCaptureSuite(const QString &casesFile, const QString &
         if (spec.hasMoveObjects)
             for (WorldObj *placedObject : placedObjects)
                 placedObject->translate(spec.moveObjects[0], spec.moveObjects[1], spec.moveObjects[2]);
+        if (spec.hasSwitchesOther)
+            setSwitchesOther(spec.switchesOther);
         if (spec.map) {
             widget.setDiagnosticMapView(tileX, tileZ, pos[0], pos[2], spec.metresPerPixel,
                                         spec.bearing);
@@ -2204,6 +2243,11 @@ struct ViewerItem {
     QStringList animation;
     bool animationEnd = false;
     double travelled = 0.0;
+    // A tsection junction drawn procedurally (tracks task 17 step 9): the
+    // path set ("switchRoute", -1 its MainRoute) and how far its switches
+    // have moved to it ("switchPose", 0 to 1; 1 there).
+    int switchRoute = -1;
+    double switchPose = 1.0;
     // A glTF shape's clip at a time (task humans 02): "clip" (its name),
     // "clipTime" (seconds), "blend" and "blendWeight" (a second clip mixed
     // in at the same share of its length), "clipsFile" (a clips file's
@@ -2322,6 +2366,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         for (const QJsonValue &group : object.value("animation").toArray())
             item.animation << group.toString();
         item.animationEnd = object.value("animationEnd").toBool(false);
+        item.switchRoute = object.value("switchRoute").toInt(-1);
+        item.switchPose = object.value("switchPose").toDouble(1.0);
         item.travelled = object.value("travelled").toDouble(0.0);
         item.clip = object.value("clip").toString();
         item.clipTime = object.value("clipTime").toDouble(0.0);
@@ -2497,6 +2543,22 @@ void buildTsectionShape(const ViewerItem &item, const OrtsTrackProfile &chosen,
                                  .arg(bearers).arg(own).arg(square).arg(fasteners).arg(railStretches)
                                  .arg(independent.size()) << plan.notes.join("; ");
             OrtsTrackProfileRenderer::generateComplex(*member, plan, objects, route, &buildDiagnostics);
+            // Step 9: the switches' moving parts as the item's set path
+            // has them, a share switchPose of the way there.
+            const QVector<OrtsTrackProfileRenderer::SwitchMeshes> switches =
+                    OrtsTrackProfileRenderer::buildSwitchMeshes(*member, plan, &buildDiagnostics);
+            for (int s = 0; s < switches.size(); s++) {
+                const bool other = item.switchRoute >= 0 && plan.switches[s].other == item.switchRoute;
+                const float key = other ? float(std::clamp(item.switchPose, 0.0, 1.0)) : 0.0f;
+                const QVector<OrtsGeneratedProfileMesh> blades = key <= 0 ? switches[s].blades[0]
+                        : key >= 1 ? switches[s].blades[1]
+                        : OrtsTrackProfileRenderer::blendMeshes(switches[s].blades[0], switches[s].blades[1], key);
+                objects += OrtsTrackProfileRenderer::complexObjects(blades, route);
+                objects += OrtsTrackProfileRenderer::complexObjects(switches[s].parts[key < 0.5f ? 0 : 1], route);
+            }
+            if (item.switchRoute >= 0)
+                qInfo().noquote() << ViewerCaptureLog << item.name << "switch route" << item.switchRoute
+                                  << "pose" << item.switchPose << "|" << switches.size() << "switches";
         }
     }
     if (!independent.isEmpty()) {

@@ -948,6 +948,10 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
             }
             return factor;
         };
+        // Step 9: a blade's line with the switch's other path set, and its
+        // switch.
+        Line otherLine;
+        int switchIndex = -1;
         if(blades.contains(r)){
             kind = RailPiece::Kind::Blade;
             const Line &stock = plan.rails[blades[r].stock].line;
@@ -959,6 +963,7 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
                 }
             const float tip = 0.2f * w;
             scale.resize(line.size());
+            otherLine = line;
             for(int k = 0; k < line.size(); k++){
                 Point &p = line[k];
                 scale[k] = 1.0f;
@@ -966,13 +971,24 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
                     continue;
                 const float sep = std::min(w, distanceTo(p, stock));
                 const float width = tip + (w - tip) * sep / w;
-                float shift = w / 2 + width / 2 - sep;
-                if(!blades[r].closed)
-                    shift += st.bladeOpening * (1 - p.distance / std::max(1e-3f, heel));
+                const float closedShift = w / 2 + width / 2 - sep;
+                const float openShift = closedShift + st.bladeOpening * (1 - p.distance / std::max(1e-3f, heel));
                 const auto n = inward(rail.side, p.heading);
+                const float shift = blades[r].closed ? closedShift : openShift;
+                const float other = blades[r].closed ? openShift : closedShift;
                 p.x += n.first * shift;
                 p.z += n.second * shift;
+                otherLine[k].x += n.first * other;
+                otherLine[k].z += n.second * other;
                 scale[k] = width / w;
+            }
+            const int stockPath = plan.rails[blades[r].stock].path;
+            for(int s = 0; s < plan.switches.size(); s++){
+                const ComplexTrackPlan::Switch &sw = plan.switches[s];
+                if(sw.group == plan.groups.size()
+                        && ((sw.main == rail.path && sw.other == stockPath)
+                            || (sw.other == rail.path && sw.main == stockPath)))
+                    switchIndex = s;
             }
         }
         if(pointRails.contains(r)){
@@ -990,6 +1006,8 @@ void planRails(ComplexTrackPlan &plan, const ComplexTrackPlan::Group &group, int
             piece.scale = scale;
             piece.from = range.first;
             piece.to = range.second;
+            piece.switchIndex = switchIndex;
+            piece.otherLine = switchIndex >= 0 ? otherLine : Line();
             plan.railPieces.append(piece);
         }
     }

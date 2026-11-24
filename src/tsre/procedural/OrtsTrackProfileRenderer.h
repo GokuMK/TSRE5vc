@@ -197,17 +197,50 @@ public:
     // offset).
     static ComplexTrackPlan::Settings complexSettings(const OrtsTrackProfile &member,
             QStringList *diagnostics = nullptr);
+    // What of a COMPLEX member's parts is laid (step 9): the fixed ones
+    // (all but the moving ones), or one switch's moving ones for one of its
+    // routes (0 its main path set, 1 its other): its blades, or the parts
+    // shown per route (its indicator's and a hand lever's Shape for that
+    // route).
+    struct ComplexSelection {
+        enum class What { Fixed, Blades, Parts };
+        What what = What::Fixed;
+        int switchIndex = -1;
+        int route = 0;
+    };
     // A COMPLEX member's parts laid on a plan: the bed (its polylines), the
-    // rails, ties and bearers, fasteners, conductor and rack rails, each
-    // LOD's items; in shape space as a static shape is drawn (the object's
-    // whole matrix). Other Template3D modes are not drawn on junctions yet.
+    // rails, ties and bearers, fasteners, conductor and rack rails, switch
+    // drives and indicators, each LOD's items; in shape space as a static
+    // shape is drawn (the object's whole matrix).
+    static bool buildComplexMeshes(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan,
+            QVector<OrtsGeneratedProfileMesh> &meshes,
+            QStringList *diagnostics,
+            const ComplexSelection &selection);
+    // Its fixed parts.
     static bool buildComplexMeshes(const OrtsTrackProfile &member,
             const ComplexTrackPlan &plan,
             QVector<OrtsGeneratedProfileMesh> &meshes,
             QStringList *diagnostics = nullptr);
+    // The fixed parts as objects.
     static bool generateComplex(const OrtsTrackProfile &member,
             const ComplexTrackPlan &plan, QVector<OglObj*> &objects,
             const QString &routePath, QStringList *diagnostics = nullptr);
+    // Step 9: each switch's moving parts per route; the blades of both
+    // routes alike (as many meshes and vertices), so they blend.
+    struct SwitchMeshes {
+        QVector<OrtsGeneratedProfileMesh> blades[2];
+        QVector<OrtsGeneratedProfileMesh> parts[2];
+    };
+    static QVector<SwitchMeshes> buildSwitchMeshes(const OrtsTrackProfile &member,
+            const ComplexTrackPlan &plan, QStringList *diagnostics = nullptr);
+    // Meshes as objects, opaque, alpha-tested, then blended.
+    static QVector<OglObj*> complexObjects(const QVector<OrtsGeneratedProfileMesh> &meshes,
+            const QString &routePath);
+    // Two routes' blades a share t of the way from a to b (t 0: a); empty
+    // when they don't match.
+    static QVector<OrtsGeneratedProfileMesh> blendMeshes(const QVector<OrtsGeneratedProfileMesh> &a,
+            const QVector<OrtsGeneratedProfileMesh> &b, float t);
     // Each path rolled by its entry of pathRolls (none or empty: flat).
     static bool generate(const OrtsTrackProfile &profile,
             const TrackShape &trackShape,

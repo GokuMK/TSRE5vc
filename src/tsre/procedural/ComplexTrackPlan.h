@@ -151,6 +151,11 @@ public:
         QVector<float> scale;
         float from = 0;
         float to = 0;
+        // Step 9: a blade's switch (switches; -1 none) and its line with the
+        // switch's other path set (`line`: with its main path set; closed
+        // and open swap), the same points and scale.
+        int switchIndex = -1;
+        Line otherLine;
     };
 
     // Where two paths' rails cross (phase 2): a common crossing (a frog:

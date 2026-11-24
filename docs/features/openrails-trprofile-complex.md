@@ -300,11 +300,13 @@ easier to test with.
   each falling back to `MIDDLE` when a family lacks it; task 17, section
   11). Open Rails' family support would read and use them in the same way
   as the existing side roles. They are not in the format yet.
-- Switch blades that follow the junction's state are planned in TSRE as a
-  task of its own, for static shapes and procedural junctions alike. It
-  will follow Open Rails' `SwitchTrackShape` (`Viewer3D/Shapes.cs`):
-  animation key 0 on the main route, 1 otherwise, over about half a
-  second.
+- TSRE poses junctions by a route state on the shape side, as Open Rails'
+  `SwitchTrackShape` (`Viewer3D/Shapes.cs`) does: static shapes' keyed
+  parts at key 0 on the main route, 1 otherwise, over half a second;
+  procedural junctions' blades blended between their two routes, the
+  `SwitchIndicator` and a `HandOperated` `SwitchDrive` showing the
+  `Shape` for the switch's route (main route first). TSRE's simulation
+  sets the state later.
 - TSRE runs `Repeat` copies and texture coordinates that grow with
   distance (polylines' `DeltaTexCoord`, a `Sweep`'s path-length texture)
   on from each piece's distance along its track (road) database vector, so

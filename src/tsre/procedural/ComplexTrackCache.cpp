@@ -18,6 +18,11 @@
 
 ComplexTrackMeshes::~ComplexTrackMeshes() {
     qDeleteAll(objects);
+    for(Switch &sw : switches)
+        for(int route = 0; route < 2; route++){
+            qDeleteAll(sw.blades[route]);
+            qDeleteAll(sw.parts[route]);
+        }
 }
 
 namespace {
@@ -142,6 +147,18 @@ QSharedPointer<ComplexTrackMeshes> ComplexTrackCache::meshes(const TrackShape &s
     }
     shared->independent = shared->plan.independent;
     OrtsTrackProfileRenderer::generateComplex(member, shared->plan, shared->objects, routePath, &diagnostics);
+    // Step 9: the switches' moving parts per route.
+    const QVector<OrtsTrackProfileRenderer::SwitchMeshes> switchMeshes =
+            OrtsTrackProfileRenderer::buildSwitchMeshes(member, shared->plan, &diagnostics);
+    for(const OrtsTrackProfileRenderer::SwitchMeshes &meshes : switchMeshes){
+        ComplexTrackMeshes::Switch sw;
+        sw.meshes = meshes;
+        for(int route = 0; route < 2; route++){
+            sw.blades[route] = OrtsTrackProfileRenderer::complexObjects(meshes.blades[route], routePath);
+            sw.parts[route] = OrtsTrackProfileRenderer::complexObjects(meshes.parts[route], routePath);
+        }
+        shared->switches.append(sw);
+    }
     for(const QString &diagnostic : diagnostics){
         const QString message = member.id + " on " + shape.filename + ": " + diagnostic;
         if(!warned.contains(message)){

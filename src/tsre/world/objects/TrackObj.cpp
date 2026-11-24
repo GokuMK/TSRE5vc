@@ -34,6 +34,7 @@
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
+#include <QElapsedTimer>
 #include <QSet>
 
 #ifndef M_PI
@@ -86,6 +87,71 @@ WorldObj* TrackObj::clone(){
 
 TrackObj::~TrackObj() {
     clearProceduralShape();
+    if(hasPoseState && shapePointer != NULL)
+        shapePointer->releaseState(poseState);
+}
+
+// Tracks task 17 step 9: the junction's set path and its moving parts.
+void TrackObj::setSwitchRoute(int path, bool animate){
+    switchRoute = path;
+    switchAtOnce = !animate;
+}
+
+float TrackObj::shapeTarget() const {
+    if(switchRoute < 0 || Game::trackDB == NULL || Game::trackDB->tsection == NULL)
+        return 0;
+    const auto found = Game::trackDB->tsection->shape.find(sectionIdx);
+    if(found == Game::trackDB->tsection->shape.end() || found->second == NULL)
+        return 0;
+    return switchRoute == found->second->mainroute ? 0 : 1;
+}
+
+float TrackObj::switchTarget(int switchIndex) const {
+    if(switchRoute < 0 || complexShared == nullptr || switchIndex >= complexShared->plan.switches.size())
+        return 0;
+    return complexShared->plan.switches[switchIndex].other == switchRoute ? 1 : 0;
+}
+
+void TrackObj::clearSwitchBlend(){
+    for(QVector<OglObj*> &objects : switchBlend)
+        qDeleteAll(objects);
+    switchBlend.clear();
+    switchBlendKey.clear();
+}
+
+void TrackObj::stepSwitches(){
+    static QElapsedTimer clock;
+    if(!clock.isValid())
+        clock.start();
+    const qint64 now = clock.elapsed();
+    const float seconds = switchClock < 0 ? 0.0f : float(now - switchClock) / 1000.0f;
+    switchClock = now;
+    const float step = switchAtOnce ? 1.0f : seconds / SwitchMoveSeconds;
+    switchAtOnce = false;
+    auto move = [step](float key, float target) {
+        return key < target ? std::min(target, key + step) : std::max(target, key - step);
+    };
+    // A static junction shape: its keyed parts at the key's frame, in a
+    // state of its own once off key 0.
+    const float shapeGoal = shapeTarget();
+    if(shapePointer != NULL && shapePointer->isLoaded() && (shapeKey != shapeGoal || posedKey != shapeKey)){
+        shapeKey = move(shapeKey, shapeGoal);
+        if(!hasPoseState){
+            poseState = shapePointer->newState();
+            hasPoseState = true;
+        }
+        for(int part = 0; part < shapePointer->partCount(); part++){
+            const float last = shapePointer->partLastFrame(part);
+            if(last >= 0)
+                shapePointer->setPartFrame(poseState, part, shapeKey * last);
+        }
+        posedKey = shapeKey;
+    }
+    // Procedural switches.
+    const int count = complexShared != nullptr ? complexShared->switches.size() : 0;
+    switchKeys.resize(count);
+    for(int s = 0; s < count; s++)
+        switchKeys[s] = move(switchKeys[s], switchTarget(s));
 }
 
 int TrackObj::updateTrackSectionInfo(QHash<unsigned int,unsigned int> shapes, QHash<unsigned int,unsigned int> sect){
@@ -174,6 +240,7 @@ void TrackObj::clearProceduralShape(){
     procShapeOwned = false;
     proceduralShapeUsesBakedPath = false;
     complexShared.reset();
+    clearSwitchBlend();
 }
 
 bool TrackObj::useComplexShape(const OrtsTrackProfile &profile, OrtsTrackProfile::ObjectType type,
@@ -746,12 +813,40 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     }
     // Tracks task 17: the shape's complex groups, rigid in shape space, with
     // the object's whole matrix as a static shape.
+    // Step 9: the junction's moving parts as its set path has them.
+    stepSwitches();
     if(procedural && complexShared != nullptr && !complexShared->objects.isEmpty()){
         queue.pushTransform();
         Mat4::multiply(queue.transform(), queue.transform(), matrix);
-        for(OglObj *object : complexShared->objects)
-            object->pushRenderItem(queue, selectionId,
-                    OrtsTrackProfileRenderer::generatedPartLod(object, matrix, posx, posz));
+        auto push = [&](const QVector<OglObj*> &objects) {
+            for(OglObj *object : objects)
+                object->pushRenderItem(queue, selectionId,
+                        OrtsTrackProfileRenderer::generatedPartLod(object, matrix, posx, posz));
+        };
+        push(complexShared->objects);
+        for(int s = 0; s < complexShared->switches.size(); s++){
+            const ComplexTrackMeshes::Switch &sw = complexShared->switches[s];
+            const float key = switchKeys.value(s, 0);
+            push(sw.parts[key < 0.5f ? 0 : 1]);
+            if(key <= 0 || key >= 1){
+                if(switchBlend.contains(s)){
+                    qDeleteAll(switchBlend.take(s));
+                    switchBlendKey.remove(s);
+                }
+                push(sw.blades[key >= 1 ? 1 : 0]);
+                continue;
+            }
+            // Moving: the blades a share key of the way, made again when
+            // the key has moved.
+            if(!switchBlend.contains(s) || switchBlendKey.value(s, -1) != key){
+                qDeleteAll(switchBlend.take(s));
+                switchBlend.insert(s, OrtsTrackProfileRenderer::complexObjects(
+                        OrtsTrackProfileRenderer::blendMeshes(sw.meshes.blades[0], sw.meshes.blades[1], key),
+                        Game::root + "/ROUTES/" + Game::route));
+                switchBlendKey.insert(s, key);
+            }
+            push(switchBlend.value(s));
+        }
         queue.popTransform();
     }
     Mat4::multiply(queue.transform(),
@@ -772,10 +867,12 @@ void TrackObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float 
     }*/
     if(!procedural) {
         if(shapePointer != NULL){
-            const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, 0, {lod, position[1] - playerW[1]});
+            // Step 9: a posed junction in its own state.
+            const unsigned int state = hasPoseState ? poseState : 0;
+            const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, state, {lod, position[1] - playerW[1]});
             queue.setLightsShown(drawing.lights);
             if (drawing)
-                shapePointer->pushRenderItem(queue, selectionId, 0);
+                shapePointer->pushRenderItem(queue, selectionId, state);
             queue.setLightsShown(true);
         }
     } else {

@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QVector>
 #include <tsre/procedural/ComplexTrackPlan.h>
+#include <tsre/procedural/OrtsTrackProfileRenderer.h>
 #include <tsre/procedural/TrackProfileFilters.h>
 
 class OglObj;
@@ -22,10 +23,20 @@ struct OrtsTrackProfile;
 // member, rigid in shape space and drawn with each object's matrix like a
 // static shape (design section 8, decision 6).
 struct ComplexTrackMeshes {
+    // Its fixed parts.
     QVector<OglObj*> objects;
     // The shape's paths in no group: each object draws them as plain track.
     QVector<int> independent;
     ComplexTrackPlan plan;
+    // Step 9: each switch's moving parts per route (plan.switches; 0 its
+    // main path set, 1 its other): the meshes (an object blends the blades
+    // while its switch moves) and their objects.
+    struct Switch {
+        OrtsTrackProfileRenderer::SwitchMeshes meshes;
+        QVector<OglObj*> blades[2];
+        QVector<OglObj*> parts[2];
+    };
+    QVector<Switch> switches;
     ~ComplexTrackMeshes();
 };
 

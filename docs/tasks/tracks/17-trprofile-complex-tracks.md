@@ -826,7 +826,7 @@ joint.
 - No format change. Open Rails places per piece; a note in the Open Rails
   document (a behaviour it can adopt).
 
-### 13. Switch state on the shape side (step 9, design)
+### 13. Switch state on the shape side (step 9)
 
 The user (2026-11-24): blades, indicator and hand lever follow the
 switch's state on the shape side, tested with the Shape Viewer's animation
@@ -918,7 +918,8 @@ Each step stops for the user's visual check before the next.
 | 6 phase 2: blades, frogs, check rails | built; not checked by the user yet, not blocking (2026-11-24) | `2af05063`; assets-gen `01405ca` |
 | 6 Open Rails document (section 10) | written (2026-11-24) | `docs/features/openrails-trprofile-complex.md` |
 | 7 switch drives, indicators, buffers | built; waiting for the user's check (2026-11-24) | `ea30b5a9`; assets-gen `35481a3` |
-| 8 repeats in step with the databases | built (2026-11-24) | see step 8 below |
+| 8 repeats in step with the databases | built (2026-11-24) | `f020fe7f` |
+| 9 switch state on the shape side | built (2026-11-24) | see step 9 below |
 | 7 bed review: beds per track, own end planes (decision 40) | built, joints checked with the user (2026-11-24) | `74c306ef`, `2848d513`; assets-gen `46c8366`, `391100d`, `81e78be` |
 
 Steps 1-3 (2026-11-23):
@@ -1156,6 +1157,42 @@ Step 8 (2026-11-24, the user's go the same day):
   runs on over joints. On PRUDNIK two 12.86 m pieces (UiD 7263, 7269)
   crowded their sleepers at the joint before and run on evenly now; its
   roads' dashes follow the road vector.
+
+Step 9 (2026-11-24, the user's go the same day):
+
+- `TrackObj::setSwitchRoute(path, animate)`: the path a junction object
+  is set to (-1 its `MainRoute`), moved to over 0.5 s
+  (`SwitchMoveSeconds`, Open Rails' `SwitchTrackShape`). A static junction
+  shape gets a state of its own (`ComplexShape::newState`) once off key 0
+  and poses its keyed parts at the key's frame (key 0 on `MainRoute`, 1
+  otherwise): blades, DB's levers and indicator heads. A procedural one
+  draws its switches' moving parts for their routes: a switch (plan's
+  `switches`) shows route 1 when its other path is set, else route 0 (a
+  three-way point: each side's switch by the path set).
+- The plan keeps each blade's line for the other route (`RailPiece::
+  otherLine`, closed and open swapped) and its switch. The renderer lays
+  the fixed parts as before (`ComplexSelection` `Fixed`) and, per switch
+  and route, the blades and the parts shown per route (`buildSwitchMeshes`:
+  the indicator's and a hand lever's `Shape` for that route; one `Shape`:
+  the same); shared per shape in `ComplexTrackMeshes::switches`. While a
+  switch moves, its object blends the two routes' blades
+  (`blendMeshes`, as many vertices in both) each frame; indicator and
+  lever change halfway.
+- Captures: a viewer item's `switchRoute` (a path) and `switchPose` (0 to
+  1); a route view's `switchesOther` (every junction in the loaded tiles to
+  another path at once, or back). The simulation wiring and the usable
+  lever later.
+- assets-gen: the hand lever has its thrown pose as its second `Shape`
+  (`pl_point_lever_other.obj`).
+- Tests (track-shape-analysis 67): the other route's blade lines swapped
+  at the tips (0.043 and 0.203 m from the stock rail); both routes' blades
+  with as many vertices, different, halfway at 0.5; the indicator's second
+  `Shape` on the other route. Captures: 7.5° points on the main route, a
+  quarter, half way and on the other route, the indicator, a hand lever,
+  the three-way point's two sides (assets-gen `checks/complex-switch-state.json`);
+  PRUDNIK in `Forced` and with its static DBTracks junctions, on their main
+  route and thrown (the static shapes' blades and indicator heads move a
+  few centimetres).
 
 ## Acceptance
 
