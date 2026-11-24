@@ -219,6 +219,13 @@ uniform vec3 dynamicShadowBias;
 // do not crawl over the near map's grid.
 uniform sampler2DShadow cabShadowMap;
 uniform vec4 cabShadowParams;
+// The cab's or car's map holding the train alone, drawn when its cache asks
+// (task renderer 50): inside its box the world's shadows come from the
+// static maps (x 1), and trains passing through its column from a small map
+// of their own (cabPassingMap, y 1 while one passes; z, w a texel in its
+// UV). x 0: the map holds everything in its column, as before.
+uniform sampler2DShadow cabPassingMap;
+uniform vec4 cabShadowWorld;
 // Its filter (RouteEditorGLWidget's cab tuning): the kernel (0 the 16-point
 // disc of cabShadowParams.w; 3, 5 or 7 a tent over so many texels), a texel
 // in its UV across (y) and up (w; 0: as across), the per-tap receiver-plane
@@ -508,6 +515,11 @@ float shadowedVisibility(float cosTheta) {
     // anyway), then the weight and contrast of the map the fragment uses.
     // One map per fragment: the weights are 0 or 1.
     float occluded = 0.0;
+#ifdef TSRE_RHI
+    // The static maps' share alone: the world inside the cab's or car's box
+    // while its map holds the train (task renderer 50).
+    float occludedStatic = 0.0;
+#endif
     float vegetation = 0.0;
     float vegetationDeep = 0.0;
     float weight = 0.0;
@@ -523,6 +535,7 @@ float shadowedVisibility(float cosTheta) {
                     shadow0Pos2.z - bias0 + receiverPlaneBias(gradient0, poissonDisk[i]/shadow0Res, limit0));
             float lit = texture(shadow0, tap);
 #ifdef TSRE_RHI
+            occludedStatic += (1.0 - lit)/16.0;
             lit *= texture(dynamicShadow0, vec3(tap.xy, tap.z - dynamic0));
 #endif
             occluded += (1.0 - lit)/16.0;
@@ -544,6 +557,7 @@ float shadowedVisibility(float cosTheta) {
                     shadowPos2.z - biasMid + receiverPlaneBias(gradientMid, poissonDisk[i]/shadowMidRes, limitMid));
             float lit = texture(shadow1, tap);
 #ifdef TSRE_RHI
+            occludedStatic += (1.0 - lit)/16.0;
             lit *= texture(dynamicShadow1, vec3(tap.xy, tap.z - dynamicMid));
 #endif
             occluded += (1.0 - lit)/16.0;
@@ -564,6 +578,7 @@ float shadowedVisibility(float cosTheta) {
             vec3 tap = vec3(shadow2Pos2.xy + poissonDisk[i]/shadow2Res, shadow2Pos2.z - bias2);
             float lit = texture(shadow2, tap);
 #ifdef TSRE_RHI
+            occludedStatic += (1.0 - lit)/2.0;
             lit *= texture(dynamicShadow2, vec3(tap.xy, tap.z - dynamic2));
 #endif
             occluded += (1.0 - lit)/2.0;
@@ -581,6 +596,8 @@ float shadowedVisibility(float cosTheta) {
         contrast = 2.0*farShadowIntensity;
     }
 #ifdef TSRE_RHI
+    // The world alone (the static maps), for the cab's or car's box below.
+    float visibilityWorld = visibility;
     if (materialVegetation != 0) {
         // Vegetation itself takes vegetation's maps as light passing its own
         // crown and its neighbours', whichever way a leaf faces: behind
@@ -596,11 +613,17 @@ float shadowedVisibility(float cosTheta) {
         float lost = vegetationCrown.w*(vegetation - deep) + vegetationSelfShadow*deep;
         visibility -= shadowsEnabled2*weight*contrast*occluded;
         visibility = max(visibility, 0.0)*(1.0 - shadowsEnabled2*weight*lost);
+        visibilityWorld -= shadowsEnabled2*weight*contrast*occludedStatic;
+        visibilityWorld = max(visibilityWorld, 0.0)*(1.0 - shadowsEnabled2*weight*lost);
     } else
 #endif
     {
         float shaded = occluded + vegetation - occluded*vegetation;
         visibility -= shadowsEnabled2*weight*contrast*shaded;
+#ifdef TSRE_RHI
+        float shadedWorld = occludedStatic + vegetation - occludedStatic*vegetation;
+        visibilityWorld -= shadowsEnabled2*weight*contrast*shadedWorld;
+#endif
     }
 #ifdef TSRE_RHI
     // In the cab's map's box: its lookup instead (everything in the column
@@ -624,8 +647,23 @@ float shadowedVisibility(float cosTheta) {
                     occludedCab += (1.0 - texture(cabShadowMap, tap))/16.0;
                 }
             }
+            // Trains passing through the column (task renderer 50): four
+            // filtered taps of their small map (half the texels across, so
+            // twice the bias), a texel apart, while one passes.
+            if (cabShadowWorld.y > 0.5) {
+                float occludedPassing = 0.0;
+                for (int i = 0; i < 4; i++) {
+                    vec2 offset = vec2(i == 1 || i == 3 ? 1.0 : -1.0, i >= 2 ? 1.0 : -1.0)*cabShadowWorld.zw;
+                    occludedPassing += (1.0 - texture(cabPassingMap, vec3(cab.xy + offset, cab.z - 2.0*cabBias)))/4.0;
+                }
+                occludedCab = occludedCab + occludedPassing - occludedCab*occludedPassing;
+            }
             float cabVisibility = (1.0-enableNormals) + cosTheta*enableNormals
                     - shadowsEnabled2*16.0*shadowIntensity*occludedCab;
+            // The map holding the train alone: the world's shadows from the
+            // static maps (the dynamic ones hold the train's coarse copy).
+            if (cabShadowWorld.x > 0.5)
+                cabVisibility = min(cabVisibility, visibilityWorld);
             visibility = mix(visibility, cabVisibility, inside*cabShadowParams.x);
         }
     }

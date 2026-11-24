@@ -1242,6 +1242,14 @@ void RouteEditorGLWidget::stepCharacter(double seconds) {
     // The car the camera is in with the walking character: none until found
     // below (its lamps' ambient fills, task renderer 46 C).
     Eng::viewerCar = nullptr;
+    // The train the camera is in (task renderer 50): its 3D cab ridden, or
+    // the walking character's below.
+    Eng::viewerTrain.clear();
+    if (Consist *riding = camera != NULL ? dynamic_cast<Consist *>(camera->getCameraObject()) : nullptr)
+        if (riding->cab3DVehicleRidden() >= 0)
+            for (const auto &item : riding->engItems)
+                if (item.engPointer != nullptr)
+                    Eng::viewerTrain.push_back(item.engPointer);
     Characters::Cast &cast = Characters::Cast::instance();
     if (cast.count() == 0)
         return;
@@ -1283,8 +1291,13 @@ void RouteEditorGLWidget::stepCharacter(double seconds) {
     walking = walker();
     if (walking != nullptr && walking->inCar() && camera != NULL && camera->getCameraObject() == walking) {
         Consist *consist = simulation->consistOf(walking->train());
-        if (consist != nullptr && walking->car() >= 0 && walking->car() < consist->engItems.size())
+        if (consist != nullptr && walking->car() >= 0 && walking->car() < consist->engItems.size()) {
             Eng::viewerCar = consist->engItems[walking->car()].engPointer;
+            Eng::viewerTrain.clear();
+            for (const auto &item : consist->engItems)
+                if (item.engPointer != nullptr)
+                    Eng::viewerTrain.push_back(item.engPointer);
+        }
     }
     useHover();
 }
@@ -2788,6 +2801,27 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     // it; its depth from the column towards the sun to past the box.
     // TSRE_CAR_SHADOW_OFF=1: none (the cascades, as before).
     static const bool carMapOff = qEnvironmentVariable("TSRE_CAR_SHADOW_OFF") == "1";
+    // Cached (task renderer 50): the map holds the train the camera is in
+    // alone (Eng::viewerTrain), drawn again only when it would change: the
+    // vehicle or its map's size another, the train's content (its shapes, a
+    // door at rest, a worked cab control: RenderQueue::CarBox::content), or
+    // the sun's direction in the vehicle's frame turned by more than
+    // TSRE_CAB_SHADOW_CACHE_TURN degrees (0.1: a shadow cast 3 m away
+    // steps 5 mm, a cab map texel 2.9 mm). Between its drawings it is held in
+    // the vehicle's frame: it moves and turns with the vehicle, so running
+    // straight draws nothing. Inside its box the world's shadows come from
+    // the static maps (cabShadowWorld.x), other trains passing through its
+    // column from a small map drawn while one does (renderShadowMaps). The
+    // cab's map is centred on the cab's middle at the eye's height and place
+    // along it when the cab is first seen (the eye moving does not draw it
+    // again). TSRE_CAB_SHADOW_CACHE=0: everything in the column every frame,
+    // centred on the eye, as before.
+    static const bool cacheEnabled = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE") != "0";
+    static const float cacheTurnCos = [] {
+        bool ok = false;
+        const float degrees = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE_TURN").toFloat(&ok);
+        return std::cos((ok && degrees >= 0.0f ? degrees : 0.1f) * float(M_PI) / 180.0f);
+    }();
     Consist *riding = dynamic_cast<Consist *>(camera->getCameraObject());
     const CabShadowTuning &tuning = cabShadowTuning(renderer->cabShadowSize());
     const bool maps = !tuning.off && renderer->cabShadows() && Game::shadowsEnabled > 0;
@@ -2804,23 +2838,86 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         cabShadowSince.start();
     cabShadowFor = mapFor;
     gluu->cabShadowParams[0] = 0.0f;
+    gluu->cabShadowWorld[0] = gluu->cabShadowWorld[1] = 0.0f;
+    trainShadowRedraw = false;
     renderer->setCarShadowMap(car != nullptr);
-    if (mapFor == nullptr)
+    if (mapFor == nullptr) {
+        trainShadowCache.valid = false;
         return;
-    float cabUp[3] = {0.0f, std::fabs(sun[1]) > 0.999f ? 0.0f : 1.0f, std::fabs(sun[1]) > 0.999f ? 1.0f : 0.0f};
-    float cabCentre[3] = {position[0], position[1], position[2]};
-    float halfWidth = CabShadowHalfExtent, halfHeight = CabShadowHalfExtent, behind = CabShadowBehind;
-    if (car != nullptr) {
-        // The box's axes (the unit box's to the world: its columns, half
-        // sizes long) and centre.
-        const float *m = car->toWorld;
-        float axes[3][3], half[3];
+    }
+    // The vehicle's box (its frame: the cab's car, or the car).
+    const RenderQueue::CarBox *vehicleBox = car;
+    if (inCab) {
+        const int index = riding->cab3DVehicleRidden();
+        const void *cabCar = index < riding->engItems.size() ? riding->engItems[index].engPointer : nullptr;
+        for (const RenderQueue::CarBox &box : renderer->carBoxes())
+            if (box.car == cabCar) {
+                vehicleBox = &box;
+                break;
+            }
+    }
+    const bool caching = cacheEnabled && renderer->cabShadowCache() && vehicleBox != nullptr
+            && !Eng::viewerTrain.empty();
+    // Its axes (the unit box's to the world: its columns, half sizes long),
+    // centre, and frame (rigid, column-major) and its inverse.
+    float axes[3][3] = {}, half[3] = {}, vehicleOrigin[3] = {};
+    float frame[16], frameInverse[16];
+    Mat4::identity(frame);
+    Mat4::identity(frameInverse);
+    if (vehicleBox != nullptr) {
+        const float *m = vehicleBox->toWorld;
         for (int c = 0; c < 3; ++c) {
             half[c] = std::sqrt(m[c * 4] * m[c * 4] + m[c * 4 + 1] * m[c * 4 + 1] + m[c * 4 + 2] * m[c * 4 + 2]);
             for (int k = 0; k < 3; ++k)
                 axes[c][k] = half[c] > 0.0f ? m[c * 4 + k] / half[c] : 0.0f;
         }
-        std::copy(m + 12, m + 15, cabCentre);
+        std::copy(m + 12, m + 15, vehicleOrigin);
+        for (int c = 0; c < 3; ++c) {
+            for (int k = 0; k < 3; ++k) {
+                frame[c * 4 + k] = axes[c][k];
+                frameInverse[k * 4 + c] = axes[c][k];
+            }
+            frame[12 + c] = vehicleOrigin[c];
+            frameInverse[12 + c] = -(axes[c][0] * vehicleOrigin[0] + axes[c][1] * vehicleOrigin[1] + axes[c][2] * vehicleOrigin[2]);
+        }
+    }
+    const int mapWidth = std::max(renderer->cabShadowWidth(), 1);
+    const int mapHeight = std::max(renderer->cabShadowHeight(), 1);
+    // The sun in the vehicle's frame, the train's content.
+    const float sunLocal[3] = {axes[0][0] * sun[0] + axes[0][1] * sun[1] + axes[0][2] * sun[2],
+                               axes[1][0] * sun[0] + axes[1][1] * sun[1] + axes[1][2] * sun[2],
+                               axes[2][0] * sun[0] + axes[2][1] * sun[1] + axes[2][2] * sun[2]};
+    quint64 content = 0;
+    trainShadowCars.assign(Eng::viewerTrain.begin(), Eng::viewerTrain.end());
+    // TSRE_CAB_SHADOW_CACHE_VEHICLE=1 (testing): the vehicle alone cached,
+    // the rest of its train drawn as trains passing.
+    static const bool vehicleOnly = qEnvironmentVariable("TSRE_CAB_SHADOW_CACHE_VEHICLE") == "1";
+    if (vehicleOnly && vehicleBox != nullptr)
+        trainShadowCars.assign(1, vehicleBox->car);
+    for (const RenderQueue::CarBox &box : renderer->carBoxes())
+        if (box.content != 0
+                && std::find(trainShadowCars.begin(), trainShadowCars.end(), box.car) != trainShadowCars.end())
+            content ^= (box.content + quint64(quintptr(box.car))) * 0x9e3779b97f4a7c15ULL;
+    TrainShadowCache &cache = trainShadowCache;
+    const bool sameVehicle = vehicleBox != nullptr && cache.valid && cache.vehicle == vehicleBox->car
+            && cache.car == (car != nullptr);
+    // The cab's centre in the cab's frame, kept while it is the same cab.
+    if (inCab && caching && (!sameVehicle || !cache.centred)) {
+        const float e[3] = {position[0] - vehicleOrigin[0], position[1] - vehicleOrigin[1], position[2] - vehicleOrigin[2]};
+        cache.centreLocal[0] = 0.0f;
+        cache.centreLocal[1] = axes[1][0] * e[0] + axes[1][1] * e[1] + axes[1][2] * e[2];
+        cache.centreLocal[2] = axes[2][0] * e[0] + axes[2][1] * e[1] + axes[2][2] * e[2];
+        cache.centred = true;
+    }
+    const bool keep = caching && sameVehicle && cache.width == mapWidth && cache.height == mapHeight
+            && cache.content == content
+            && sunLocal[0] * cache.sunLocal[0] + sunLocal[1] * cache.sunLocal[1] + sunLocal[2] * cache.sunLocal[2]
+                    >= cacheTurnCos;
+    float cabUp[3] = {0.0f, std::fabs(sun[1]) > 0.999f ? 0.0f : 1.0f, std::fabs(sun[1]) > 0.999f ? 1.0f : 0.0f};
+    float cabCentre[3] = {position[0], position[1], position[2]};
+    float halfWidth = CabShadowHalfExtent, halfHeight = CabShadowHalfExtent, behind = CabShadowBehind;
+    if (car != nullptr) {
+        std::copy(vehicleOrigin, vehicleOrigin + 3, cabCentre);
         // Up the map: across the sun and the car's length (the map's width
         // then along the length as the sun sees it); the car's side with the
         // sun straight along it.
@@ -2838,6 +2935,10 @@ void RouteEditorGLWidget::computeShadowMatrices() {
         halfWidth = diagonal / 0.85f + 0.1f;
         halfHeight = section / 0.85f + 0.1f;
         behind = diagonal + 0.5f;
+    } else if (caching) {
+        for (int c = 0; c < 3; ++c)
+            cabCentre[c] = vehicleOrigin[c] + axes[0][c] * cache.centreLocal[0] + axes[1][c] * cache.centreLocal[1]
+                    + axes[2][c] * cache.centreLocal[2];
     } else if (tuning.turns) {
         // TSRE_CAB_SHADOW_TURN=1: the map turns with the vehicle (its
         // heading, the cab camera's relativeRot[0]), its axes across the sun
@@ -2853,14 +2954,30 @@ void RouteEditorGLWidget::computeShadowMatrices() {
             std::copy(along ? side : forward, (along ? side : forward) + 3, cabUp);
         }
     }
-    float cabEye[3] = {cabCentre[0] + sun[0], cabCentre[1] + sun[1], cabCentre[2] + sun[2]};
-    float cabView[16];
-    Mat4::lookAt(cabView, cabEye, cabCentre, cabUp);
-    float cabProjection[16];
-    Mat4::ortho(cabProjection, -halfWidth, halfWidth, -halfHeight, halfHeight, -CabShadowColumn, behind + 1.0f);
-    Mat4::multiply(gluu->cabShadowMatrix, cabProjection, cabView);
-    const int mapWidth = std::max(renderer->cabShadowWidth(), 1);
-    const int mapHeight = std::max(renderer->cabShadowHeight(), 1);
+    if (keep) {
+        // Held in the vehicle's frame.
+        Mat4::multiply(gluu->cabShadowMatrix, cache.local, frameInverse);
+    } else {
+        float cabEye[3] = {cabCentre[0] + sun[0], cabCentre[1] + sun[1], cabCentre[2] + sun[2]};
+        float cabView[16];
+        Mat4::lookAt(cabView, cabEye, cabCentre, cabUp);
+        float cabProjection[16];
+        Mat4::ortho(cabProjection, -halfWidth, halfWidth, -halfHeight, halfHeight, -CabShadowColumn, behind + 1.0f);
+        Mat4::multiply(gluu->cabShadowMatrix, cabProjection, cabView);
+        if (caching) {
+            Mat4::multiply(cache.local, gluu->cabShadowMatrix, frame);
+            cache.vehicle = vehicleBox->car;
+            cache.car = car != nullptr;
+            cache.width = mapWidth;
+            cache.height = mapHeight;
+            cache.content = content;
+            std::copy(sunLocal, sunLocal + 3, cache.sunLocal);
+            cache.valid = true;
+            trainShadowRedraw = true;
+        } else {
+            cache.valid = false;
+        }
+    }
     // Its texels' larger side for the offset and bias (a car's about square).
     const float cabTexel = std::max(2.0f * halfWidth / float(mapWidth), 2.0f * halfHeight / float(mapHeight));
     const float cabFilter = tuning.filter * cabTexel;
@@ -2872,6 +2989,9 @@ void RouteEditorGLWidget::computeShadowMatrices() {
     gluu->cabShadowFilter[1] = 1.0f / float(mapWidth);
     gluu->cabShadowFilter[2] = tuning.plane ? 1.0f : 0.0f;
     gluu->cabShadowFilter[3] = 1.0f / float(mapHeight);
+    gluu->cabShadowWorld[0] = caching ? 1.0f : 0.0f;
+    gluu->cabShadowWorld[2] = 2.0f / float(mapWidth);
+    gluu->cabShadowWorld[3] = 2.0f / float(mapHeight);
 }
 
 // Draws the near, middle and far shadow maps from the gathered queue, with
@@ -3043,9 +3163,29 @@ void RouteEditorGLWidget::renderShadowMaps() {
                                       movingOnly ? Renderer::CASTERS_DYNAMIC : Renderer::CASTERS_ALL,
                                       Renderer::SET_ALL, covering ? &cover : nullptr);
     }
-    // The cab's map (computeShadowMatrices): everything in its column, every
-    // frame (the train moves through it), vegetation too; or a car's.
-    if (gluu->cabShadowParams[0] > 0.0f) {
+    // The cab's map (computeShadowMatrices), or a car's. Cached (task
+    // renderer 50): the train alone, drawn when the cache asks; the other
+    // trains passing through its column each frame into their small map,
+    // when there are any (none: nothing drawn, nothing read). Else
+    // everything in its column, every frame (the train moves through it),
+    // vegetation too.
+    if (gluu->cabShadowParams[0] > 0.0f && gluu->cabShadowWorld[0] > 0.0f) {
+        if (trainShadowRedraw) {
+            static const bool cacheLog = qEnvironmentVariableIsSet("TSRE_CAB_SHADOW_CACHE_LOG");
+            if (cacheLog)
+                qInfo().noquote() << QString("Cab shadow cache: drawn, frame %1").arg(Renderer::frameNumber());
+            renderer->bindTarget(Renderer::TARGET_SHADOW_CAB);
+            renderer->clear(true, true);
+            drawWith(gluu->cabShadowMatrix);
+            renderer->setViewport(0, 0, renderer->cabShadowWidth(), renderer->cabShadowHeight());
+            renderer->renderTrainShadowCasters(trainShadowCars, CabShadowColumn, statsSlots[0], gluu->cabShadowMatrix);
+            trainShadowRedraw = false;
+        }
+        drawWith(gluu->cabShadowMatrix);
+        const int passing = renderer->renderPassingShadowCasters(trainShadowCars, CabShadowColumn, statsSlots[0],
+                                                                 gluu->cabShadowMatrix);
+        gluu->cabShadowWorld[1] = passing > 0 ? 1.0f : 0.0f;
+    } else if (gluu->cabShadowParams[0] > 0.0f) {
         renderer->bindTarget(Renderer::TARGET_SHADOW_CAB);
         renderer->clear(true, true);
         drawWith(gluu->cabShadowMatrix);

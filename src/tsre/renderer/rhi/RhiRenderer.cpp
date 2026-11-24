@@ -437,6 +437,8 @@ void RhiRenderer::releaseResources() {
         releaseAttachments(cache);
     carShadowMap.sharedPass = nullptr;
     releaseAttachments(carShadowMap);
+    passingShadowMap.sharedPass = nullptr;
+    releaseAttachments(passingShadowMap);
     releaseAttachments(cabShadowMap);
     delete uniformArena.buffer;
     uniformArena.buffer = nullptr;
@@ -581,6 +583,8 @@ void RhiRenderer::writeFrameUniforms(RhiProgram *program) {
                     gluu->cabShadowParams[2], gluu->cabShadowParams[3]);
     program->setVec("cabShadowFilter", gluu->cabShadowFilter[0], gluu->cabShadowFilter[1],
                     gluu->cabShadowFilter[2], gluu->cabShadowFilter[3]);
+    program->setVec("cabShadowWorld", gluu->cabShadowWorld[0], gluu->cabShadowWorld[1],
+                    gluu->cabShadowWorld[2], gluu->cabShadowWorld[3]);
     program->setMat4("uMVMatrix", gluu->mvMatrix);
     program->setMat4("uMSMatrix", gluu->objStrMatrix);
     // Sharper or softer textures (core.rendering.textureLodBias); with TAA
@@ -1932,6 +1936,44 @@ static int carShadowLength(int cabSize) {
     return forced > 0 ? forced : cabSize;
 }
 
+// The cab's or car's map holding the train alone (task renderer 50): the
+// train's own casters into the bound target (the cab's), when its cache asks.
+void RhiRenderer::renderTrainShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                           const float *viewProjection) {
+    beginFrameIfNeeded();
+    if (!targetReady())
+        return;
+    planTrainCasters(cars, true, range, viewProjection);
+    recordCasters(statsSlot);
+}
+
+// The trains passing through its column: planned every frame, drawn into
+// their own small map only when there are any (none, nothing bound, cleared
+// or read). With the cab map's pipelines (a compatible pass).
+int RhiRenderer::renderPassingShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                            const float *viewProjection) {
+    beginFrameIfNeeded();
+    planTrainCasters(cars, false, range, viewProjection);
+    if (shadowCasters.empty())
+        return 0;
+    const QSize size(std::max(1, cabShadowWidth() / 2), std::max(1, cabShadowHeight() / 2));
+    if (!passingShadowMap.valid() || passingShadowMap.size != size) {
+        passingShadowMap.sharedPass = nullptr;
+        if (!createAttachments(passingShadowMap, QRhiTexture::UnknownFormat, size, {}))
+            return 0;
+        passingShadowMap.openGlRows = true;
+    }
+    passingShadowMap.sharedPass = cabShadowMap.valid() ? cabShadowMap.passes[0] : nullptr;
+    targets[TARGET_SHADOW_PASSING].attachments = &passingShadowMap;
+    bindTarget(TARGET_SHADOW_PASSING);
+    clear(true, true);
+    setViewport(0, 0, size.width(), size.height());
+    if (!targetReady())
+        return 0;
+    recordCasters(statsSlot);
+    return int(shadowCasters.size());
+}
+
 int RhiRenderer::cabShadowWidth() const {
     return carShadow ? carShadowLength(cabShadowSize()) : cabShadowSize();
 }
@@ -2958,6 +3000,11 @@ bool RhiRenderer::frameSlot(int binding, int type, QRhiTexture *&keyTexture, QRh
             if (map.valid())
                 texture = map.depth;
         }
+        // The trains passing through its column, while one does (task
+        // renderer 50).
+        if (binding == RhiShaderSource::PassingShadowBinding && Game::shadowsEnabled > 0
+                && gluu->cabShadowParams[0] > 0.0f && gluu->cabShadowWorld[1] > 0.0f && passingShadowMap.valid())
+            texture = passingShadowMap.depth;
         break;
     }
     case 4:
@@ -3450,7 +3497,7 @@ void RhiRenderer::recordDraw(RenderItem *item, const float *const *matrices, int
             && !item->material.blendInOrder && texelsOf(item) != TEXELS_OPAQUE;
     key.depthWrite = !glassWithoutDepth && texelsOf(item) != TEXELS_TRANSLUCENT;
     key.decal = item->material.decal && selectionId == 0;
-    key.casterBias = currentTarget == TARGET_SHADOW_CAB;
+    key.casterBias = currentTarget == TARGET_SHADOW_CAB || currentTarget == TARGET_SHADOW_PASSING;
     // The sky enclosure maps look down on everything: single-sided roofs and
     // tunnel tubes, made to be seen from below, count too. (The sun's shadow
     // maps keep culling: unculled they cost 5-10 ms at the CMK station; the
@@ -3894,6 +3941,7 @@ const char *RhiRenderer::targetName(int which) const {
     case TARGET_SHADOW_MID: return "sun shadow middle";
     case TARGET_SHADOW_FAR: return "sun shadow far";
     case TARGET_SHADOW_CAB: return "sun shadow cab";
+    case TARGET_SHADOW_PASSING: return "sun shadow passing";
     case TargetEnclosure: return "enclosure";
     case TargetSelection: return "selection";
     case TargetEnvironment: return "environment";

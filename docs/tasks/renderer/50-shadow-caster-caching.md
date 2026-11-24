@@ -1,6 +1,7 @@
 # Task 50 - Caching what casts shadows
 
-Status: noted (2026-11-24), not started.
+Status: step 1 done (2026-11-24, `feature/car-interiors`): the cab's and a
+car's maps cached (B below, with the small map for passing trains).
 
 The user (2026-11-24, after task 49's car map): "Caching shadow geometry is
 one big task on itself as it would help us greatly."
@@ -144,6 +145,63 @@ ways: skip a map's dynamic taps when nothing was drawn into it this frame (a
 flag a map); skip them outside the light-space rectangles of what was drawn
 (a few a map: a ride's own train covers a small part of each map, so most of
 the view skips them too).
+
+## Step 1: the cab's and car's maps cached (done 2026-11-24)
+
+The user's choices (2026-11-24): B with the small map for passing trains;
+our whole train cached (its cars within the map); the turn threshold
+0.1 degree; the cab's map centred on the cab's middle (its centre line at
+the eye's height and place along it, taken when the cab is first seen: the
+eye moving does not draw it again); a car the camera is in never standing.
+
+Built:
+
+- `Eng::viewerTrain`: the cars of the train the camera is in (its 3D cab
+  ridden, the walking character's car), set by the view each frame
+  (`stepCharacter`); never standing, so the static caches leave them out.
+- `computeShadowMatrices`: the map's clip space kept in the vehicle's
+  frame (the cab's car's or the car's box, rigid) and drawn again when the
+  vehicle, the map's size, the train's content (`CarBox::content` of its
+  cars: shapes, doors at rest, worked cab controls) or the sun's direction
+  in the vehicle's frame (more than `TSRE_CAB_SHADOW_CACHE_TURN` degrees,
+  0.1) changes; otherwise the cached matrix times the vehicle's inverse.
+- `renderShadowMaps`: when drawn, the train's own casters alone
+  (`Renderer::renderTrainShadowCasters`, `QueueRenderer::planTrainCasters`);
+  each frame the other trains' moving casters in the column
+  (`renderPassingShadowCasters`) into `TARGET_SHADOW_PASSING`, half the
+  map's texels each way, bound, cleared and drawn only when there are any.
+- `ShadowSampling.glsl`: the cascades keep their static maps' share apart
+  (`occludedStatic`); inside the box the train's map (and the passing
+  map's four taps while one passes) against the static maps' world
+  (`cabShadowWorld`: x cached, y passing, z and w a passing texel).
+- `TSRE_CAB_SHADOW_CACHE=0`: as before (everything every frame, the cab's
+  map on the eye); `TSRE_CAB_SHADOW_CACHE_LOG=1` logs each drawing;
+  `TSRE_CAB_SHADOW_CACHE_VEHICLE=1` (testing) caches the vehicle alone and
+  draws the rest of its train as passing trains.
+
+Results (the Deck, the user's profile):
+
+- Still views (842 x 755): the coach's map 0.66 ms to none, the ET22 cab's
+  2.6 to 3.0 ms to none (drawn once each), every timed pass 0.6 and 2.6 to
+  3.1 ms less. Images as with the map drawn every frame: the coach within 2
+  levels but the patches' edges (18 pixels more), the cab its shadows'
+  edges a texel over (the map's centre on the cab's middle, not the eye).
+- CMK act 2's ride (the ET22 cab, 15 s standing and 60 s driven out),
+  twice each: drawn 87 to 96 times in about 3,500 frames. At the user's 30
+  fps limit the GPU's median 28.2 against 28.4 ms (the Deck lowers its
+  clock in the slack: the saving shows as less work, not shorter passes);
+  without the limit 19.1 and 19.2 against 20.4 and 20.5 ms, 6 % more
+  frames; the processor's paint 14.4 and 14.5 against 14.9 ms, its shadow
+  phase 1.5 against 1.9.
+- The passing map (`TSRE_CAB_SHADOW_CACHE_VEHICLE=1`, the coach's
+  neighbours drawn as passing trains every frame): 0.14 ms, the images as
+  with the whole train cached (within 2 levels).
+- The ET22's lamp-lit cab by night pixel for pixel as on 2026-11-23.
+- bbb's circle ride (`perf-bbb-ride.json`) no longer runs: its train has
+  finished its path by 07:01:30 since the activity changed.
+
+Not yet: a real train passing seen from a cab (no such scene at hand); a
+finer cached map with a cheaper filter (next, for the user's eye).
 
 ## Ideas to weigh
 

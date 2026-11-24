@@ -67,6 +67,11 @@ public:
     // per-tap receiver-plane correction (1 on, 0 off), a texel in its UV up
     // (a car's map is not square).
     float cabShadowFilter[4] = {0.0f, 0.0f, 1.0f, 0.0f};
+    // The map holding the train alone (task renderer 50): 1 when it does
+    // (inside its box the world's shadows from the static maps), 1 while a
+    // train passes through its column (its small map read), and a texel of
+    // that map in its UV across and up.
+    float cabShadowWorld[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     // The dynamic shadow maps' depth bias against the static maps' (QRhi,
     // task renderer 48): near, middle and far, 1 at the same size, more at
     // half (their texels are larger).

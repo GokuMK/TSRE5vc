@@ -998,6 +998,37 @@ void QueueRenderer::planOwnCasters(const void *car, const float *centre, float r
     groupShadowCasters();
 }
 
+void QueueRenderer::planTrainCasters(const std::vector<const void *> &cars, bool own, float range,
+                                     const float *viewProjection){
+    const Frustum lightFrustum = frustumOf(viewProjection);
+    plannedShapesWaiting = 0;
+    shadowCasters.clear();
+    const auto consider = [&](const DrawInstance &instance){
+        if(instance.lampOwner == nullptr || !instance.castsShadow || !hasMesh(instance.packet))
+            return;
+        const bool ours = std::find(cars.begin(), cars.end(), instance.lampOwner) != cars.end();
+        // Another train's: only while it moves (standing, the static maps
+        // hold it).
+        if(ours != own || (!own && !instance.dynamicShadow))
+            return;
+        float center[3];
+        float radius = 0.0f;
+        if(!instanceBounds(instance, center, radius))
+            instanceOrigin(instance, center);
+        const float dx = center[0] - viewPosition[0];
+        const float dz = center[2] - viewPosition[2];
+        const float reach = range + radius;
+        if(dx * dx + dz * dz > reach * reach || !visible(instance, lightFrustum))
+            return;
+        shadowCasters.push_back(&instance);
+    };
+    for(const PassQueue &pass : passes)
+        for(const std::vector<DrawInstance> *list : {&pass.ordered, &pass.grouped})
+            for(const DrawInstance &instance : *list)
+                consider(instance);
+    groupShadowCasters();
+}
+
 void QueueRenderer::groupShadowCasters(){
     std::stable_sort(shadowCasters.begin(), shadowCasters.end(),
                      [](const DrawInstance *a, const DrawInstance *b){

@@ -450,6 +450,25 @@ protected:
     // (none, the cab, a car), fading in again when that changes.
     const void *cabShadowFor = nullptr;
     QElapsedTimer cabShadowSince;
+    // The cab's or car's map holding the train alone, cached (task renderer
+    // 50, computeShadowMatrices): what it was drawn for, its clip space from
+    // the vehicle's frame, and the cab's centre in it; drawn this frame when
+    // trainShadowRedraw; the train's cars (Eng::viewerTrain).
+    struct TrainShadowCache {
+        const void *vehicle = nullptr;
+        bool car = false;
+        int width = 0;
+        int height = 0;
+        quint64 content = 0;
+        float sunLocal[3] = {0.0f, 0.0f, 0.0f};
+        float local[16] = {};
+        float centreLocal[3] = {0.0f, 0.0f, 0.0f};
+        bool centred = false;
+        bool valid = false;
+    };
+    TrainShadowCache trainShadowCache;
+    bool trainShadowRedraw = false;
+    std::vector<const void *> trainShadowCars;
     // Cached static shadow casters (task renderer 37): each map's cache and
     // what it was drawn for.
     struct ShadowCache {

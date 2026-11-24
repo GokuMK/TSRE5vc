@@ -95,6 +95,10 @@ holds that car instead (`computeShadowMatrices`):
 
 A 3D cab ridden keeps the cab's map (6 m around the eye, 2.9 mm).
 
+Since task 50's step 1 both maps are cached: they hold the train alone,
+drawn when it changes, the world's shadows inside their box from the
+static maps, passing trains from a small map of their own.
+
 ## Results (2026-11-24, bbb, 842 x 755, the user's profile)
 
 Captures `bhp-noon.json` (12:40, the sun south and high, the character on

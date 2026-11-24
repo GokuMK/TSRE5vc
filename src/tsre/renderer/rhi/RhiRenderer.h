@@ -106,6 +106,11 @@ public:
     void setCarShadowMap(bool car) override;
     int cabShadowWidth() const override;
     int cabShadowHeight() const override;
+    bool cabShadowCache() const override { return true; }
+    void renderTrainShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                  const float *viewProjection) override;
+    int renderPassingShadowCasters(const std::vector<const void *> &cars, float range, int statsSlot,
+                                   const float *viewProjection) override;
     bool beginSkyEnclosure(int size, int map = 0) override;
     void finishSkyEnclosure(bool far, float radius, float metresPerDepth,
                             const float *ground = nullptr, int groundSize = 0) override;
@@ -276,7 +281,7 @@ private:
     // Targets by Renderer::Target, then the near sky enclosure map,
     // selection, an environment map face, the water reflection, the far sky
     // enclosure map and both seen from below, then the shadow maps' caches.
-    static constexpr int TargetEnclosure = TARGET_SHADOW_CAB + 1;
+    static constexpr int TargetEnclosure = TARGET_SHADOW_PASSING + 1;
     static constexpr int TargetSelection = TargetEnclosure + 1;
     static constexpr int TargetEnvironment = TargetSelection + 1;
     static constexpr int TargetReflection = TargetEnvironment + 1;
@@ -1638,6 +1643,10 @@ private:
     // car: four times as wide as high, the target's while carShadow.
     Attachments carShadowMap;
     bool carShadow = false;
+    // The trains passing through the cab's or car's map's column (task
+    // renderer 50, TARGET_SHADOW_PASSING): half its texels each way, made
+    // when one first passes, made again for another size.
+    Attachments passingShadowMap;
     // The static maps: the cached static casters (task 37; 0 to 2 the main
     // maps', 3 to 5 vegetation's), read by the lit shaders as they are
     // (task 48), at staticSizes.
