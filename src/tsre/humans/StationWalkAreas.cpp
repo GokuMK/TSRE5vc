@@ -216,57 +216,65 @@ bool StationWalkAreas::gather(int s, Job &job) {
     station.problems.clear();
 
     // The platforms' tracks, every 2 m (global editor coordinates: x, the
-    // rail's top, z south), and the box around them.
+    // rail's top, z south), and the box around them all: its tiles are
+    // loaded before the platforms' objects are looked at.
     struct Line {
         std::vector<double> points;
         int platform;
+        // Its people's sides (from its world object): left, right; the line
+        // going from its first track item to its second.
+        bool left = false;
+        bool right = false;
+        bool forward = true;
     };
     std::vector<Line> lines;
-    double box[4] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(),
-                     -std::numeric_limits<double>::max(), -std::numeric_limits<double>::max()};
-    double railSum = 0.0;
-    int railCount = 0;
+    auto boxOf = [](const std::vector<const Line *> &of, double *box, double *rail) {
+        box[0] = box[1] = std::numeric_limits<double>::max();
+        box[2] = box[3] = -std::numeric_limits<double>::max();
+        double sum = 0.0;
+        int count = 0;
+        for (const Line *line : of)
+            for (size_t i = 0; i + 2 < line->points.size(); i += 3) {
+                const double x = line->points[i], z = line->points[i + 2];
+                box[0] = std::min(box[0], x - CorridorReach);
+                box[1] = std::min(box[1], z - CorridorReach);
+                box[2] = std::max(box[2], x + CorridorReach);
+                box[3] = std::max(box[3], z + CorridorReach);
+                sum += line->points[i + 1];
+                ++count;
+            }
+        if (count > 0)
+            *rail = sum / count;
+        return count > 0;
+    };
     for (int p : entries[size_t(s)].platforms) {
         StationPlatforms::Platform &platform = platforms[size_t(p)];
         if (!platform.sampled)
             StationPlatforms::sample(*tdb, platform, PlatformStep);
         Line line;
         line.platform = p;
-        for (size_t i = 0; i + 2 < platform.points.size(); i += 3) {
-            const double x = platform.points[i], y = platform.points[i + 1] + RailTop, z = -platform.points[i + 2];
-            line.points.insert(line.points.end(), {x, y, z});
-            box[0] = std::min(box[0], x - CorridorReach);
-            box[1] = std::min(box[1], z - CorridorReach);
-            box[2] = std::max(box[2], x + CorridorReach);
-            box[3] = std::max(box[3], z + CorridorReach);
-            railSum += y;
-            ++railCount;
-        }
+        for (size_t i = 0; i + 2 < platform.points.size(); i += 3)
+            line.points.insert(line.points.end(), {platform.points[i], platform.points[i + 1] + RailTop,
+                                                   -platform.points[i + 2]});
         lines.push_back(line);
     }
-    if (railCount == 0)
+    std::vector<const Line *> all;
+    for (const Line &line : lines)
+        all.push_back(&line);
+    double box[4];
+    double rail = 0.0;
+    if (!boxOf(all, box, &rail))
         return false;
     // Its tiles first.
-    const int tx0 = int(std::floor((box[0] + 1024.0) / 2048.0)), tx1 = int(std::floor((box[2] + 1024.0) / 2048.0));
-    const int tz0 = int(std::floor((box[1] + 1024.0) / 2048.0)), tz1 = int(std::floor((box[3] + 1024.0) / 2048.0));
-    for (int tx = tx0; tx <= tx1; ++tx)
-        for (int tz = tz0; tz <= tz1; ++tz)
+    for (int tx = int(std::floor((box[0] + 1024.0) / 2048.0)); tx <= int(std::floor((box[2] + 1024.0) / 2048.0)); ++tx)
+        for (int tz = int(std::floor((box[1] + 1024.0) / 2048.0)); tz <= int(std::floor((box[3] + 1024.0) / 2048.0)); ++tz)
             if (!tileReady(route, tx, tz))
                 return false;
 
-    job.station = station.name;
-    station.origin[0] = 0.5 * (box[0] + box[2]);
-    station.origin[1] = railSum / railCount;
-    station.origin[2] = 0.5 * (box[1] + box[3]);
-    const double *o = station.origin;
-    job.input.limits[0] = float(box[0] - o[0]);
-    job.input.limits[1] = float(box[1] - o[2]);
-    job.input.limits[2] = float(box[2] - o[0]);
-    job.input.limits[3] = float(box[3] - o[2]);
-
     // Each platform's sides, from its world object: left and right of the
     // way from its begin item to its end item.
-    for (const Line &line : lines) {
+    std::vector<const Line *> used;
+    for (Line &line : lines) {
         const StationPlatforms::Platform &platform = platforms[size_t(line.platform)];
         QVector<WorldObj *> found;
         route->fillWorldObjectsByTrackItemId(found, 0, platform.start);
@@ -280,8 +288,9 @@ bool StationWalkAreas::gather(int s, Job &job) {
                                 .arg(name, station.name);
             continue;
         }
-        const bool left = object->getSideLeft(), right = object->getSideRight();
-        if (!left && !right) {
+        line.left = object->getSideLeft();
+        line.right = object->getSideRight();
+        if (!line.left && !line.right) {
             station.problems << QString("Platform %1 of %2 has neither side set: no people there.")
                                 .arg(name, station.name);
             continue;
@@ -289,34 +298,56 @@ bool StationWalkAreas::gather(int s, Job &job) {
         // Its sides are as seen going from its first track item (flags 0)
         // to its second (flags 0xFFFF0000), as the simulation's doors take
         // them; the line goes the way of growing distance.
-        bool forward = true;
         const auto a = tdb->trackItems.find(platform.start), b = tdb->trackItems.find(platform.end);
         if (a != tdb->trackItems.end() && b != tdb->trackItems.end() && a->second && b->second
                 && a->second->platformTrItemData && b->second->platformTrItemData) {
             const bool aSecond = (a->second->platformTrItemData[0] & 0xFFFF0000u) != 0;
             TRitem *first = aSecond ? b->second : a->second, *second = aSecond ? a->second : b->second;
-            forward = first->getTrackPosition() <= second->getTrackPosition();
+            line.forward = first->getTrackPosition() <= second->getTrackPosition();
         }
+        used.push_back(&line);
+    }
+
+    // The walk area's box: around the platforms with people only (the
+    // others, a station's stubs a kilometre down the line without sides
+    // set, made Krakow Glowny's on CMK too large to build: the user's
+    // report, 2026-11-25); around all when none has (built to report it).
+    boxOf(used.empty() ? all : used, box, &rail);
+    const int tx0 = int(std::floor((box[0] + 1024.0) / 2048.0)), tx1 = int(std::floor((box[2] + 1024.0) / 2048.0));
+    const int tz0 = int(std::floor((box[1] + 1024.0) / 2048.0)), tz1 = int(std::floor((box[3] + 1024.0) / 2048.0));
+    job.station = station.name;
+    station.origin[0] = 0.5 * (box[0] + box[2]);
+    station.origin[1] = rail;
+    station.origin[2] = 0.5 * (box[1] + box[3]);
+    const double *o = station.origin;
+    job.input.limits[0] = float(box[0] - o[0]);
+    job.input.limits[1] = float(box[1] - o[2]);
+    job.input.limits[2] = float(box[2] - o[0]);
+    job.input.limits[3] = float(box[3] - o[2]);
+
+    for (const Line *line : used) {
+        const StationPlatforms::Platform &platform = platforms[size_t(line->platform)];
+        const QString name = platform.name.isEmpty() ? QString::number(platform.start) : platform.name;
         for (int sideBit = 0; sideBit < 2; ++sideBit) {
-            if ((sideBit == 0 && !left) || (sideBit == 1 && !right))
+            if ((sideBit == 0 && !line->left) || (sideBit == 1 && !line->right))
                 continue;
             // Left is +1 of WalkArea's side in the editor's frame (17 of
             // EUROPE1's 18 stations; the 18th has its sides set wrong); the
             // line going the other way swaps it.
             float side = sideBit == 0 ? 1.0f : -1.0f;
-            if (!forward)
+            if (!line->forward)
                 side = -side;
             WalkArea::Platform walk;
             walk.side = side;
             walk.name = name;
-            for (size_t i = 0; i + 2 < line.points.size(); i += 3) {
-                walk.line.push_back(float(line.points[i] - o[0]));
-                walk.line.push_back(float(line.points[i + 1] - o[1]));
-                walk.line.push_back(float(line.points[i + 2] - o[2]));
+            for (size_t i = 0; i + 2 < line->points.size(); i += 3) {
+                walk.line.push_back(float(line->points[i] - o[0]));
+                walk.line.push_back(float(line->points[i + 1] - o[1]));
+                walk.line.push_back(float(line->points[i + 2] - o[2]));
             }
             job.input.platforms.push_back(walk);
             job.names << name;
-            job.platformOf.push_back(line.platform);
+            job.platformOf.push_back(line->platform);
         }
     }
 

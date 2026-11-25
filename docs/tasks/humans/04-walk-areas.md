@@ -25,7 +25,8 @@ place and move people on it.
     database's height (the track shape's origin), each platform's sides from
     its world object;
   - the tracks within the area;
-  - the objects within 16 m of the platforms and their roles, read again on
+  - the objects within 16 m of the platforms with people (a side set; all
+    of them when none has) and their roles, read again on
     the CPU (`Humans::shapeTriangles`, kept once read): MSTS shapes as the 3D
     cab's picker reads them (`SFileComplex`), glTF files with the new
     `GltfShape::readTriangles` (level 0, no textures, no GPU meshes);
@@ -122,6 +123,19 @@ under the train shed are walked, its roof is dropped; Prudnik's island and
 side platforms are walked around its station building. A halt without a
 platform shape walks on a ground strip (the suite's halt; Carlisle 5 and
 Edgewood 2 on real routes).
+
+### Fixed later: a station's stubs without sides (2026-11-25)
+The user's report: no people at CMK's Krakow Glowny (game root CMK_E30).
+Its 18 platforms of that name include eight without sides set (tracks 7
+and 8, and 1.5 m stubs 13 to 18 spread over 1.2 km of the station's
+tracks); the box around all of them came to 1571 x 8034 cells, over
+`WalkArea`'s 12 million, so the station had no walk area at all ("area too
+large" in the error list), whatever its passengers waiting. The box is now
+taken around the platforms with people only (its tiles still waited for
+around all): 10 platforms, 369 objects, 160,471 triangles, 3,560 polygons,
+every seed on floor; the parking deck over the platforms is built but not
+reached (dropped). Build 8-9 s on this box while it was loaded (load 35),
+not measured alone.
 
 ## Left
 - MaSzyna's e3d route shapes give no triangles yet (their objects are left
