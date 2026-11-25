@@ -630,8 +630,21 @@ track there, decision 40): the next piece's bed on that track starts on the
 same plane, whatever the two pieces' reference lines (a double-track frog
 piece's angled track meets the half switch or points it continues into).
 Only the track's own part of its end cross-section lies on that plane; what
-is cut at a midpoint between tracks stays on the cross-section, where the
-neighbour's edge is. A track reaching up to 1 m past the reference line's
+is cut at a midpoint between tracks stays on the cross-section where the
+neighbour's bed goes on past it (its edge is there), and lies on the end
+plane too where the neighbour is past its own end or ends there as well.
+A track's bed lies between its own end cross-sections only (none at its
+exact end, square to the reference line: the strip from it to an angled
+end plane folded over), and no part of its cross-sections lies past its end
+planes: one at an angle reaches past the next cross-section near the bed's
+edge (7.5 degrees: 0.3 m at a 2.3 m slope), and what would lie past it is
+moved along the bed onto it (decision 40, 2026-11-25). Past its end, up to
+1 m, a track's line carried on along its end's heading still bounds its
+neighbours' beds, which stop halfway to it (where an angled track starts
+0.107 m before a straight, its bed doesn't spread over the straight's
+side), unless a laid track lies within 0.5 m of it (a double slip's halves
+end in its middle where the next one starts). A track reaching up to 1 m
+past the reference line's
 ends (the angled tracks of double-track frog pieces start 0.107 m before
 their straights) takes the cross-sections on with it; farther, its own bed
 (below). No track's bed is carried past its end any more (the 0.5 m
@@ -646,7 +659,8 @@ crib's height, 3.3 m apart at the shoulders (0.12 m), and tracks more than
 side does. Higher polylines (a tunnel's tube) are stretched from the
 leftmost to the rightmost track. Between two cross-sections each track's
 strip joins the one in its place across (crossing tracks swap places);
-where a track starts or ends there, the same path's. Parts of a path
+where a track starts or ends there, the same path's (tracks past their
+ends don't count). Parts of a path
 outside the reference line's span (before its start plane, past its end
 plane) get the single track's bed, cut at that plane.
 
@@ -927,6 +941,7 @@ Each step stops for the user's visual check before the next.
 | 8 repeats in step with the databases | built (2026-11-24) | `f020fe7f`; assets-gen reports `prudnik-vector-phase.jpg` |
 | 9 switch state on the shape side | built (2026-11-24) | `2cb026eb`; assets-gen `2afbd21` |
 | 7 bed review: beds per track, own end planes (decision 40) | built, joints checked with the user (2026-11-24) | `74c306ef`, `2848d513`; assets-gen `46c8366`, `391100d`, `81e78be` |
+| bed ends: angled end planes, overhangs (decision 40, the user's review 2026-11-25) | built; waiting for the user's look (2026-11-25) | branch `fix/complex-bed-ends` |
 
 Steps 1-3 (2026-11-23):
 
@@ -1381,6 +1396,18 @@ Step 9 (2026-11-24, the user's go the same day):
     planes, and a track reaching up to 1 m past the piece's span keeps its
     bed to its end (the angled track lost 0.107 m at each end). Built;
     waiting for the user's look.
+    Then (the user, 2026-11-25, on `A1tFrog7_5dLft` in the Shape Viewer:
+    "Angled track, last triangles are messed up"; came with the end planes,
+    `2848d513`, hidden in the route under the next piece's bed): an angled
+    track's bed began with a cross-section at its exact end, square to the
+    reference line, 2 mm before its end plane's, and that strip folded over
+    (a spike between the tracks, the outer slope smeared); where it reached
+    0.107 m past the straight, its inner side spread to the full slope over
+    the straight's side. Now (section 6) a track's bed lies between its own
+    end cross-sections, past its end planes nothing, a track past its end
+    still bounds its neighbours, and an edge at a midpoint lies on the end
+    plane unless the neighbour's bed goes on past it. Built on
+    `fix/complex-bed-ends`; waiting for the user's look.
 
 ## Open questions
 
