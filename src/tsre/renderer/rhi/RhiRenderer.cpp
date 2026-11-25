@@ -2850,7 +2850,12 @@ QRhiGraphicsPipeline *RhiRenderer::pipeline(const PipelineKey &key) {
     made.start();
     struct Count {
         Creation &c; QElapsedTimer &t;
-        ~Count() { ++c.pipelines; c.pipelineNs += t.nsecsElapsed(); }
+        ~Count() {
+            ++c.pipelines;
+            c.pipelineNs += t.nsecsElapsed();
+            FrameLog::add(FrameLog::PipelinesMade, 1.0);
+            FrameLog::add(FrameLog::PipelineMs, t.nsecsElapsed() / 1e6);
+        }
     } count{creation, made};
     const RhiProgram *program = key.program;
     QRhiGraphicsPipeline *ps = rhi->newGraphicsPipeline();

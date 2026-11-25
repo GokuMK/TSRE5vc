@@ -188,6 +188,12 @@ void RhiRenderSurface::exposed() {
 }
 
 void RhiRenderSurface::render() {
+    // TSRE_SLOW_EVENTS_MS (diagnostics, task renderer 52): the parts of a
+    // frame outside the frame log's marks, logged when long.
+    static const int slowMs = qEnvironmentVariableIntValue("TSRE_SLOW_EVENTS_MS");
+    QElapsedTimer slowClock;
+    if (slowMs > 0)
+        slowClock.start();
     updatePosted = false;
     QRhi *rhi = rhiContext->rhi();
     if (rhi == nullptr || client == nullptr || !ensureSwapChain())
@@ -200,6 +206,7 @@ void RhiRenderSurface::render() {
         clock.start();
     const qint64 start = trace ? clock.nsecsElapsed() : 0;
     const bool logged = client->logsFrames() && FrameLog::enabled();
+    const qint64 preNs = slowMs > 0 ? slowClock.nsecsElapsed() : 0;
     if (logged)
         FrameLog::frameStart();
     QRhi::FrameOpResult result = rhi->beginFrame(swapChain.get());
@@ -226,7 +233,14 @@ void RhiRenderSurface::render() {
     rhi->endFrame(swapChain.get());
     if (logged)
         FrameLog::frameEnd();
+    const qint64 endNs = slowMs > 0 ? slowClock.nsecsElapsed() : 0;
     client->surfaceFrameShown();
+    if (slowMs > 0) {
+        const qint64 shownNs = slowClock.nsecsElapsed() - endNs;
+        if (preNs > 5000000 || shownNs > 5000000)
+            qInfo().noquote() << QString("Slow frame parts: before the frame %1 ms, after it %2 ms")
+                                 .arg(preNs / 1e6, 0, 'f', 1).arg(shownNs / 1e6, 0, 'f', 1);
+    }
     if (trace) {
         const qint64 end = clock.nsecsElapsed();
         if (lastEnd != 0) {

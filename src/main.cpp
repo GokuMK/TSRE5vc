@@ -47,6 +47,8 @@
 #include <tsre/world/Trk.h>
 #include <tsre/units/Units.h>
 #include <clocale>
+#include <QAbstractEventDispatcher>
+#include <QElapsedTimer>
 
 QFile logFile;
 QTextStream logFileOut;
@@ -471,6 +473,67 @@ QStringList rawCommandLineArguments(int argc, char *argv[]) {
     return result;
 }
 
+// TSRE_SLOW_EVENTS_MS=<ms> (diagnostics, task renderer 52): the main
+// thread's event batches (between the dispatcher waking and blocking again)
+// longer than that logged with their events (receiver's class, event type,
+// time each): what the main thread does between frames, where a ride's
+// stutter can lie outside painting.
+static void installSlowEventLog(QApplication &app) {
+    bool ok = false;
+    const int threshold = qEnvironmentVariable("TSRE_SLOW_EVENTS_MS").toInt(&ok);
+    if (!ok || threshold <= 0)
+        return;
+    struct Watch : QObject {
+        int threshold = 0;
+        QElapsedTimer clock;
+        qint64 batchStart = -1, eventStart = -1;
+        QString current;
+        QStringList events;
+        bool eventFilter(QObject *receiver, QEvent *event) override {
+            const qint64 now = clock.nsecsElapsed();
+            close(now);
+            eventStart = now;
+            current = QString("%1(%2)").arg(receiver != nullptr ? receiver->metaObject()->className() : "?")
+                              .arg(int(event->type()));
+            return false;
+        }
+        void close(qint64 now) {
+            if (eventStart >= 0 && now - eventStart >= 2000000)
+                events << QString("%1 %2").arg(current).arg((now - eventStart) / 1e6, 0, 'f', 1);
+            // An event alone over the threshold, logged at once.
+            if (eventStart >= 0 && now - eventStart >= qint64(threshold) * 1000000)
+                qInfo().noquote() << QString("Slow event: %1 %2 ms").arg(current)
+                                     .arg((now - eventStart) / 1e6, 0, 'f', 1);
+            eventStart = -1;
+        }
+        // Windows' dispatcher wakes for every message while busy, without
+        // blocking between: a batch runs from the first wake to the block.
+        void awake() {
+            if (batchStart < 0) {
+                batchStart = clock.nsecsElapsed();
+                events.clear();
+            }
+        }
+        void blocking() {
+            const qint64 now = clock.nsecsElapsed();
+            close(now);
+            if (batchStart >= 0 && now - batchStart >= qint64(threshold) * 1000000)
+                qInfo().noquote() << QString("Slow events: %1 ms: %2").arg((now - batchStart) / 1e6, 0, 'f', 1)
+                                     .arg(events.join(", "));
+            batchStart = -1;
+        }
+    };
+    Watch *watch = new Watch;
+    watch->threshold = threshold;
+    watch->clock.start();
+    app.installEventFilter(watch);
+    QAbstractEventDispatcher *dispatcher = QAbstractEventDispatcher::instance();
+    if (dispatcher != nullptr) {
+        QObject::connect(dispatcher, &QAbstractEventDispatcher::awake, watch, [watch] { watch->awake(); });
+        QObject::connect(dispatcher, &QAbstractEventDispatcher::aboutToBlock, watch, [watch] { watch->blocking(); });
+    }
+}
+
 int main(int argc, char *argv[]){
 
     // Conversion paths are relative to the caller's cwd, and console conversion
@@ -588,6 +651,7 @@ int main(int argc, char *argv[]){
     //QApplication::setAttribute(Qt::AA_EnableHighDpiScaling, true); // has no effect?
     //QApplication::pr
     QApplication app(argc, argv);
+    installSlowEventLog(app);
     // Qt gives C's functions the system's locale too (on Unix). Numbers C
     // writes and reads (Lua's tostring and string.format, RmlUi's style
     // values) keep the point whatever the language.

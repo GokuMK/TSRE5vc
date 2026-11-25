@@ -87,7 +87,7 @@ bool enabled() {
                      "world_tiles,world_tile_ms,terrain_tiles,terrain_tile_ms,shapes_adopted,"
                      "log_lines,log_ms,tile_x,tile_z,x,z,speed_mps,camera,"
                      "sim_tick,frame_age_ms,sim_s,watch_train,watch_m,watch_mps,view_tick,view_tick_ms,"
-                     "texture_kb,mesh_kb,copy_ms,idle_ms,idle_made,idle_copy_ms,idle_wait_ms,view_w,view_h\n";
+                     "texture_kb,mesh_kb,copy_ms,idle_ms,idle_made,idle_copy_ms,idle_wait_ms,pipelines_made,pipeline_ms,view_w,view_h\n";
             s.clock.start();
             open.store(true, std::memory_order_relaxed);
         }
