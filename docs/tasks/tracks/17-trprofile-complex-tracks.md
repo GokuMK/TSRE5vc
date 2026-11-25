@@ -941,7 +941,7 @@ Each step stops for the user's visual check before the next.
 | 8 repeats in step with the databases | built (2026-11-24) | `f020fe7f`; assets-gen reports `prudnik-vector-phase.jpg` |
 | 9 switch state on the shape side | built (2026-11-24) | `2cb026eb`; assets-gen `2afbd21` |
 | 7 bed review: beds per track, own end planes (decision 40) | built, joints checked with the user (2026-11-24) | `74c306ef`, `2848d513`; assets-gen `46c8366`, `391100d`, `81e78be` |
-| bed ends: angled end planes, overhangs (decision 40, the user's review 2026-11-25) | built; waiting for the user's look (2026-11-25) | branch `fix/complex-bed-ends` |
+| bed ends: angled end planes, overhangs (decision 40, the user's review 2026-11-25) | checked by the user, merged (2026-11-25) | `67cd7587` (`fix/complex-bed-ends`) |
 
 Steps 1-3 (2026-11-23):
 
@@ -1407,7 +1407,8 @@ Step 9 (2026-11-24, the user's go the same day):
     end cross-sections, past its end planes nothing, a track past its end
     still bounds its neighbours, and an edge at a midpoint lies on the end
     plane unless the neighbour's bed goes on past it. Built on
-    `fix/complex-bed-ends`; waiting for the user's look.
+    `fix/complex-bed-ends` (`67cd7587`); the user's look: "Looks ok, let's
+    merge" (2026-11-25).
 
 ## Open questions
 
