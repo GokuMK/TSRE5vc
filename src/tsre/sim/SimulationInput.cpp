@@ -1163,6 +1163,26 @@ const TRitem *platformBeyond(TDB *tdb, int track, float edge, float away, const 
     return nearest < signal ? platform : nullptr;
 }
 
+// The platform item a pass leaves its platform at: its own (Path::PathObject
+// takes the last met), but where the path ends inside the platform (its
+// other item not met, on the last leg's track beyond the path's end) that
+// other item.
+int leavingItem(TDB *tdb, const Path::PathObject &pass, const QVector<PathTrack::Leg> &legs) {
+    auto found = tdb->trackItems.find(pass.trItemId);
+    const TRitem *item = found != tdb->trackItems.end() ? found->second : nullptr;
+    if (item == nullptr || item->platformTrItemData == nullptr || legs.isEmpty() || legs.last().broken)
+        return pass.trItemId;
+    const int partnerId = int(item->platformTrItemData[1]);
+    if (pass.meets(partnerId))
+        return pass.trItemId;
+    auto partner = tdb->trackItems.find(partnerId);
+    const PathTrack::Leg &last = legs.last();
+    if (partner == tdb->trackItems.end() || partner->second == nullptr || tdb->findTrItemNodeId(partnerId) != last.track)
+        return pass.trItemId;
+    const float at = partner->second->getTrackPosition();
+    return (last.forward() ? at > last.to : at < last.to) ? partnerId : pass.trItemId;
+}
+
 // Each platform of station `key` the path reverses inside: an item of it
 // on the leg before a reversal, its other on the same node beyond (task 08,
 // phase 7); `take` is given the item and the distances down the path to it
@@ -1960,8 +1980,12 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                 // the side read from the platform's end the train leaves it
                 // at (the end it meets first opened them on the track's
                 // side: Prudnik's 0749 at Katowice); Open Rails' timetable
-                // trains open none.
-                stop.platformItem = pass->trItemId;
+                // trains open none. A path ending inside the platform meets
+                // only the end it enters at: the other end, beyond its end,
+                // is the one it would leave at (CMK's REG 23800 at Krakow
+                // Glowny 3/II opened on the track's side, nobody got off:
+                // the user's report, 2026-11-25).
+                stop.platformItem = leavingItem(tdb, *pass, path->legs());
                 plan.stops.push_back(stop);
             }
             // A station not passed with a platform behind the path's start
