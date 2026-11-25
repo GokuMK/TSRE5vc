@@ -141,6 +141,20 @@ watchdog (`hangwatch.ps1` in the session's scratchpad) to run again.
    memory); better: the sets not keyed on the buffer's growth (the arena
    in fixed chunks, each with its sets, a new chunk only for the draws
    past the last).
+
+   **Done (the user's go, 2026-11-25: "Prudnik is one of the heaviest
+   ever"):** the uniform arena starts at 32 MB (`UniformArenaChunk`); the
+   instance arena, in no set, still from 4 MB. Back to back, 180 s cab
+   rides (the moving frames, the harness's camera jump left out):
+
+   | Uniform arena | Frame median | p95 | Over 80 ms | Worst | The frame of 2,000 sets | Peak private |
+   | --- | --- | --- | --- | --- | --- | --- |
+   | 4 MB | 53.9 / 52.3 | 70.5 / 65.8 | 52 / 24 | 375 / 257 | 196 / 194 ms | - / 6.9 GB |
+   | 32 MB | 54.4 / 51.7 | 72.3 / 66.2 | 53 / 21 | 216 / 186 | none | 6.6 / 6.4 GB |
+
+   No drawback seen: the steady frames alike (the first ride of each pair
+   slower on a busier machine), memory within the runs' spread (the arena
+   costs at most 32 MB more per frame in flight than the 16 MB it grew to).
 2. **World tiles gathered off the main thread or spread over frames** (90
    to 130 ms when 4 or 5 tiles come in).
 3. **Textures made in a frame within its budget** (42 to 62 ms for 1 to 3:

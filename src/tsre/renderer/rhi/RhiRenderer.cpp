@@ -106,6 +106,11 @@ TexLib::GpuRoom gpuRoom() {
 // (index into last frame's matrices, task 38).
 constexpr int InstanceFloats = 20;
 constexpr quint32 ArenaChunk = 4u << 20;
+// The uniform arena from the start at what the heaviest route needs (Prudnik's
+// freight station about 8 MB a frame): every resource set names its buffer, so
+// growing it remakes every lit draw's set in one frame (220 to 300 ms, renderer
+// task 52). The instance arena (vertex input, in no set) grows from ArenaChunk.
+constexpr quint32 UniformArenaChunk = 32u << 20;
 
 const float Identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
 
@@ -2798,7 +2803,8 @@ QRhiBuffer *RhiRenderer::uploadArena(Arena &arena, QRhiBuffer::UsageFlags usage,
         // target's draws are left out and the next one tries again (renderer
         // task 42: a buffer QRhi could not create has no memory to draw from).
         const quint32 capacity = copiesWhole ? std::max(65536u, size + size / 2)
-                                             : std::max(ArenaChunk, size * 2);
+                                             : std::max(usage.testFlag(QRhiBuffer::UniformBuffer)
+                                                                ? UniformArenaChunk : ArenaChunk, size * 2);
         QRhiBuffer *grown = nullptr;
         for (const quint32 tried : {capacity, std::max(size, 4u)}) {
             grown = rhi->newBuffer(staticBuffer ? QRhiBuffer::Static : QRhiBuffer::Dynamic, usage, tried);
