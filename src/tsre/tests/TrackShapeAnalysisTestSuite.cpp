@@ -260,7 +260,9 @@ void reviewChecks(Checks &check) {
             for (const ComplexTrackPlan::BedSlice &slice : group.bed) {
                 QStringList tracks;
                 for (int k = 0; k < slice.tracks.size(); k++)
-                    tracks.append(QString("%1:%2").arg(slice.trackPaths[k]).arg(slice.tracks[k], 0, 'f', 2));
+                    // (past: a track past its end, only bounding its neighbours)
+                    tracks.append(QString("%1:%2%3").arg(slice.trackPaths[k]).arg(slice.tracks[k], 0, 'f', 2)
+                            .arg(slice.laid.value(k, true) ? "" : "(past)"));
                 qInfo().noquote() << QString("[tests:track-shape-analysis] dump bed at %1 (%2 %3) tracks %4")
                         .arg(slice.distance, 0, 'f', 2).arg(slice.position[0], 0, 'f', 2)
                         .arg(slice.position[1], 0, 'f', 2).arg(tracks.join(' '));
@@ -1078,7 +1080,7 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
             float firstFour = 1e9f, lastFour = -1e9f;
             if(scissorsPlan.groups.size() == 1)
                 for(const ComplexTrackPlan::BedSlice &slice : scissorsPlan.groups[0].bed)
-                    if(slice.tracks.size() == 4){
+                    if(slice.tracks.size() == 4 && slice.laid.count(true) == 4){
                         firstFour = std::min(firstFour, slice.position[1]);
                         lastFour = std::max(lastFour, slice.position[1]);
                     }
@@ -1158,6 +1160,164 @@ int TsreTests::runTrackShapeAnalysisSuite(bool verbose) {
             // 2.39 m apart: 1.2 m from each, in the crib (0.07 + 0.03 * 1.2 / 1.3).
             check(near(middleHeight, 0.0975f, 0.003f),
                     QString("tracks 2.4 m apart: their beds meet halfway at the crib's height (%1 m)").arg(middleHeight));
+
+            // The scissors middle's bed (the user's review 2026-11-25 of
+            // A1tFrog7_5dLft's angled track): its crossing tracks' beds start
+            // and stop on their own end planes, no strip folded over from a
+            // square cross-section at their ends; where they overhang the
+            // straights (0.107 m at both ends) they stop halfway to the
+            // straights' lines carried on.
+            QVector<OrtsGeneratedProfileMesh> scissorsMeshes;
+            const bool scissorsBuilt = bedMember != nullptr && bedMember->valid && scissorsPlan.groups.size() == 1
+                    && OrtsTrackProfileRenderer::buildComplexMeshes(*bedMember, scissorsPlan, scissorsMeshes)
+                    && scissorsMeshes.size() == 1;
+            int facingOne = 0, facingOther = 0, pastHalfway = 0;
+            float farthest = 0;
+            QStringList otherWay;
+            if(scissorsBuilt){
+                const QVector<float> &v = scissorsMeshes[0].vertices;
+                // Every triangle faces the same way up (mirrored x turns them
+                // all alike); a folded strip's face the other way.
+                for(int i = 0; i + 26 < v.size(); i += 27){
+                    const float y = (v[i + 11] - v[i + 2]) * (v[i + 18] - v[i])
+                            - (v[i + 9] - v[i]) * (v[i + 20] - v[i + 2]);
+                    if(std::abs(y) > 1e-4f)
+                        (y > 0 ? facingOne : facingOther)++;
+                    if(y < -1e-4f && otherWay.size() < 4)
+                        otherWay.append(QString("(%1 %2, %3 %4, %5 %6)").arg(v[i], 0, 'f', 3).arg(v[i + 2], 0, 'f', 3)
+                                .arg(v[i + 9], 0, 'f', 3).arg(v[i + 11], 0, 'f', 3)
+                                .arg(v[i + 18], 0, 'f', 3).arg(v[i + 20], 0, 'f', 3));
+                }
+                // Before the straights' start and past their end: within
+                // 1.677 m of the middle (the crossing tracks at 0.861 m,
+                // halfway to the straights at 2.4925 m).
+                for(int i = 0; i + 8 < v.size(); i += 9)
+                    if((v[i + 2] < -0.005f || v[i + 2] > 12.8702f) && std::abs(v[i]) > 1.70f){
+                        pastHalfway++;
+                        farthest = std::max(farthest, std::abs(v[i]));
+                    }
+            }
+            check(scissorsBuilt && std::max(facingOne, facingOther) > 0 && std::min(facingOne, facingOther) == 0,
+                    QString("scissors middle: no bed strip folded over at the crossing tracks' ends "
+                            "(%1 triangles one way, %2 the other) %3").arg(facingOne).arg(facingOther)
+                        .arg(otherWay.join(' ')));
+            check(scissorsBuilt && pastHalfway == 0,
+                    QString("scissors middle: where the crossing tracks overhang, their beds stop halfway to the "
+                            "straights (%1 vertices past it, out to %2 m)").arg(pastHalfway).arg(farthest));
+
+            // A1tFrog7_5dLft's tracks: a straight, an angled track 1.632 m
+            // off it starting 0.107 m earlier and ending 0.107 m later, its
+            // outer slope open. Its bed ends on its own end planes, the whole
+            // slope too (they reach 0.3 m past the next cross-sections there),
+            // and nothing of it lies past them.
+            Shape frog(8, {path(0, 0, 0, {straight}), path(-1.632f, -0.1069f, -7.5f, {crossing})});
+            QVector<ComplexTrackPlan::Path> frogPaths;
+            for(int i = 0; i < 2; i++){
+                ComplexTrackPlan::Path planPath;
+                planPath.line = TrackShapeAnalysis::samplePath(frog.shape, i, sections.map);
+                frogPaths.append(planPath);
+            }
+            const ComplexTrackPlan frogPlan = ComplexTrackPlan::make(frogPaths, ComplexTrackPlan::Settings());
+            QVector<OrtsGeneratedProfileMesh> frogMeshes;
+            const bool frogBuilt = bedMember != nullptr && bedMember->valid && frogPlan.groups.size() == 1
+                    && OrtsTrackProfileRenderer::buildComplexMeshes(*bedMember, frogPlan, frogMeshes)
+                    && frogMeshes.size() == 1;
+            int frogOne = 0, frogOther = 0, pastEnds = 0;
+            float outerStart = 1e9f, outerEnd = 1e9f;
+            if(frogBuilt){
+                const QVector<float> &v = frogMeshes[0].vertices;
+                for(int i = 0; i + 26 < v.size(); i += 27){
+                    const float y = (v[i + 11] - v[i + 2]) * (v[i + 18] - v[i])
+                            - (v[i + 9] - v[i]) * (v[i + 20] - v[i + 2]);
+                    if(std::abs(y) > 1e-4f)
+                        (y > 0 ? frogOne : frogOther)++;
+                }
+                // The angled track's end planes, mirrored as the renderer's
+                // paths (x negated): into the track at both ends.
+                const TrackShapeAnalysis::Point &a = frogPaths[1].line.first();
+                const TrackShapeAnalysis::Point &b = frogPaths[1].line.last();
+                const float ax = -std::sin(a.heading), az = std::cos(a.heading);
+                const float bx = std::sin(b.heading), bz = -std::cos(b.heading);
+                for(int i = 0; i + 8 < v.size(); i += 9){
+                    // On the angled track's side of the midpoint.
+                    const float side = v[i] - 0.816f - std::max(0.0f, v[i + 2]) * std::tan(radians(7.5f));
+                    if(side < 0)
+                        continue;
+                    const float fromStart = (v[i] + a.x) * ax + (v[i + 2] - a.z) * az;
+                    const float fromEnd = (v[i] + b.x) * bx + (v[i + 2] - b.z) * bz;
+                    if(fromStart < -0.005f || fromEnd < -0.005f)
+                        pastEnds++;
+                    // The slope's outer edge (2.3 m out) at each end.
+                    if(side > 2.3f - 0.816f - 0.02f){
+                        if(v[i + 2] < 1)
+                            outerStart = std::min(outerStart, fromStart);
+                        if(v[i + 2] > 12)
+                            outerEnd = std::min(outerEnd, fromEnd);
+                    }
+                }
+            }
+            check(frogBuilt && std::max(frogOne, frogOther) > 0 && std::min(frogOne, frogOther) == 0 && pastEnds == 0,
+                    QString("A1tFrog's tracks: the angled track's bed unfolded, nothing past its end planes "
+                            "(%1 triangles one way, %2 the other, %3 vertices past)")
+                        .arg(frogOne).arg(frogOther).arg(pastEnds));
+            check(frogBuilt && near(outerStart, 0, 0.01f) && near(outerEnd, 0, 0.01f),
+                    QString("A1tFrog's tracks: its slope's outer edge reaches its end planes (%1, %2 m off)")
+                        .arg(outerStart).arg(outerEnd));
+
+            // A double slip's halves end in its middle on its diamond's paths
+            // (a gap across the bed there, seen 2026-11-25): two straights on
+            // a third, meeting halfway. The bed covers the whole length.
+            const int straight10 = sections.straight(10);
+            Shape halves(9, {path(0, 0, 0, {straight20}), path(0, 0, 0, {straight10}), path(0, 10, 0, {straight10})});
+            QVector<ComplexTrackPlan::Path> halvesPaths;
+            for(int i = 0; i < 3; i++){
+                ComplexTrackPlan::Path planPath;
+                planPath.line = TrackShapeAnalysis::samplePath(halves.shape, i, sections.map);
+                halvesPaths.append(planPath);
+            }
+            const ComplexTrackPlan halvesPlan = ComplexTrackPlan::make(halvesPaths, ComplexTrackPlan::Settings());
+            QVector<OrtsGeneratedProfileMesh> halvesMeshes;
+            const bool halvesBuilt = bedMember != nullptr && bedMember->valid && halvesPlan.groups.size() == 1
+                    && OrtsTrackProfileRenderer::buildComplexMeshes(*bedMember, halvesPlan, halvesMeshes)
+                    && halvesMeshes.size() == 1;
+            int uncovered = 0;
+            float firstUncovered = -1;
+            if(halvesBuilt){
+                const QVector<float> &v = halvesMeshes[0].vertices;
+                auto covered = [&](float x, float z) {
+                    for(int i = 0; i + 26 < v.size(); i += 27){
+                        const float ax = v[i], az = v[i + 2], bx = v[i + 9], bz = v[i + 11];
+                        const float cx = v[i + 18], cz = v[i + 20];
+                        const float d = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+                        if(std::abs(d) < 1e-9f)
+                            continue;
+                        const float l1 = ((bz - cz) * (x - cx) + (cx - bx) * (z - cz)) / d;
+                        const float l2 = ((cz - az) * (x - cx) + (ax - cx) * (z - cz)) / d;
+                        if(l1 >= -1e-4f && l2 >= -1e-4f && l1 + l2 <= 1 + 1e-4f)
+                            return true;
+                    }
+                    return false;
+                };
+                for(float z = 0.05f; z < 19.96f; z += 0.05f)
+                    for(float x : {-1.0f, 0.0f, 1.0f})
+                        if(!covered(x, z)){
+                            if(uncovered++ == 0)
+                                firstUncovered = z;
+                        }
+            }
+            QStringList around;
+            if(halvesPlan.groups.size() == 1 && uncovered > 0)
+                for(const ComplexTrackPlan::BedSlice &slice : halvesPlan.groups[0].bed)
+                    if(std::abs(slice.distance - firstUncovered) < 1.0f){
+                        QStringList tracks;
+                        for(int k = 0; k < slice.tracks.size(); k++)
+                            tracks << QString("%1:%2%3").arg(slice.trackPaths[k]).arg(slice.tracks[k], 0, 'f', 2)
+                                    .arg(slice.laid.value(k, true) ? "" : "(past)");
+                        around << QString("%1 [%2]").arg(slice.distance, 0, 'f', 3).arg(tracks.join(' '));
+                    }
+            check(halvesBuilt && uncovered == 0,
+                    QString("tracks ending halfway on another: the bed covers the whole length (%1 points uncovered, "
+                            "first at %2 m) %3").arg(uncovered).arg(firstUncovered).arg(around.join("; ")));
         }
     }
 

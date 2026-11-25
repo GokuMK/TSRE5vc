@@ -186,6 +186,21 @@ public:
         // midpoint. Empty: one track at 0 (a path's own bed).
         QVector<float> tracks;
         QVector<int> trackPaths;
+        // Whether each track's bed is laid here: only between its own end
+        // cross-sections. Past its end (up to the bed's overhang) a track's
+        // line is carried on along its end's heading and only bounds its
+        // neighbours' beds, which stop halfway to it. Missing: laid.
+        QVector<bool> laid;
+        // Each track's first and last points with its headings there: its
+        // end planes, square to it. No part of its cross-sections lies past
+        // them; one at an angle to the cross-sections can reach past the
+        // next cross-section near the bed's edge (A1tFrog7_5dLft's angled
+        // track, the user's review 2026-11-25).
+        struct TrackPlanes {
+            float first[3] = {0, 0, 0};   // x, z, heading
+            float last[3] = {0, 0, 0};
+        };
+        QVector<TrackPlanes> trackPlanes;
         // A cross-section at a track's start or end (decision 40): that
         // track's cross-section lies on its own end plane, square to the
         // track at its end point (heading turned to run with the slice's).

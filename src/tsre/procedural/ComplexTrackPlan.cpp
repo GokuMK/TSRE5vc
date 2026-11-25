@@ -426,34 +426,47 @@ void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
                 to = std::max(to, d);
         }
     }
-    // Cross-sections every BedStep and 2 mm inside each track's ends.
-    QVector<float> distances;
+    // Cross-sections every BedStep and 2 mm inside each track's ends (an
+    // end's cross-section kept over a step's within a millimetre of it).
+    // Each track's bed lies between its end cross-sections only: their
+    // planes are its ends, so a cross-section at an end itself (a step
+    // there) would lay a strip from the slice's square plane to its end
+    // plane, folded over where that is angled (the user's review 2026-11-25
+    // of A1tFrog7_5dLft's angled track).
+    QVector<QPair<float, bool>> distances;
     const int steps = std::max(1, int(std::ceil((to - from) / BedStep)));
     for(int k = 0; k <= steps; k++)
-        distances.append(from + (to - from) * k / steps);
+        distances.append(qMakePair(from + (to - from) * k / steps, false));
     for(int i : bedPaths){
         const float first = ends[i].first, last = ends[i].second;
         const float inward = first < last ? 0.002f : -0.002f;
         for(float d : {first + inward, last - inward})
             if(d > from && d < to)
-                distances.append(d);
+                distances.append(qMakePair(d, true));
     }
-    std::sort(distances.begin(), distances.end());
+    std::sort(distances.begin(), distances.end(),
+              [](const QPair<float, bool> &a, const QPair<float, bool> &b) { return a.first < b.first; });
     QVector<ComplexTrackPlan::BedSlice> candidates;
-    for(float d : distances){
-        if(!candidates.isEmpty() && d - candidates.last().distance < 1e-3f)
-            continue;
-        const Point p = pointAlong(reference, d);
+    bool lastIsEnd = false;
+    for(const QPair<float, bool> &d : distances){
+        if(!candidates.isEmpty() && d.first - candidates.last().distance < 1e-3f){
+            if(!d.second || lastIsEnd)
+                continue;
+            candidates.removeLast();
+        }
+        const Point p = pointAlong(reference, d.first);
         ComplexTrackPlan::BedSlice slice;
         slice.position[0] = p.x;
         slice.position[1] = p.z;
         slice.heading = p.heading;
-        slice.distance = d;
+        slice.distance = d.first;
         candidates.append(slice);
+        lastIsEnd = d.second;
     }
     struct Track {
         float offset;
         int path;
+        bool laid;
     };
     for(const ComplexTrackPlan::BedSlice &candidate : candidates){
         const float nx = std::cos(candidate.heading);
@@ -462,21 +475,54 @@ void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
         float right = -std::numeric_limits<float>::max();
         // Each path's crossing nearest the reference line: its track there.
         QVector<Track> tracks;
+        bool anyLaid = false;
         for(int i : bedPaths){
+            const Line &line = plan.paths[i].line;
             float nearest = std::numeric_limits<float>::max();
             for(const ComplexTrackPlan::Hit &hit
-                    : ComplexTrackPlan::lineHits(candidate.position[0], candidate.position[1], nx, nz,
-                                                 plan.paths[i].line)){
+                    : ComplexTrackPlan::lineHits(candidate.position[0], candidate.position[1], nx, nz, line)){
                 left = std::min(left, hit.t);
                 right = std::max(right, hit.t);
                 if(std::abs(hit.t) < std::abs(nearest))
                     nearest = hit.t;
             }
-            if(nearest != std::numeric_limits<float>::max())
-                tracks.append(Track{nearest, i});
+            const QPair<float, float> e = ends[i];
+            const float inward = e.first < e.second ? 0.002f : -0.002f;
+            const float lo = std::min(e.first + inward, e.second - inward);
+            const float hi = std::max(e.first + inward, e.second - inward);
+            const bool laid = candidate.distance >= lo - 1e-4f && candidate.distance <= hi + 1e-4f;
+            if(nearest == std::numeric_limits<float>::max() && !laid){
+                // Past its end: its line on along its end's heading, up to
+                // Overhang (a neighbour starting earlier stops halfway to it).
+                const bool before = candidate.distance < lo;
+                if((before ? lo - candidate.distance : candidate.distance - hi) <= Overhang){
+                    const Point &p = before == (e.first < e.second) ? line.first() : line.last();
+                    const float dx = std::sin(p.heading), dz = std::cos(p.heading);
+                    const float den = nx * dz - nz * dx;
+                    if(std::abs(den) > 1e-6f)
+                        nearest = ((p.x - candidate.position[0]) * dz - (p.z - candidate.position[1]) * dx) / den;
+                }
+            }
+            if(nearest == std::numeric_limits<float>::max())
+                continue;
+            tracks.append(Track{nearest, i, laid});
+            anyLaid = anyLaid || laid;
         }
-        if(left > right)
+        if(left > right || !anyLaid)
             continue;
+        // A track past its end bounds its neighbours only away from laid
+        // ones: on or by a laid track (a double slip's halves end in its
+        // middle where the next half starts) it would take that track's
+        // half of the cross-section without laying it.
+        QVector<Track> bounding;
+        for(const Track &track : tracks){
+            bool byLaid = false;
+            for(const Track &other : tracks)
+                byLaid = byLaid || (other.laid && std::abs(other.offset - track.offset) < 0.5f);
+            if(track.laid || !byLaid)
+                bounding.append(track);
+        }
+        tracks = bounding;
         std::sort(tracks.begin(), tracks.end(), [](const Track &a, const Track &b) { return a.offset < b.offset; });
         ComplexTrackPlan::BedSlice slice = candidate;
         slice.left = left;
@@ -484,10 +530,19 @@ void planBed(const ComplexTrackPlan &plan, ComplexTrackPlan::Group &group) {
         for(const Track &track : tracks){
             slice.tracks.append(track.offset);
             slice.trackPaths.append(track.path);
+            slice.laid.append(track.laid);
+            const Line &line = plan.paths[track.path].line;
+            ComplexTrackPlan::BedSlice::TrackPlanes planes;
+            planes.first[0] = line.first().x;
+            planes.first[1] = line.first().z;
+            planes.first[2] = line.first().heading;
+            planes.last[0] = line.last().x;
+            planes.last[1] = line.last().z;
+            planes.last[2] = line.last().heading;
+            slice.trackPlanes.append(planes);
             // A cross-section at a track's end: that track's on its own end
             // plane, square to it at its end point.
             ComplexTrackPlan::BedSlice::TrackEnd end;
-            const Line &line = plan.paths[track.path].line;
             const QPair<float, float> e = ends[track.path];
             const float inward = e.first < e.second ? 0.002f : -0.002f;
             for(int which = 0; which < 2; which++){

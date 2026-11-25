@@ -1561,6 +1561,33 @@ OrtsProfileVertex between(const OrtsProfileVertex &a, const OrtsProfileVertex &b
     return result;
 }
 
+// A vertex of track k's cross-section (placed: x mirrored) past one of the
+// track's end planes moved along the slice onto it: an end plane at an angle
+// to the cross-sections reaches past the next one near the bed's edge
+// (A1tFrog7_5dLft's angled track, 7.5 degrees: 0.3 m at a 2.3 m slope), where
+// the bed would fold over (the user's review 2026-11-25).
+void clipToEnds(GeneratedVertex &placed, const ComplexTrackPlan::BedSlice &slice, int k) {
+    if(k >= slice.trackPlanes.size())
+        return;
+    const ComplexTrackPlan::BedSlice::TrackPlanes &planes = slice.trackPlanes[k];
+    const float gx = -std::sin(slice.heading), gz = std::cos(slice.heading);
+    for(int which = 0; which < 2; which++){
+        const float *p = which == 0 ? planes.first : planes.last;
+        // Into the track: along it at its first point, against it at its last.
+        const float into = which == 0 ? 1.0f : -1.0f;
+        const float fx = -std::sin(p[2]) * into, fz = std::cos(p[2]) * into;
+        const float dx = placed.values[0] + p[0], dz = placed.values[2] - p[1];
+        if(dx * dx + dz * dz > 25.0f)
+            continue;
+        const float past = dx * fx + dz * fz;
+        const float along = gx * fx + gz * fz;
+        if(past >= 0 || std::abs(along) < 0.1f)
+            continue;
+        placed.values[0] -= gx * past / along;
+        placed.values[2] -= gz * past / along;
+    }
+}
+
 // A bed polyline laid on track k of a slice: its own cross-section, each
 // side reaching to the midpoint between it and its neighbour there; past
 // it a polyline is cut where it crosses the midpoint, or (wholly past it)
@@ -1575,8 +1602,9 @@ QVector<GeneratedVertex> placeOnTrack(const OrtsProfilePolyline &polyline,
     const float rightLimit = k + 1 < count ? (slice.tracks[k + 1] - offset) / 2 : open;
     // At a track's end its own part of the cross-section lies on its own
     // end plane (decision 40), so the next piece's bed on that track meets
-    // it; what is cut or pressed at a midpoint stays on the slice, where
-    // the neighbour's edge is.
+    // it; what is cut or pressed at a midpoint stays on the slice where a
+    // neighbour's bed goes on past it (its edge is there), else (the
+    // neighbour past its own end, or ending here too) on the end plane.
     const ComplexTrackPlan::BedSlice::TrackEnd end = slice.trackEnds.value(k);
     const GeneratedPathFrame sliceFrame = complexFrame(slice.position[0], slice.position[1], slice.heading,
             slice.distance);
@@ -1607,28 +1635,53 @@ QVector<GeneratedVertex> placeOnTrack(const OrtsProfilePolyline &polyline,
                 vertex.position[1] = bedHeight(bed, edge);
             }
         }
-        if(end.valid && !clamped){
+        bool onEnd = end.valid;
+        if(onEnd && clamped){
+            const int neighbour = x < 0 ? k - 1 : k + 1;
+            onEnd = !slice.laid.value(neighbour, true) || slice.trackEnds.value(neighbour).valid;
+        }
+        if(onEnd){
             vertices.append(transformVertex(vertex, polyline, endFrame, alpha));
             continue;
         }
         vertex.position[0] += offset;
-        vertices.append(transformVertex(vertex, polyline, sliceFrame, alpha));
+        GeneratedVertex placed = transformVertex(vertex, polyline, sliceFrame, alpha);
+        // Never past the track's own end planes, except an edge cut or
+        // pressed at a midpoint where the neighbour's bed goes on past.
+        const int neighbour = x < 0 ? k - 1 : k + 1;
+        if(!(clamped && slice.laid.value(neighbour, true) && !slice.trackEnds.value(neighbour).valid))
+            clipToEnds(placed, slice, k);
+        vertices.append(placed);
     }
     return vertices;
 }
 
-// A bed polyline between two cross-sections, per track: with as many
-// tracks on both, each to the one in its place across (crossing paths swap
-// places, their strips don't); else each to the same path's (a path on one
-// only lays none there).
+// A bed polyline between two cross-sections, per track laid on both (one
+// past its end lays none): with as many laid on both, each to the one in
+// its place across (crossing paths swap places, their strips don't); else
+// each to the same path's (a path on one only lays none there). Tracks past
+// their ends don't count: a double slip's halves end in its middle on its
+// diamond's paths, in no steady order across them.
 void appendBedTracks(QVector<float> &target, const OrtsProfilePolyline &polyline,
         const QVector<const OrtsProfilePolyline*> &bed, const ComplexTrackPlan::BedSlice &previous,
         const ComplexTrackPlan::BedSlice &current, float alpha) {
-    const int count = std::max(1, int(current.tracks.size()));
-    const bool inPlace = current.tracks.size() == previous.tracks.size();
-    for(int kc = 0; kc < count; kc++){
-        const int kp = inPlace ? kc : previous.trackPaths.indexOf(current.trackPaths.value(kc, -2));
-        if(kp < 0)
+    auto laidTracks = [](const ComplexTrackPlan::BedSlice &slice) {
+        QVector<int> laid;
+        for(int k = 0; k < slice.tracks.size(); k++)
+            if(slice.laid.value(k, true))
+                laid.append(k);
+        // No tracks: a path's own bed, one track at its centre.
+        if(slice.tracks.isEmpty())
+            laid.append(0);
+        return laid;
+    };
+    const QVector<int> laidPrevious = laidTracks(previous);
+    const QVector<int> laidCurrent = laidTracks(current);
+    const bool inPlace = laidCurrent.size() == laidPrevious.size();
+    for(int n = 0; n < laidCurrent.size(); n++){
+        const int kc = laidCurrent[n];
+        const int kp = inPlace ? laidPrevious[n] : previous.trackPaths.indexOf(current.trackPaths.value(kc, -2));
+        if(kp < 0 || !previous.laid.value(kp, true))
             continue;
         const QVector<GeneratedVertex> before = placeOnTrack(polyline, bed, previous, kp, alpha);
         const QVector<GeneratedVertex> after = placeOnTrack(polyline, bed, current, kc, alpha);
