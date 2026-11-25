@@ -208,7 +208,27 @@ they already do to their rear end.
       doors to the platform on all three cars, the right ones shut (captures
       with the views' new `simulateTo`, the simulation run on a few seconds
       between views); timetable-trains checks the stops' items.
+      A path ending inside the platform (2026-11-25) meets only the end it
+      enters at; its stop now keeps the other end, beyond the path's end
+      (see below).
 - [ ] The user's review on hardware.
+
+### Fixed later: a path ending inside its platform (2026-11-25)
+Found with the user's report of no people at CMK's Krakow Glowny: REG
+23800 (Kozlow - Krakow Gl, ES_CMK1_TT_08-2022) ends its path at 221 m of
+platform 3/II's 365 m. `Path::PathObject` takes the one item such a pass
+meets, the end the train enters at (8749), so its doors opened on the
+track's side and the 19 people the simulation let off never stepped out
+(the people walk out of the doors open on the platform's side). The
+timetable stop now takes the platform's other item where the path ends
+inside it (on the last leg's track, beyond the path's end): 8750, the
+doors on the platform's side, its 16 people off. `Path` itself is
+unchanged (the activity editor writes PlatformStartIDs from its passes);
+a path starting inside a platform already met the end it leaves at. The
+timetable-trains suite checks the item each stop keeps (T7's Theta 702;
+701 before the fix). Stops behind the path's start or beyond its end
+(`platformBeyond`) still keep whichever item that lookup finds: not
+checked on content.
 
 ### Fixed later: an open door's glass in the opaque pass (2026-11-17)
 

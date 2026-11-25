@@ -1254,6 +1254,23 @@ int TsreTests::runTimetableTrainsSuite(bool verbose) {
               .arg(t7 != nullptr && !t7->stops.empty() ? t7->stops[0].platformEnd : -1.0, 0, 'f', 1)
               .arg(t7 != nullptr && !t7->stops.empty() ? t7->stops[0].front : -1.0, 0, 'f', 1)
               .arg(t7 != nullptr ? t7->route.pathStart : -1.0, 0, 'f', 1));
+    // The item each stop leaves its platform at, whose side the doors take
+    // (task shapes 12): T1's Beta and Gamma passed through (104, 106); T6's
+    // Eta, its path starting inside it (602, the item it meets); T7's
+    // Theta, its path ending inside it (702, beyond its end, not 701 where
+    // it enters: CMK's REG 23800 at Krakow Glowny opened its doors on the
+    // track's side, the user's report 2026-11-25).
+    const auto itemAt = [](const Sim::TrainPlan *plan, const QString &platform) {
+        if (plan != nullptr)
+            for (const Sim::StopPlan &stop : plan->stops)
+                if (stop.platform == platform)
+                    return stop.platformItem;
+        return -1;
+    };
+    check(itemAt(t1, "Beta") == 104 && itemAt(t1, "Gamma") == 106 && itemAt(t6, "Eta") == 602
+              && itemAt(t7, "Theta") == 702,
+          QString("each stop at the item it leaves its platform at: Beta %1, Gamma %2, Eta %3, Theta %4 (path ending inside)")
+              .arg(itemAt(t1, "Beta")).arg(itemAt(t1, "Gamma")).arg(itemAt(t6, "Eta")).arg(itemAt(t7, "Theta")));
     // The static train: a standing consist from its path's start.
     double from = 1e9, to = -1e9;
     for (const Sim::StaticConsist &standing : input->staticConsists)
