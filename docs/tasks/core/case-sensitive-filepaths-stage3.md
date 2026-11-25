@@ -111,6 +111,15 @@ must match, apart from explicitly requested filename changes. A recovered or
 incompletely understood source stays subject to rename-targets-only constraints;
 if a required patch cannot preserve it, that component is withheld and reported.
 
+Known conservative case: a text document can have a complete reference scan and
+usable source spans but remain noneditable solely because of an unrelated syntax
+warning, such as missing closing delimiters at EOF. One fixed reference in such a
+file can withhold a containing directory rename and therefore thousands of safe
+edits in other files. A future refinement may allow these span patches when a
+post-patch parse proves that the reference inventory, untouched scalars, and the
+pre-existing diagnostics are unchanged; until then, remove an actual stray/backup
+file or repair the malformed source before rerunning conversion.
+
 ## Selection, verification, and remaining limits
 
 Readability and editability apply to individual source files, not to their entire
