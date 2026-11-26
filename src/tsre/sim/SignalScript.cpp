@@ -23,23 +23,39 @@ const QHash<QString, ScriptFunction> &functions() {
         {"approach_control_position", ScriptFunction::ApproachPosition},
         {"approach_control_position_forced", ScriptFunction::ApproachPositionForced},
         {"approach_control_speed", ScriptFunction::ApproachSpeed},
+        // Task 11.
+        {"next_sig_id", ScriptFunction::NextSigId}, {"next_nsig_id", ScriptFunction::NextNsigId},
+        {"opp_sig_id", ScriptFunction::OppSigId}, {"opp_sig_id_trainpath", ScriptFunction::OppSigIdTrainpath},
+        {"id_sig_enabled", ScriptFunction::IdSigEnabled}, {"id_sig_lr", ScriptFunction::IdSigLr},
+        {"dist_multi_sig_mr_of_lr", ScriptFunction::DistMultiSigMrOfLr},
+        {"store_lvar", ScriptFunction::StoreLvar}, {"this_sig_lvar", ScriptFunction::ThisSigLvar},
+        {"next_sig_lvar", ScriptFunction::NextSigLvar}, {"id_sig_lvar", ScriptFunction::IdSigLvar},
+        {"this_sig_hasnormalsubtype", ScriptFunction::ThisSigHasNormalSubtype},
+        {"next_sig_hasnormalsubtype", ScriptFunction::NextSigHasNormalSubtype},
+        {"id_sig_hasnormalsubtype", ScriptFunction::IdSigHasNormalSubtype},
+        {"this_sig_noupdate", ScriptFunction::ThisSigNoUpdate}, {"switchstand", ScriptFunction::Switchstand},
+        {"activate_timing_trigger", ScriptFunction::ActivateTimingTrigger},
+        {"check_timing_trigger", ScriptFunction::CheckTimingTrigger},
+        {"increase_signalnumclearahead", ScriptFunction::IncreaseClearAhead},
+        {"decrease_signalnumclearahead", ScriptFunction::DecreaseClearAhead},
+        {"set_signalnumclearahead", ScriptFunction::SetClearAhead},
+        {"reset_signalnumclearahead", ScriptFunction::ResetClearAhead},
+        {"train_has_request_stop", ScriptFunction::TrainHasRequestStop},
+        {"train_requires_next_signal", ScriptFunction::TrainRequiresNextSignal},
+        {"find_req_normal_signal", ScriptFunction::FindReqNormalSignal},
+        {"route_cleared_to_signal", ScriptFunction::RouteClearedToSignal},
+        {"route_cleared_to_signal_callon", ScriptFunction::RouteClearedToSignalCallOn},
     };
     return names;
 }
 
-// Open Rails' additions: read, reported, not run (task 05, decision 3).
+// Open Rails' additions not run yet: read, reported (task 05, decision 3;
+// the rest run since tasks 10 and 11).
 const QStringList &openRailsNames() {
     static const QStringList names = {
-        "dist_multi_sig_mr_of_lr", "next_sig_id", "next_nsig_id", "opp_sig_id", "opp_sig_id_trainpath",
-        "id_sig_enabled", "id_sig_lr", "allow_clear_to_partial_route", "approach_control_lock_claim",
-        "approach_control_next_stop", "activate_timing_trigger", "check_timing_trigger", "trainhascallon",
-        "trainhascallon_restricted", "trainhascallon_advanced", "trainhascallon_restricted_advanced",
-        "train_requires_next_signal", "find_req_normal_signal", "route_cleared_to_signal",
-        "route_cleared_to_signal_callon", "hashead", "increase_signalnumclearahead",
-        "decrease_signalnumclearahead", "set_signalnumclearahead", "reset_signalnumclearahead", "store_lvar",
-        "this_sig_lvar", "next_sig_lvar", "id_sig_lvar", "this_sig_noupdate", "this_sig_hasnormalsubtype",
-        "next_sig_hasnormalsubtype", "id_sig_hasnormalsubtype", "switchstand", "train_has_request_stop",
-        "approach_control_req_position", "approach_control_req_speed",
+        "allow_clear_to_partial_route", "approach_control_lock_claim", "approach_control_next_stop",
+        "trainhascallon", "trainhascallon_restricted", "trainhascallon_advanced",
+        "trainhascallon_restricted_advanced", "hashead",
     };
     return names;
 }
@@ -65,6 +81,8 @@ const QHash<QString, ScriptVariable> &variables() {
     static const QHash<QString, ScriptVariable> names = {
         {"state", ScriptVariable::State}, {"draw_state", ScriptVariable::DrawState},
         {"enabled", ScriptVariable::Enabled},
+        {"approach_control_req_position", ScriptVariable::ApproachReqPosition},
+        {"approach_control_req_speed", ScriptVariable::ApproachReqSpeed},
     };
     return names;
 }
@@ -73,11 +91,18 @@ const QHash<QString, ScriptVariable> &variables() {
 int arity(ScriptFunction function) {
     switch (function) {
     case ScriptFunction::BlockState: case ScriptFunction::RouteSet: case ScriptFunction::DebugHeader:
-    case ScriptFunction::ShuntingPath:
+    case ScriptFunction::ShuntingPath: case ScriptFunction::ThisSigNoUpdate:
+    case ScriptFunction::ActivateTimingTrigger: case ScriptFunction::ResetClearAhead:
         return 0;
     case ScriptFunction::NextNsigLr: case ScriptFunction::DistMultiSigMr: case ScriptFunction::ApproachSpeed:
+    case ScriptFunction::NextNsigId: case ScriptFunction::IdSigLr: case ScriptFunction::DistMultiSigMrOfLr:
+    case ScriptFunction::StoreLvar: case ScriptFunction::NextSigLvar: case ScriptFunction::IdSigLvar:
+    case ScriptFunction::IdSigHasNormalSubtype: case ScriptFunction::Switchstand:
+    case ScriptFunction::TrainRequiresNextSignal:
         return 2;
-    case ScriptFunction::DebugOut: case ScriptFunction::OpenRails:
+    // TRAIN_HAS_REQUEST_STOP: Open Rails' manual calls it without
+    // arguments, its code reads two it does not use.
+    case ScriptFunction::DebugOut: case ScriptFunction::OpenRails: case ScriptFunction::TrainHasRequestStop:
         return -1;
     default:
         return 1;
@@ -183,7 +208,8 @@ std::vector<Token> tokens(const std::vector<Line> &lines, const QString &file, Q
 
 class Parser {
 public:
-    Parser(const std::vector<Token> &tokens, SignalScript &script) : t(tokens), s(script) {}
+    Parser(const std::vector<Token> &tokens, SignalScript &script, const QStringList &subtypes)
+        : t(tokens), s(script), subtypes(subtypes) {}
 
     void body() {
         std::vector<int> statements;
@@ -201,6 +227,7 @@ public:
 private:
     const std::vector<Token> &t;
     SignalScript &s;
+    const QStringList &subtypes;
     size_t pos = 0;
     QHash<QString, int> locals;
     // Loops around the statement being read.
@@ -410,8 +437,11 @@ private:
             n.target = target.value;
             return true;
         }
-        const QString name = target.kind != ScriptNode::Variable ? QString("the expression")
-                : ScriptVariable(target.value) == ScriptVariable::Enabled ? QString("enabled") : QString("block_state");
+        QString name = target.kind != ScriptNode::Variable ? QString("the expression") : QString("block_state");
+        if (target.kind == ScriptNode::Variable)
+            for (auto it = variables().constBegin(); it != variables().constEnd(); ++it)
+                if (int(it.value()) == target.value)
+                    name = it.key();
         problem(QString("%1 cannot be set").arg(name), target.line);
         return false;
     }
@@ -639,6 +669,14 @@ private:
         }
         if (constants().contains(name))
             return number(constants().value(name), token.line);
+        // Task 11: Open Rails' normal subtypes, ORSUBTYPE_<name>.
+        if (name.startsWith("orsubtype_")) {
+            const int index = subtypes.indexOf(name.mid(10).toUpper());
+            if (index >= 0)
+                return number(index, token.line);
+            problem(QString("unknown normal subtype %1").arg(name.mid(10)), token.line);
+            return number(0.0, token.line);
+        }
         if (openRailsNames().contains(name)) {
             if (!s.openRails.contains(name))
                 s.openRails << name;
@@ -780,6 +818,8 @@ private:
             case ScriptVariable::DrawState: return draw;
             case ScriptVariable::Enabled: return h.enabled();
             case ScriptVariable::BlockState: return h.blockState();
+            case ScriptVariable::ApproachReqPosition: return h.approachRequired(false);
+            case ScriptVariable::ApproachReqSpeed: return h.approachRequired(true);
             }
             return 0.0;
         case ScriptNode::Not:
@@ -841,7 +881,7 @@ private:
         case ScriptFunction::OppSigLr: return h.oppositeSignal(whole(n, 0), true);
         case ScriptFunction::OppSigMr: return h.oppositeSignal(whole(n, 0), false);
         case ScriptFunction::NextNsigLr: return h.nextSignal(whole(n, 0), true, whole(n, 1));
-        case ScriptFunction::DistMultiSigMr: return h.distantMulti(whole(n, 0), whole(n, 1));
+        case ScriptFunction::DistMultiSigMr: return h.distantMulti(whole(n, 0), whole(n, 1), false);
         case ScriptFunction::SigFeature: return h.feature(whole(n, 0));
         case ScriptFunction::DefDrawState: return h.drawStateOf(whole(n, 0));
         case ScriptFunction::ShuntingPath: return h.shuntingPath();
@@ -853,6 +893,52 @@ private:
                 argument(n, i);
             return 0.0;
         default:
+            return openRails(n);
+        }
+    }
+
+    // Task 11: Open Rails' additions, their arguments taken in order first.
+    double openRails(const ScriptNode &n) {
+        const int a = whole(n, 0), b = whole(n, 1);
+        using Change = SignalScriptHost::ClearAhead;
+        switch (ScriptFunction(n.value)) {
+        case ScriptFunction::NextSigId: return h.nextSignalId(a, 1);
+        case ScriptFunction::NextNsigId: return h.nextSignalId(a, b);
+        case ScriptFunction::OppSigId: return h.oppositeSignalId(a, false);
+        case ScriptFunction::OppSigIdTrainpath: return h.oppositeSignalId(a, true);
+        case ScriptFunction::IdSigEnabled: return h.signalEnabled(a);
+        case ScriptFunction::IdSigLr: return h.signalAspect(a, b);
+        case ScriptFunction::DistMultiSigMrOfLr: return h.distantMulti(a, b, true);
+        case ScriptFunction::StoreLvar: h.storeLocal(a, b); return 0.0;
+        case ScriptFunction::ThisSigLvar: return h.local(h.thisSignalId(), a);
+        case ScriptFunction::NextSigLvar: {
+            const int next = h.nextSignalId(a, 1);
+            return next >= 0 ? h.local(next, b) : 0;
+        }
+        case ScriptFunction::IdSigLvar: return h.local(a, b);
+        case ScriptFunction::ThisSigHasNormalSubtype: return h.hasNormalSubtype(h.thisSignalId(), a);
+        case ScriptFunction::NextSigHasNormalSubtype: {
+            const int next = h.nextSignalId(0, 1);
+            return next >= 0 ? h.hasNormalSubtype(next, a) : 0;
+        }
+        case ScriptFunction::IdSigHasNormalSubtype: return h.hasNormalSubtype(a, b);
+        case ScriptFunction::ThisSigNoUpdate: h.noUpdate(); return 0.0;
+        case ScriptFunction::Switchstand: return h.switchstand(a, b);
+        case ScriptFunction::ActivateTimingTrigger: h.activateTimingTrigger(); return 0.0;
+        case ScriptFunction::CheckTimingTrigger: return h.checkTimingTrigger(a);
+        case ScriptFunction::IncreaseClearAhead: h.clearAhead(Change::Increase, a); return 0.0;
+        case ScriptFunction::DecreaseClearAhead: h.clearAhead(Change::Decrease, a); return 0.0;
+        case ScriptFunction::SetClearAhead: h.clearAhead(Change::Set, a); return 0.0;
+        case ScriptFunction::ResetClearAhead: h.clearAhead(Change::Reset, 0); return 0.0;
+        case ScriptFunction::TrainHasRequestStop:
+            for (int i = 2; i < n.count; ++i)
+                argument(n, i);
+            return h.requestStop();
+        case ScriptFunction::TrainRequiresNextSignal: return h.requiresNextSignal(a, b);
+        case ScriptFunction::FindReqNormalSignal: return h.findRequiredNormal(a);
+        case ScriptFunction::RouteClearedToSignal: return h.routeClearedTo(a, false);
+        case ScriptFunction::RouteClearedToSignalCallOn: return h.routeClearedTo(a, true);
+        default:
             return 0.0;
         }
     }
@@ -860,7 +946,8 @@ private:
 
 }
 
-std::vector<SignalScript> ReadSignalScripts(const QString &text, const QString &file, QStringList *problems) {
+std::vector<SignalScript> ReadSignalScripts(const QString &text, const QString &file, QStringList *problems,
+                                            const QStringList &subtypes) {
     std::vector<SignalScript> scripts;
     // Sections from each line beginning SCRIPT; REM SCRIPT ones skipped.
     struct Section {
@@ -898,7 +985,7 @@ std::vector<SignalScript> ReadSignalScripts(const QString &text, const QString &
         if (script.name.isEmpty())
             script.problems << QString("%1 line %2: a SCRIPT without a name").arg(file).arg(script.line);
         const std::vector<Token> list = tokens(section.lines, file, script.problems);
-        Parser parser(list, script);
+        Parser parser(list, script, subtypes);
         parser.body();
         scripts.push_back(std::move(script));
     }

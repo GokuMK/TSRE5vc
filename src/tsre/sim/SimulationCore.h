@@ -330,6 +330,14 @@ public:
     const std::vector<int> &drawStates() const { return headDraw; }
     // Changes whenever a head's aspect or draw state does.
     unsigned long long drawSerial() const { return drawChanges; }
+    // A signal's local variable its script stored (task 11, Open Rails'
+    // STORE_LVAR); 0 unset.
+    int scriptLocal(int signal, int index) const {
+        if (size_t(signal) >= signalLocals.size())
+            return 0;
+        const auto it = signalLocals[size_t(signal)].find(index);
+        return it != signalLocals[size_t(signal)].end() ? it->second : 0;
+    }
     // Level crossings (task traffic 01): each of the network's
     // (TrackNetwork::levelCrossings) closed (1) by a train coming, on it or
     // just past it, or by a standing train beside it; else open (0). What
@@ -562,11 +570,49 @@ private:
     std::vector<char> occupiedBlock;
     // Task 10, Open Rails' approach control: the train a signal's approach
     // control let go for (held until the signal is cleared again; NoHolder
-    // none), and the signals whose scripts asked and were told no while
-    // cleared: run again each step as their trains come up.
+    // none). The signals whose scripts run again each step: approach
+    // control asked and told no while cleared (as their trains come up);
+    // task 11, a request stop's signal while a train comes (its next stop).
     std::vector<int> approachClearedFor;
-    std::vector<int> approachWatch;
+    std::vector<int> stepWatch;
     int approachControl(int signal, int metres, int speed, bool forced);
+    // Task 11, Open Rails' additions, per signal: its local variables
+    // (STORE_LVAR); its timing trigger (the time it was set; the run's
+    // start until then); how many signals a train clears ahead from it as
+    // its script set it (TypeClearAhead: its type's); THIS_SIG_NOUPDATE
+    // called. The signals whose scripts wait for a time (CHECK_TIMING_-
+    // TRIGGER told no): run again then.
+    std::vector<std::map<int, int>> signalLocals;
+    std::vector<double> timingTrigger;
+    static constexpr int TypeClearAhead = -1000;
+    std::vector<int> clearAheadActive;
+    std::vector<char> noUpdate;
+    std::vector<std::pair<int, double>> timedWatch;
+    // How many signals ahead a train clears from a signal of a kind (its
+    // type's value, or its script's in Open Rails mode).
+    int clearAheadOf(int signal, const SignalKind &kind) const;
+    // The train a signal is for: the one it is cleared for; a signal
+    // without NORMAL heads (Open Rails enables those as their track is
+    // reserved), the train holding the track it stands on whose way passes
+    // it. NoHolder none.
+    int trainForSignal(int signal) const;
+    // Where a signal (a head of it facing the train) is on the train's way
+    // on its present part, from its rear on; -1 not on it.
+    double signalOnWay(int train, int signal) const;
+    // OPP_SIG_ID(_TRAINPATH): the first signal with heads of `function`
+    // facing the other way behind `signal` on the way of the train it is
+    // cleared for: back over the track the train holds, or (`wholePath`)
+    // to its part's start. -1 none; `section`: the section on the
+    // signal's side of the one found (held for the train while it counts).
+    int oppositeOnWay(int signal, int function, bool wholePath, int *section) const;
+    // TRAIN_REQUIRES_NEXT_SIGNAL, FIND_REQ_NORMAL_SIGNAL, ROUTE_CLEARED_TO_-
+    // SIGNAL(_CALLON), TRAIN_HAS_REQUEST_STOP (Open Rails' SignalObject's);
+    // `waitSection`: a section whose holder changing changes the answer
+    // (-1 none).
+    bool requiresNextSignal(int signal, int next, int position) const;
+    int findRequiredNormal(int signal, int subtype, int fromHead) const;
+    int routeClearedTo(int signal, int to, bool callOn, int &waitSection) const;
+    bool requestStop(int signal, int &train) const;
     // Per head; evaluated again after a step that changed reservations or
     // switches.
     std::vector<int> headAspect;
@@ -626,7 +672,11 @@ private:
     bool aspectsReady = false;
     std::vector<int> dirtyGroups;
     std::vector<int> dirtyJunctions;
-    bool aspectsPending() const { return aspectsAll || !dirtyGroups.empty() || !dirtyJunctions.empty(); }
+    // Task 11: sections whose holder changed that scripts read.
+    std::vector<int> dirtySections;
+    bool aspectsPending() const {
+        return aspectsAll || !dirtyGroups.empty() || !dirtyJunctions.empty() || !dirtySections.empty();
+    }
     // Kept from one evaluation to the next: each signal's next stop signal
     // (its NORMAL heads read it), each other head's (-2 not known); per
     // reader (a signal, or head h as -(h + 1); slot: signals, then heads)
@@ -649,6 +699,13 @@ private:
     std::vector<std::vector<int>> scriptJunctions;
     std::vector<std::vector<int>> signalScriptReaders;
     std::vector<std::vector<int>> junctionScriptReaders;
+    // Task 11: per head, the signals whose state (cleared, local variables)
+    // and the sections whose holder its last run read; per signal and
+    // section, the heads to run again when that changes.
+    std::vector<std::vector<int>> scriptStates;
+    std::vector<std::vector<int>> scriptSections;
+    std::vector<std::vector<int>> stateScriptReaders;
+    std::vector<std::vector<int>> sectionScriptReaders;
     std::vector<Stretch> single;
     std::vector<int> claimedBy;
     // Per train and part: its stretches (stretch, its side) by where it
@@ -1155,6 +1212,11 @@ private:
     // which Open Rails runs on past the reversal point; a signal not
     // cleared) the next along the switches.
     bool nextOnClearedRoute(int signal, int next) const;
+    // The last track section of a way ends at a signal facing it (Open
+    // Rails' route holds whole track sections, cut at NORMAL heads).
+    bool wayEndsAt(const Projection &way, int signal) const;
+    // That signal, -1 none (task 11).
+    int wayEndSignal(const Projection &way) const;
     // Task 10 (the signal scripts' SHUNTING_PATH()): the signal is cleared
     // for a train and stands in one of that train's shunting ranges on its
     // present part.

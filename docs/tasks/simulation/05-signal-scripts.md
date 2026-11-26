@@ -165,7 +165,8 @@ are as before.
   (a train asking a signal whose block another train occupies) came with
   task 07 (2026-10-21). Task 10 (2026-11-26) runs approach control
   (`APPROACH_CONTROL_POSITION`, `_FORCED`, `APPROACH_CONTROL_SPEED`; the
-  route not held back) and adds TSRE's own `SHUNTING_PATH()`.
+  route not held back) and adds TSRE's own `SHUNTING_PATH()`; task 11
+  (2026-11-26) runs most of the rest (its list).
 
 ## Why
 
@@ -232,7 +233,8 @@ follows `def_draw_state(state)`. Functions, on the network task 02 made:
   of function `fn`, its least (most) restrictive of them (STOP when none);
   `next_nsig_lr(fn, n)` the n-th; `this_sig_lr/mr(fn)` this signal's
   other heads; `opp_sig_lr/mr(fn)` the signal facing the other way at the
-  same place; `dist_multi_sig_mr(fn1, fn2)` the most restrictive `fn1`
+  same place (task 11: behind it, over the track held for its train, as
+  Open Rails' `SONextSignalOpp`); `dist_multi_sig_mr(fn1, fn2)` the most restrictive `fn1`
   head up to the next signal with an `fn2` head;
 - `sig_feature(feat)`: the head's flags (number and gradient plates,
   USER1 to USER4); `def_draw_state(aspect)`: the type's draw state for it;
