@@ -29,6 +29,7 @@
 #include <tsre/tdb/TRnode.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/ErrorMessage.h>
+#include <tsre/world/Route.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -121,6 +122,30 @@ bool SignalObj::allowNew(){
 
 bool SignalObj::isTrackItem(){
     return true;
+}
+
+namespace {
+
+// TrSignalType's option bits (sig_feature): NUMBER_PLATE, GRADIENT_PLATE,
+// USER1 to USER4 as bits 4 to 9.
+constexpr unsigned int OptionBits = 0x3F0u;
+const char *const OptionNames[] = {"NUMBER_PLATE", "GRADIENT_PLATE", "USER1", "USER2", "USER3", "USER4"};
+
+unsigned int optionBit(const QString &subType) {
+    for (int k = 0; k < 6; ++k)
+        if (subType.compare(QLatin1String(OptionNames[k]), Qt::CaseInsensitive) == 0)
+            return 1u << (4 + k);
+    return 0u;
+}
+
+QString optionNames(unsigned int bits) {
+    QStringList names;
+    for (int k = 0; k < 6; ++k)
+        if (bits & (1u << (4 + k)))
+            names << QLatin1String(OptionNames[k]);
+    return names.join(", ");
+}
+
 }
 
 ErrorMessage* SignalObj::checkForErrors(){
@@ -241,7 +266,93 @@ ErrorMessage* SignalObj::checkForErrors(){
         }
     }
 
-    return NULL;
+    // Last, its items sound: their options against the world file's.
+    return checkOptionFlags();
+}
+
+ErrorMessage* SignalObj::checkOptionFlags(){
+    TDB* tdb = Game::trackDB;
+    if(tdb == NULL || signalShape == NULL)
+        return NULL;
+    // Each head's options as the world file enables them (what Open Rails
+    // reads, apart for heads facing back) against its TDB item's flags
+    // (what TSRE's simulation reads; the world files are not all read when
+    // a game or a simulation starts: task simulation 09, case A1).
+    struct Wrong {
+        int item;
+        unsigned int want;
+    };
+    QVector<Wrong> wrong;
+    QStringList lines;
+    for(int i = 0; i < 32 && i < signalShape->iSubObj; i++){
+        if(!signalUnit[i].enabled || !signalUnit[i].head)
+            continue;
+        auto found = tdb->trackItems.find(signalUnit[i].itemId);
+        if(found == tdb->trackItems.end() || found->second == NULL || found->second->type != "signalitem")
+            continue;
+        unsigned int want = 0;
+        for(int j = 0; j < 32 && j < signalShape->iSubObj; j++)
+            if(((signalSubObj >> j) & 1) && signalShape->subObj[j].backFacing == signalShape->subObj[i].backFacing)
+                want |= optionBit(signalShape->subObj[j].sigSubType);
+        const unsigned int have = found->second->trSignalType1 & OptionBits;
+        if(have == want)
+            continue;
+        wrong.push_back({signalUnit[i].itemId, want});
+        QStringList parts;
+        if(want & ~have)
+            //% "%1 in the world file only"
+            parts << qtTrId("route.errors.signal.options.world").arg(optionNames(want & ~have));
+        if(have & ~want)
+            //% "%1 in the TDB only"
+            parts << qtTrId("route.errors.signal.options.tdb").arg(optionNames(have & ~want));
+        //% "TDB item %1 (%2): %3."
+        lines << qtTrId("route.errors.signal.options.item").arg(signalUnit[i].itemId)
+                         .arg(found->second->trSignalType4, parts.join("; "));
+    }
+    if(wrong.isEmpty())
+        return NULL;
+    ErrorMessage *e = new ErrorMessage(
+        ErrorMessage::Type_Error,
+        ErrorMessage::Source_World,
+        //% "Object '%1' - its signal options in the TDB differ from the world file. UiD: %2."
+        qtTrId("route.errors.signal.options").arg(type).arg(UiD),
+        lines.join("\n") + "\n"
+        //% "TSRE's simulation takes a signal's options (number and gradient plates, USER1 to USER4) from its TDB items, Open Rails from the world file: the signal shows other aspects in each. Fix sets the TDB items' options from the world file."
+        + qtTrId("route.errors.signal.options.why"));
+    e->setLocationXYZ(x, -y, position[0], position[1], -position[2]);
+    e->setObject((GameObj*)this);
+    // The repair names the items and the signal by its tile and UiD, never
+    // this object (its tile may be gone by then).
+    const int tileX = x, tileZ = y, uid = UiD;
+    e->canFix = [tdb, wrong]() {
+        if(Game::trackDB != tdb)
+            return false;
+        for(const Wrong &w : wrong){
+            auto found = tdb->trackItems.find(w.item);
+            if(found == tdb->trackItems.end() || found->second == NULL || found->second->type != "signalitem")
+                return false;
+        }
+        return true;
+    };
+    e->fix = [tdb, wrong, tileX, tileZ, uid](QString &result) {
+        for(const Wrong &w : wrong){
+            TRitem *item = tdb->trackItems[w.item];
+            item->trSignalType1 = (item->trSignalType1 & ~OptionBits) | w.want;
+            tdb->updateTrItem(w.item);
+        }
+        // Its tile unsaved (the TDB is saved with the route).
+        WorldObj *obj = Game::currentRoute != NULL ? Game::currentRoute->getObj(tileX, tileZ, uid) : NULL;
+        if(obj != NULL)
+            obj->setModified(true);
+        QStringList items;
+        for(const Wrong &w : wrong)
+            items << QString::number(w.item);
+        //% "Signal options set from the world file (TDB items %1)."
+        result = qtTrId("route.errors.signal.options.fixed").arg(items.join(", "));
+        return true;
+    };
+    ErrorMessagesLib::PushErrorMessage(e);
+    return e;
 }
 
 void SignalObj::deleteTrItems(){

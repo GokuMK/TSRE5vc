@@ -148,7 +148,12 @@ void Tile::checkForErrors(){
         ErrorMessage* e = obj->checkForErrors();
         if(e != NULL)
             if(autoFix){
-                if(e->type == ErrorMessage::Type_Error){
+                // A message's own repair where it has one (signal options
+                // set from the world file); else an object in error removed.
+                QString result;
+                if(e->fix){
+                    e->applyFix(result);
+                } else if(e->type == ErrorMessage::Type_Error){
                     e->type = ErrorMessage::Type_AutoFix;
                     e->action += "\nAutoFix: Object removed by TSRE.";
                     obj->loaded = false;
