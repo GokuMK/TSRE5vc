@@ -715,7 +715,10 @@ shunting is task 07's).
   Left: dawnoil's player train sees RESTRICTING in Open Rails at a
   signal whose route ends before a junction (block JN_OBSTRUCTED while
   the signal is not yet the train's next one), CLEAR_2 here (main
-  APPROACH_2).
+  APPROACH_2). That is Open Rails' partial route rule (its manual,
+  `ALLOW_CLEAR_TO_PARTIAL_ROUTE`): a signal whose train's route stops
+  short of the next signal clears only when it is the first signal in
+  the train's path, unless its script allows it.
 
 ## Left
 - **Train data rows** (`#tsre.extra.<key>`, displays task scripting 02,

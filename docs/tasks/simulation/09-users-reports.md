@@ -239,7 +239,11 @@ flashes. Captured at Psary's exit 3529 showing S3 for a train at 05:41
   Rails' clearing window set aside (the block signals report). Left on
   E30 then: stations' signals (640 of 681 differences): CLEAR_2 in Open
   Rails where TSRE shows APPROACH_2 (169), RESTRICTING where TSRE shows
-  STOP (91), APPROACH_2 where TSRE shows CLEAR_2 (84).
+  STOP (91), APPROACH_2 where TSRE shows CLEAR_2 (84). Not urgent (the
+  user, 2026-11-26): on these stations' signals S2 and S5 give the same
+  speed (`PKP_SEM_5k_A` and its kin: CLEAR_2 "Vmax1" and APPROACH_2
+  "Vmax1a", neither with a speed), unlike the block signals' S5 (100
+  km/h).
 - When a station's route is set: TSRE clears up to the type's count of
   signals ahead (an entry signal included), Open Rails later; a real
   dispatcher's timing is modelled by neither (dispatching, later).
