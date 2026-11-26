@@ -217,11 +217,13 @@ model as the first operating policy, and threading.
   the world, TSRE from the TDB; the user, 2026-11-26: TSRE does not load
   every world file at game load, the editor is to report such content);
   found: E30's and CMK's stuck trains, aspects 63 % as Open Rails' on E30.
-- [ ] `10-shunting.md` (design 2026-11-26, the user's): shunting signals
-  lit for shunting moves through a TSRE script function (the Polish
-  discs' and main signals' white Ms2 only while the train is shunting),
-  and the player's shunting paths: the train standing, "shunting path to
-  here" from the map's context menu, planned by the work planner.
+- [ ] `10-shunting.md` (the user's, 2026-11-26; built the same day, phases
+  1 to 5): shunting moves from the trains' commands, `SHUNTING_PATH()`
+  for signal scripts (the Polish discs' and main signals' white Ms2 only
+  while a train shunts), Open Rails' approach control run, shunting routes
+  cleared as far as they can be, the player's shunting paths ("Shunting
+  Path to Here" in the route editor's map view, planned by the work
+  planner), and the testers' CMK_E30 set in `~/simulation-content`.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a

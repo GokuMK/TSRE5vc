@@ -129,6 +129,13 @@ public:
     std::shared_ptr<const DrivenFrame> drivenValues() const;
     // A message to the driven train: its cab's, or a vehicle's.
     void command(const QString &name, const MessageValue &value, int vehicle = -1);
+    // Task 10: the player's shunting path: the driven train (standing) to a
+    // place on a vector node, planned and run by the simulation (its answer
+    // shown on the map); ended, back on its own route where it is on it.
+    // Whether it runs one, as the simulation last answered.
+    void shuntTo(int node, double distance);
+    void endShunting();
+    bool drivenShunting() const { return shuntingNow; }
     // The driven train's messages since the last call (by vehicle); its
     // and the heard trains' sound triggers played on their cars (the views
     // take them each tick).
@@ -312,6 +319,9 @@ private:
     QTimer pollTimer;
     int chosenTrain = -1;
     int followedTrain = -1;
+    // Task 10: the driven train runs a shunting path (its answers).
+    bool shuntingNow = false;
+    void shuntingAnswer(int train, const QString &answer);
     // The train driven as last told.
     int drivenTrain = -1;
     // The train this view's last Drive asked for (-1 after Leave): commands

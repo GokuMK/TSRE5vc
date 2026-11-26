@@ -63,6 +63,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
         rt.reversalAt = plan.reversalAt;
         rt.reversalAt.resize(rt.parts.size(), -1.0);
         rt.endAt = plan.endAt;
+        rt.shunting = plan.shunting;
         if (plan.transfers && plan.transferTo >= 0) {
             transferers.resize(runtime.size());
             transferers[size_t(plan.transferTo)].push_back(int(i));
@@ -118,6 +119,7 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
                 switchAt[k] = network->sections()[k].mainPin;
     clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
     occupiedBlock.assign(clearedFor.size(), 0);
+    approachClearedFor.assign(clearedFor.size(), NoHolder);
     headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
     headDraw.assign(headAspect.size(), 0);
     // Level crossings (task traffic 01): open, with the default values until
@@ -282,6 +284,13 @@ void SimulationCore::stepOnce() {
     ++stepCount;
     stepLevelCrossings();
     findDeadlocks(now);
+    // Task 10: the scripts waiting on approach control run again.
+    if (!approachWatch.empty()) {
+        std::vector<int> watched;
+        watched.swap(approachWatch);
+        for (int signal : watched)
+            dirtyGroups.push_back(signal);
+    }
     if (aspectsPending())
         evaluateAspects();
     if (!prerunning) {
@@ -1444,6 +1453,12 @@ void SimulationCore::extendAuthority(int train) {
                                       AutoNodeTime * std::min(double(plan.maxSpeed), double(in->routeSpeedLimit)));
     const double autoLimit = std::min(s.front + lookahead, partLength);
     size_t allowed = rt.passed + clearable(projection, rt.passed);
+    // Task 10: a shunting move's route set as far as it can be, as a
+    // dispatcher sets a shunting route: once the signals it may clear reach
+    // into one of its shunting ranges, those on to the range's end too.
+    while (allowed < stopSignals.size() && allowed > rt.passed && shuntingAt(train, s.part, stopSignals[allowed].at)
+           && shuntingAt(train, s.part, stopSignals[allowed - 1].at))
+        ++allowed;
     // Standing short of a signal it may not ask for yet, within twice the
     // clearing distance, the signal before it (not passed) cleared: that
     // one is asked for too (Open Rails' TTTrain.UpdateStoppedState forces
@@ -1520,7 +1535,7 @@ void SimulationCore::extendAuthority(int train) {
                     // Or with permission asked at waiting point 60002, or on
                     // the autopilot's work (task 07, part B).
                     const size_t part = size_t(s.part);
-                    const bool work = part < plan.workFrom.size() && plan.workFrom[part] >= 0.0
+                    const bool work = !rt.ownRoute && part < plan.workFrom.size() && plan.workFrom[part] >= 0.0
                             && signal.at >= plan.workFrom[part]
                             && (part >= plan.workTo.size() || plan.workTo[part] < 0.0 || signal.at <= plan.workTo[part]);
                     // Phase 9: an Open Rails timetable's train toward the
@@ -1771,6 +1786,7 @@ bool SimulationCore::restricted(int signal) const {
 
 void SimulationCore::unclear(int signal) {
     clearedFor[size_t(signal)] = NoHolder;
+    approachClearedFor[size_t(signal)] = NoHolder;
     occupiedBlock[size_t(signal)] = 0;
     clearedChanged(signal);
 }
@@ -2061,6 +2077,10 @@ void SimulationCore::evaluateAspects() {
             return found;
         }
         int enabled() override { return core.clearedFor[size_t(head.signal)] != NoHolder ? 1 : 0; }
+        int shuntingPath() override { return core.shuntingPath(head.signal) ? 1 : 0; }
+        int approachControl(int metres, int speed, bool forced) override {
+            return core.approachControl(head.signal, metres, speed, forced);
+        }
         // Clear while cleared for a train (its block reserved for it),
         // occupied while cleared into a block another train is in (task
         // 07); else, as Open Rails without a train's request, from what
@@ -2274,6 +2294,60 @@ int SimulationCore::unroutedBlockState(int signal) const {
             }
     }
     return state;
+}
+
+int SimulationCore::approachControl(int signal, int metres, int speed, bool forced) {
+    const int train = clearedFor[size_t(signal)];
+    if (train < 0 || size_t(train) >= states.size())
+        return 0;
+    const auto watch = [&] {
+        if (std::find(approachWatch.begin(), approachWatch.end(), signal) == approachWatch.end())
+            approachWatch.push_back(signal);
+        return 0;
+    };
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (size_t(s.part) >= rt.ways.size())
+        return watch();
+    const std::vector<ProjectedSignal> &stops = rt.ways[size_t(s.part)].stopSignals;
+    // Not its next signal (Open Rails' NextSignalObject), unless forced.
+    if (!forced && (rt.passed >= stops.size() || stops[rt.passed].signal != signal))
+        return watch();
+    if (approachClearedFor[size_t(signal)] == train)
+        return 1;
+    double at = -1.0;
+    for (size_t k = rt.passed; k < stops.size() && at < 0.0; ++k)
+        if (stops[k].signal == signal)
+            at = stops[k].at;
+    if (at < 0.0 || int(at - s.front) >= metres)
+        return watch();
+    if (speed > 0 && std::fabs(s.speed) >= double(speed))
+        return watch();
+    if (speed == 0 && std::fabs(s.speed) >= 0.1)
+        return watch();
+    approachClearedFor[size_t(signal)] = train;
+    return 1;
+}
+
+bool SimulationCore::shuntingAt(int train, int part, double at) const {
+    for (const TrainPlan::ShuntRange &range : runtime[size_t(train)].shunting)
+        if (range.part == part && at >= range.from - 1e-6 && (range.to < 0.0 || at <= range.to + 1e-6))
+            return true;
+    return false;
+}
+
+bool SimulationCore::shuntingPath(int signal) const {
+    const int train = size_t(signal) < clearedFor.size() ? clearedFor[size_t(signal)] : NoHolder;
+    if (train < 0 || size_t(train) >= states.size())
+        return false;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (rt.shunting.empty() || size_t(s.part) >= rt.ways.size())
+        return false;
+    for (const ProjectedSignal &on : rt.ways[size_t(s.part)].stopSignals)
+        if (on.signal == signal && on.at >= s.front - 1e-6)
+            return shuntingAt(train, s.part, on.at);
+    return false;
 }
 
 bool SimulationCore::nextOnClearedRoute(int signal, int next) const {
@@ -2891,6 +2965,10 @@ long SimulationCore::followWait(int train, size_t from, size_t to) {
     Runtime &rt = runtime[size_t(train)];
     TrainState &s = states[size_t(train)];
     const std::vector<ProjectedSection> &way = rt.ways[size_t(s.part)].sections;
+    // Not while it runs a shunting path (task 10: its parts are not the
+    // plan's).
+    if (rt.ownRoute)
+        return -1;
     while (rt.nextFollow < plan.follows.size() && from < to) {
         const FollowPlan &follow = plan.follows[rt.nextFollow];
         // Passed (an earlier part, or behind what it holds), or further on.

@@ -1444,6 +1444,31 @@ int TsreTests::runSimulationUiSuite(bool verbose) {
         for (const auto &[vehicle, m] : simulation->takeDrivenMessages())
             sounded = sounded || (m.name == "sound" && m.number() == 66.0);
         check(f && sounded, "a command reaches its cab's script: pantograph 2 raised, its sound (66) sent");
+        // Task 10: a shunting path asked through the controller (as the
+        // map's menu asks): to 100 m ahead on its own route, the train
+        // standing: answered, the controller shunting; ended, not.
+        {
+            const std::shared_ptr<const Sim::SimulationFrame> now = simulation->frame();
+            const Sim::TrainPlan &plan = simulation->input()->trains[size_t(playerNow)];
+            const Sim::TrainState &state = now->trains[size_t(playerNow)].state;
+            const Sim::RoutePoint ahead = plan.route.parts[size_t(state.part)].locate(state.front + 100.0);
+            const auto waitShunting = [&](bool wanted) {
+                QElapsedTimer waited;
+                waited.start();
+                while (simulation->drivenShunting() != wanted && waited.elapsed() < 5000) {
+                    pump();
+                    simulation->takeDrivenMessages();
+                    QThread::msleep(5);
+                }
+                return simulation->drivenShunting() == wanted;
+            };
+            simulation->shuntTo(ahead.node, ahead.distance);
+            const bool planned = waitShunting(true);
+            simulation->endShunting();
+            const bool ended = waitShunting(false);
+            check(planned && ended, QString("a shunting path asked through the controller (task 10): planned %1, "
+                                            "ended %2").arg(planned).arg(ended));
+        }
         drive->click();
         f = waitFor(frame, [&](const Sim::SimulationFrame &x) { return x.driven.empty(); }, 5000, pump);
         pump();

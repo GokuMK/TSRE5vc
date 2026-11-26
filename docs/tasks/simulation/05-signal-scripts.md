@@ -163,7 +163,9 @@ are as before.
   stored values, clear-ahead control, subtypes): read and reported, run
   in a later task (decision 3); call-on with them. `block_state` OCCUPIED
   (a train asking a signal whose block another train occupies) came with
-  task 07 (2026-10-21).
+  task 07 (2026-10-21). Task 10 (2026-11-26) runs approach control
+  (`APPROACH_CONTROL_POSITION`, `_FORCED`, `APPROACH_CONTROL_SPEED`; the
+  route not held back) and adds TSRE's own `SHUNTING_PATH()`.
 
 ## Why
 

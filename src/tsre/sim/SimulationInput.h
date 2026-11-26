@@ -387,7 +387,24 @@ struct TrainPlan {
     // which (where it comes back to its path), -1 the part's end.
     std::vector<double> workFrom;
     std::vector<double> workTo;
+    // Task 10: where its moves are shunting moves (the signal scripts'
+    // SHUNTING_PATH()): route distances on its parts, `to` -1 the part's
+    // end. Made from its commands (ShuntingRanges) and the autopilot's work.
+    struct ShuntRange {
+        int part = 0;
+        double from = 0.0;
+        double to = -1.0;
+    };
+    std::vector<ShuntRange> shunting;
 };
+
+// Task 10: a train's shunting ranges from its commands. An Open Rails
+// timetable's: from its last stop on when its run ends coupling (`$attach`,
+// `$pickup`, `$transfer`), up to its first stop when it is formed of cars
+// cut off (`$detach /forms`); an activity's AI train's: on a part with an
+// extended AI shunting waiting point (60001, 60002, 4NNSS, 5NNSS), from its
+// last stop before the point there (else the part's start) on.
+void ShuntingRanges(TrainPlan &plan);
 
 // A consist of the activity standing on the track (a loose consist): the
 // track it covers, from its first vehicle's end to its last's; a standing
