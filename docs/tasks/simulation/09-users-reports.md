@@ -175,7 +175,10 @@ flashes. Captured at Psary's exit 3529 showing S3 for a train at 05:41
   `$detach`, `$attach`, `$pickup`, `$transfer`, with what they needed
   and two signal rules found on CMK (above and in task 08). E30: 179 of
   238 trains finish (63 before), CMK 301 of 521 (87); neither timetable
-  has a command TSRE does not run.
+  has a command TSRE does not run. USA2's times that moved with them
+  checked against new Open Rails runs (a third rule found there: a
+  signal cleared into a route ending before its next signal has none);
+  task 08's results.
 - Aspects trains see, TSRE against Open Rails, E30 04:45 to 07:50 (3,244
   samples): the same in 63 % (the MSTS routes 80 to 100 %). Most: block
   signals (`PKP_SBL_4st`) CLEAR_1 in Open Rails, CLEAR_2 in TSRE (291:

@@ -682,14 +682,40 @@ shunting is task 07's).
     reading the next signal) shows RESTRICTING to the shunting move of
     PWE 021010: Open Rails, run 2026-11-26, leaves 06:01:20, runs round
     and picks up the coaches about 06:06; TSRE 06:09.
+  - Found with it on USA2 (Open Rails runs 2026-11-26): a signal cleared
+    for a train whose route ends before the next signal has no next
+    signal (Open Rails' `sigfound` -1, `next_sig_lr` STOP). Open Rails'
+    route holds whole track sections, so the signal ending the section
+    the path ends in is still the next one; a junction or a track end
+    there, none. Only a train's last part: Open Rails runs a part ending
+    at a reversal on past the reversal point. TSRE took the next signal
+    along the switches, past the path's end (`SimulationCore::
+    nextOnClearedRoute`; fixture in `simulation-core`). Before the fixed
+    routes that signal read JN_OBSTRUCTED, which happened to give the
+    same aspect.
 - **Results:** E30 179 of 238 trains finish (63 before phase 9, 91 after
   the reversals), 26 stuck; CMK 301 of 521 (87), 89 stuck, 4135 station
   stops (1434); PRUDNIK unchanged (266 of 266). MSTS routes: EUROPE1
-  and JAPAN1 the same event by event; USA2's scripts read the block of
-  signals not cleared: 12 of its 16 activities' times differ, by 32 s at
-  most. Neither timetable has a command TSRE does not run (their reports
-  list content problems only). E30's aspects against Open Rails: the
-  same in 67 % of 5,900 samples (the fixed routes 12 of them).
+  and JAPAN1 the same event by event. Neither timetable has a command
+  TSRE does not run (their reports list content problems only). E30's
+  aspects against Open Rails: the same in 67 % of 5,900 samples (the
+  fixed routes 12 of them).
+- **USA2 against Open Rails** (2026-11-26; the earlier runs' samples were
+  not kept, so five activities were run again in Open Rails with
+  `scripts/orts-simulation-compare.sh`, TSRE with `TSRE_SIM_NOWORK`;
+  whitpull crashes Open Rails, in `Lights.cs` with both builds): 7 of
+  its 16 activities' event times differ from main (11 with the aspects
+  sampled every 10 s), AI trains reaching their path's end up to 32 s
+  sooner (one 13 s later), mornimod's activity ending 23 s sooner. Where
+  main and this phase differ, Open Rails
+  agrees with this phase on all 46 paired aspect samples (local_one 9,
+  local_cutbank 8, evegrain 29); the same aspect as Open Rails in 176 of
+  281 paired samples of these runs (main 130). local_one's traffic train
+  leaves Open Rails at about 08:20:57, TSRE 08:20:58 (main 08:21:19).
+  Left: dawnoil's player train sees RESTRICTING in Open Rails at a
+  signal whose route ends before a junction (block JN_OBSTRUCTED while
+  the signal is not yet the train's next one), CLEAR_2 here (main
+  APPROACH_2).
 
 ## Left
 - **Train data rows** (`#tsre.extra.<key>`, displays task scripting 02,

@@ -1100,6 +1100,14 @@ private:
     // else clear. Without a fixed route (a junction or crossing in its
     // block), JN_OBSTRUCTED.
     int unroutedBlockState(int signal) const;
+    // Whether `next` is a signal's next NORMAL signal as Open Rails takes
+    // it: for a signal cleared for a train, the one its cleared route ends
+    // at (Open Rails' sigfound): on the train's way (its last part) or
+    // ending the track section the way ends in; none when the way ends
+    // before a junction or track end. Else (a part ending at a reversal,
+    // which Open Rails runs on past the reversal point; a signal not
+    // cleared) the next along the switches.
+    bool nextOnClearedRoute(int signal, int next) const;
     void switchChanged(int junction);
     // The stretches of each pair of trains; those of two trains' parts.
     void findStretches();

@@ -2081,7 +2081,10 @@ void SimulationCore::evaluateAspects() {
             for (int i = 0; i < nth; ++i) {
                 const int found = function == int(SignalFunction::Normal) && i == 0 ? nextStop(signal)
                                                                                     : after(signal, function, false);
-                if (found < 0)
+                // A signal cleared into a route ending before its next
+                // signal (the train's path ends there) has none: Open
+                // Rails' next_sig_lr gives STOP.
+                if (found < 0 || (function == int(SignalFunction::Normal) && !core.nextOnClearedRoute(signal, found)))
                     return 0;
                 aspect = aspectOf(found, function, least);
                 // Open Rails' next_nsig_lr stops at a signal at STOP.
@@ -2271,6 +2274,43 @@ int SimulationCore::unroutedBlockState(int signal) const {
             }
     }
     return state;
+}
+
+bool SimulationCore::nextOnClearedRoute(int signal, int next) const {
+    const int train = size_t(signal) < clearedFor.size() ? clearedFor[size_t(signal)] : NoHolder;
+    if (train < 0 || size_t(train) >= states.size())
+        return true;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    // Only its last part: Open Rails runs a part ending at a reversal on
+    // past the reversal point (to where the next part leaves it).
+    if (size_t(s.part) + 1 != rt.ways.size())
+        return true;
+    const std::vector<ProjectedSignal> &stops = rt.ways[size_t(s.part)].stopSignals;
+    size_t k = 0;
+    while (k < stops.size() && stops[k].signal != signal)
+        ++k;
+    // Not on its present part's way: as before (along the switches).
+    if (k == stops.size())
+        return true;
+    for (++k; k < stops.size(); ++k)
+        if (stops[k].signal == next)
+            return true;
+    // Past its way's end: Open Rails' route holds whole track sections, so
+    // the signal ending the track section the way ends in (sections are cut
+    // at NORMAL heads), facing the way, is still its next; a junction or a
+    // track end there, none.
+    const std::vector<ProjectedSection> &passes = rt.ways[size_t(s.part)].sections;
+    const std::vector<TrackSection> &sections = in->network->sections();
+    for (auto pass = passes.rbegin(); pass != passes.rend(); ++pass) {
+        const TrackSection &last = sections[size_t(pass->section)];
+        if (last.kind != TrackSection::Track)
+            continue;
+        const SignalGroup &group = in->network->signalGroups()[size_t(next)];
+        const float end = pass->forward ? last.to : last.from;
+        return group.node == last.node && group.forward == pass->forward && std::abs(group.distance - end) < 0.5f;
+    }
+    return false;
 }
 
 void SimulationCore::switchChanged(int junction) {
