@@ -10,6 +10,7 @@
 
 #include <tsre/world/objects/SignalLights.h>
 #include <tsre/Game.h>
+#include <tsre/environment/WorldClock.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/renderer/DiscMesh.h>
 #include <tsre/renderer/RenderContext.h>
@@ -86,6 +87,17 @@ const LightTextureUse &lightTexture(const SigCfg &cfg, const QString &name) {
     return *known.insert(key, use);
 }
 
+// The world clock's seconds, read once a frame (only where a light flashes).
+double worldSeconds() {
+    static quint64 frame = ~quint64(0);
+    static double seconds = 0.0;
+    if (frame != Renderer::frameNumber()) {
+        frame = Renderer::frameNumber();
+        seconds = WorldClock::instance()->hours() * 3600.0;
+    }
+    return seconds;
+}
+
 float determinant3(const float *m) {
     return m[0] * (m[5] * m[10] - m[9] * m[6]) - m[4] * (m[1] * m[10] - m[9] * m[2])
             + m[8] * (m[1] * m[6] - m[5] * m[2]);
@@ -140,9 +152,10 @@ void SignalLights::build(ComplexShape *shape, const SignalShape *signalShape, un
             continue;
         const SignalType *type = cfg->findSignalType(sub.sigSubSType);
         const SignalType::DrawState *state = nullptr;
-        if (type != nullptr && i < states.size() && !states[i].isEmpty())
-            state = type->drawState(states[i]);
-        if (type != nullptr && state == nullptr)
+        // A number the type lacks shows nothing (Open Rails).
+        if (type != nullptr && i < states.size() && states[i] >= 0)
+            state = type->drawStateAt(states[i]);
+        else if (type != nullptr)
             state = type->defaultDrawState();
         if (state == nullptr)
             continue;
@@ -172,6 +185,9 @@ void SignalLights::build(ComplexShape *shape, const SignalShape *signalShape, un
                 out.texture = texture.id;
                 std::copy(texture.uv, texture.uv + 6, out.uv);
             }
+            out.flashing = draw.flashing;
+            out.flashOn = std::max(0.0f, type->flashTimeOn);
+            out.flashCycle = std::max(0.0f, type->flashTimeOn) + std::max(0.0f, type->flashTimeOff);
             lights.push_back(out);
         }
     }
@@ -309,7 +325,7 @@ void SignalLights::push(RenderQueue &queue, ComplexShape *shape, const SignalSha
     const unsigned long long serial = currentSerial();
     if (serial != statesSerial || states.size() != 32) {
         statesSerial = serial;
-        QVector<QString> now(32);
+        QVector<int> now(32, -1);
         for (int i = 0; i < 32 && stateSource != nullptr; ++i)
             if (((heads >> i) & 1) != 0 && items[i] >= 0)
                 now[i] = stateSource->drawStateOf(items[i]);
@@ -332,10 +348,17 @@ void SignalLights::push(RenderQueue &queue, ComplexShape *shape, const SignalSha
     const float wanted = frontOffset(distance);
     if (std::fabs(wanted - offset) > 0.001f)
         place(wanted);
-    // Lights cast no shadows.
+    // Lights cast no shadows. Flashing ones dark in the rest of their cycle,
+    // as Open Rails flashes them: by the world's time (paused with the
+    // simulation, faster with it).
     const bool casting = queue.shadowCastingEnabled();
     queue.setShadowCasting(false);
-    for (RenderItem *packet : packets)
-        queue.submit(packet, selectionId);
+    for (int i = 0; i < packets.size() && i < lights.size(); ++i) {
+        const Light &light = lights[i];
+        if (light.flashing && light.flashCycle > 0.0f
+                && std::fmod(worldSeconds(), double(light.flashCycle)) > double(light.flashOn))
+            continue;
+        queue.submit(packets[i], selectionId);
+    }
     queue.setShadowCasting(casting);
 }

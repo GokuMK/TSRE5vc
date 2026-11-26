@@ -210,7 +210,7 @@ public:
     void setClockDate(const QString &date) override;
     // The heads' draw states for their lights, from the frame taken last.
     unsigned long long stateSerial() const override;
-    QString drawStateOf(int item) const override;
+    int drawStateOf(int item) const override;
     // The level crossings' states (task traffic 01), from the frame taken
     // last.
     unsigned long long crossingSerial() const override;
