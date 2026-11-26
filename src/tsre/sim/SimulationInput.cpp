@@ -251,6 +251,7 @@ void addStop(Digest &d, const StopPlan &s) {
     d.add(s.departsEarly);
     d.add(s.request);
     d.add(s.needed);
+    d.add(s.pickUp);
     d.add(s.endStop);
     d.add(s.forcePosition);
     d.add(s.terminal);
@@ -1390,7 +1391,8 @@ void stopCommands(StopPlan &stop, int &least, const QVector<OrTimetable::Command
                             setDown = value;
                     }
         const QString key = train + "@" + stop.platform;
-        stop.needed = (pickUp > 0 && drawOf(key + "/pu") <= pickUp) || (setDown > 0 && drawOf(key + "/pd") <= setDown);
+        stop.pickUp = pickUp > 0 && drawOf(key + "/pu") <= pickUp;
+        stop.needed = stop.pickUp || (setDown > 0 && drawOf(key + "/pd") <= setDown);
     }
 }
 

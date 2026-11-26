@@ -224,6 +224,14 @@ model as the first operating policy, and threading.
   cleared as far as they can be, the player's shunting paths ("Shunting
   Path to Here" in the route editor's map view, planned by the work
   planner), and the testers' CMK_E30 set in `~/simulation-content`.
+- [x] `11-open-rails-script-functions.md` (the user's go 2026-11-26, built
+  the same day): Open Rails' signal script functions run (the signal
+  idents, local variables, normal subtypes, `THIS_SIG_NOUPDATE`,
+  `SWITCHSTAND`, timing triggers, the clear-ahead count, request stops,
+  the route checks, the approach settings); `opp_sig_lr/mr` now look
+  behind the signal as Open Rails does. Tested on synthetic tracks only:
+  no local route uses them. Not run yet: `HASHEAD`, call-on,
+  `ALLOW_CLEAR_TO_PARTIAL_ROUTE`, approach control's route hold.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a
@@ -255,7 +263,10 @@ model as the first operating policy, and threading.
 - Stopping at a red signal: Open Rails' AI stands about 30 m short with 10
   cars or more but 15 to 20 m with fewer (it aims 5 m short); ours 30 m
   for all.
-- Open Rails' script additions to `sigscr.dat` (task 05, later).
+- Open Rails' script additions to `sigscr.dat` not run yet (task 11's
+  list): `HASHEAD` (world data), call-on, `ALLOW_CLEAR_TO_PARTIAL_ROUTE`,
+  approach control's route hold. Heads without NORMAL function are never
+  `enabled` (Open Rails: while their track is reserved; task 11's Left).
 - Offered, not decided: Jump To going to where a simulated train is; the
   efficiency after a train's last stop.
 - Kept for later (user, 2026-10-21, after task 07):

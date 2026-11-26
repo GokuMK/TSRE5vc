@@ -41,6 +41,12 @@ struct SignalKind {
     // nothing beyond it and -1 does not count it.
     int clearAhead = 1;
     bool countsSignals = false;
+    // Task 11, Open Rails' additions: its ORTSNormalSubtype (an index in
+    // ORTSNormalSubtypes, -1 none); its ApproachControlSettings (metres,
+    // metres per second; -1 none).
+    int normalSubtype = -1;
+    float approachPosition = -1.0f;
+    float approachSpeed = -1.0f;
     // How its heads get their aspects (task 05): its script; on a route with
     // scripts but none for it, Open Rails' choice (its least restrictive
     // aspect when its block is clear, else its most restrictive); on a
@@ -191,6 +197,13 @@ public:
     // The level crossings on a vector node within [from, to], in distance
     // order.
     void levelCrossingsOn(int node, float from, float to, std::vector<int> &out) const;
+    // The signal heads on a vector node within [from, to], in distance
+    // order (task 11).
+    void headsOn(int node, float from, float to, std::vector<int> &out) const;
+    // The first junction a train going along a vector node meets facing
+    // (from its input), past trailing ones (to their inputs): its section,
+    // -1 none (task 11, Open Rails' switchstand).
+    int firstFacingJunction(int node, bool forward) const;
     // How far beyond a route's ends (along their nodes) its projection
     // lists level crossings.
     static constexpr float CrossingBeyond = 100.0f;

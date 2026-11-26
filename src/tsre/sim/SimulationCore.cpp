@@ -120,6 +120,10 @@ SimulationCore::SimulationCore(std::shared_ptr<const SimulationInput> input) : i
     clearedFor.assign(network != nullptr ? network->signalGroups().size() : 0, NoHolder);
     occupiedBlock.assign(clearedFor.size(), 0);
     approachClearedFor.assign(clearedFor.size(), NoHolder);
+    signalLocals.assign(clearedFor.size(), {});
+    timingTrigger.assign(clearedFor.size(), double(in->startTime));
+    clearAheadActive.assign(clearedFor.size(), TypeClearAhead);
+    noUpdate.assign(clearedFor.size(), 0);
     headAspect.assign(network != nullptr ? network->heads().size() : 0, 0);
     headDraw.assign(headAspect.size(), 0);
     // Level crossings (task traffic 01): open, with the default values until
@@ -284,12 +288,21 @@ void SimulationCore::stepOnce() {
     ++stepCount;
     stepLevelCrossings();
     findDeadlocks(now);
-    // Task 10: the scripts waiting on approach control run again.
-    if (!approachWatch.empty()) {
+    // Task 10: the scripts waiting on approach control run again (task 11:
+    // and those of request stops' signals while a train comes).
+    if (!stepWatch.empty()) {
         std::vector<int> watched;
-        watched.swap(approachWatch);
+        watched.swap(stepWatch);
         for (int signal : watched)
             dirtyGroups.push_back(signal);
+    }
+    // Task 11: those whose timing trigger's time has come.
+    if (!timedWatch.empty()) {
+        const auto due = std::partition(timedWatch.begin(), timedWatch.end(),
+                                        [this](const std::pair<int, double> &w) { return w.second > now + 1e-9; });
+        for (auto it = due; it != timedWatch.end(); ++it)
+            dirtyGroups.push_back(it->first);
+        timedWatch.erase(due, timedWatch.end());
     }
     if (aspectsPending())
         evaluateAspects();
@@ -1840,6 +1853,7 @@ void SimulationCore::evaluateAspects() {
         aspectsAll = false;
         dirtyGroups.clear();
         dirtyJunctions.clear();
+        dirtySections.clear();
         return;
     }
     const TrackNetwork &network = *in->network;
@@ -1862,6 +1876,10 @@ void SimulationCore::evaluateAspects() {
         scriptJunctions.assign(heads.size(), {});
         signalScriptReaders.assign(groups.size(), {});
         junctionScriptReaders.assign(network.sections().size(), {});
+        scriptStates.assign(heads.size(), {});
+        scriptSections.assign(heads.size(), {});
+        stateScriptReaders.assign(groups.size(), {});
+        sectionScriptReaders.assign(network.sections().size(), {});
         for (size_t h = 0; h < heads.size(); ++h) {
             const int junction = network.junctionSection(heads[h].junction);
             if (heads[h].junction >= 0 && junction >= 0)
@@ -1923,11 +1941,17 @@ void SimulationCore::evaluateAspects() {
             work.push_back(h);
         }
     };
+    // Not a signal that called THIS_SIG_NOUPDATE (task 11): it runs again
+    // only when cleared or given back.
     const auto pushReader = [&](int reader) {
         if (reader >= 0) {
+            if (noUpdate[size_t(reader)])
+                return;
             for (int h : groups[size_t(reader)].heads)
                 push(h);
         } else {
+            if (noUpdate[size_t(heads[size_t(-reader - 1)].signal)])
+                return;
             push(-reader - 1);
         }
     };
@@ -1949,11 +1973,21 @@ void SimulationCore::evaluateAspects() {
         for (int h : scripted)
             push(h);
     }
-    for (int signal : dirtyGroups)
+    for (int signal : dirtyGroups) {
         for (int h : groups[size_t(signal)].heads)
             push(h);
+        const std::vector<int> reading = stateScriptReaders[size_t(signal)];
+        for (int h : reading)
+            push(h);
+    }
+    for (int section : dirtySections) {
+        const std::vector<int> reading = sectionScriptReaders[size_t(section)];
+        for (int h : reading)
+            push(h);
+    }
     dirtyJunctions.clear();
     dirtyGroups.clear();
+    dirtySections.clear();
     // The type's aspect for the one wanted: the most restrictive for stop;
     // otherwise the least restrictive it has no less restrictive than wanted
     // among its proceed aspects (approach on), else the nearest above.
@@ -2019,8 +2053,18 @@ void SimulationCore::evaluateAspects() {
             std::vector<int> &list = junctionScriptReaders[size_t(junction)];
             list.erase(std::remove(list.begin(), list.end(), h), list.end());
         }
+        for (int signal : scriptStates[size_t(h)]) {
+            std::vector<int> &list = stateScriptReaders[size_t(signal)];
+            list.erase(std::remove(list.begin(), list.end(), h), list.end());
+        }
+        for (int section : scriptSections[size_t(h)]) {
+            std::vector<int> &list = sectionScriptReaders[size_t(section)];
+            list.erase(std::remove(list.begin(), list.end(), h), list.end());
+        }
         scriptSignals[size_t(h)].clear();
         scriptJunctions[size_t(h)].clear();
+        scriptStates[size_t(h)].clear();
+        scriptSections[size_t(h)].clear();
     };
     struct Host final : SignalScriptHost {
         SimulationCore &core;
@@ -2049,6 +2093,27 @@ void SimulationCore::evaluateAspects() {
                     core.junctionScriptReaders[size_t(junction)].push_back(h);
                 }
         }
+        // Task 11: a signal's state (cleared, its local variables) read; a
+        // section's holder.
+        void readState(int signal) {
+            std::vector<int> &list = core.scriptStates[size_t(h)];
+            if (signal < 0 || std::find(list.begin(), list.end(), signal) != list.end())
+                return;
+            list.push_back(signal);
+            core.stateScriptReaders[size_t(signal)].push_back(h);
+        }
+        void readSection(int section) {
+            std::vector<int> &list = core.scriptSections[size_t(h)];
+            if (section < 0 || std::find(list.begin(), list.end(), section) != list.end())
+                return;
+            list.push_back(section);
+            core.sectionScriptReaders[size_t(section)].push_back(h);
+        }
+        bool valid(int signal) const { return signal >= 0 && size_t(signal) < network.signalGroups().size(); }
+        // Set by the run: its signal's local variables changed; the
+        // switchstand's junction (kept for a THIS_SIG_NOUPDATE signal).
+        bool localsChanged = false;
+        int switchJunction = -1;
         // A signal's heads of a function: their least (most) restrictive
         // aspect; -1 none.
         int aspectOf(int signal, int function, bool least) const {
@@ -2094,17 +2159,24 @@ void SimulationCore::evaluateAspects() {
             const int junction = network.junctionSection(head.junction);
             return head.junction < 0 || junction < 0 || core.switchAt[size_t(junction)] == head.junctionPin ? 1 : 0;
         }
+        // The next signal after `signal` with heads of `function` (NORMAL,
+        // from this one: its next stop signal, kept). A signal cleared into a
+        // route ending before its next signal (the train's path ends there)
+        // has none: Open Rails' next_sig_lr gives STOP.
+        int step(int signal, int function, bool first) {
+            const int found = function == int(SignalFunction::Normal) && first ? nextStop(signal)
+                                                                               : after(signal, function, false);
+            if (found < 0 || (function == int(SignalFunction::Normal) && !core.nextOnClearedRoute(signal, found)))
+                return -1;
+            return found;
+        }
         int nextSignal(int function, bool least, int nth) override {
             nth = std::max(1, nth);
             int signal = head.signal;
             int aspect = 0;
             for (int i = 0; i < nth; ++i) {
-                const int found = function == int(SignalFunction::Normal) && i == 0 ? nextStop(signal)
-                                                                                    : after(signal, function, false);
-                // A signal cleared into a route ending before its next
-                // signal (the train's path ends there) has none: Open
-                // Rails' next_sig_lr gives STOP.
-                if (found < 0 || (function == int(SignalFunction::Normal) && !core.nextOnClearedRoute(signal, found)))
+                const int found = step(signal, function, i == 0);
+                if (found < 0)
                     return 0;
                 aspect = aspectOf(found, function, least);
                 // Open Rails' next_nsig_lr stops at a signal at STOP.
@@ -2121,15 +2193,19 @@ void SimulationCore::evaluateAspects() {
             // else STOP.
             return found >= 0 ? found : function == int(SignalFunction::Normal) ? 7 : 0;
         }
+        // Task 11: behind the signal (Open Rails' SONextSignalOpp), not
+        // beyond it.
         int oppositeSignal(int function, bool least) override {
-            if (!enabled())
+            const int found = oppositeSignalId(function, false);
+            if (found < 0)
                 return 0;
-            const int found = after(head.signal, function, true);
-            return found >= 0 ? std::max(0, aspectOf(found, function, least)) : 0;
+            read(found);
+            return std::max(0, aspectOf(found, function, least));
         }
         // The most restrictive `function1` head up to (and on) the next
-        // signal with a `function2` head; STOP for none.
-        int distantMulti(int function1, int function2) override {
+        // signal with a `function2` head (each signal's least restrictive
+        // one: `least`); STOP for none.
+        int distantMulti(int function1, int function2, bool least) override {
             int signal = head.signal, worst = -1;
             for (int i = 0; i < 64; ++i) {
                 const SignalGroup &group = network.signalGroups()[size_t(signal)];
@@ -2146,7 +2222,7 @@ void SimulationCore::evaluateAspects() {
                 if (found < 0)
                     break;
                 read(found);
-                const int here = aspectOf(found, function1, false);
+                const int here = aspectOf(found, function1, least);
                 if (here >= 0)
                     worst = worst < 0 ? here : std::min(worst, here);
                 if (aspectOf(found, function2, false) >= 0)
@@ -2163,6 +2239,144 @@ void SimulationCore::evaluateAspects() {
                 if (a.aspect == aspect)
                     return a.drawState;
             return -1;
+        }
+        // Task 11, Open Rails' additions.
+        int thisSignalId() override { return head.signal; }
+        int nextSignalId(int function, int nth) override {
+            if (nth < 1)
+                return -1;
+            int signal = head.signal;
+            for (int i = 0; i < nth && signal >= 0; ++i)
+                signal = step(signal, function, i == 0);
+            return signal;
+        }
+        int oppositeSignalId(int function, bool trainPath) override {
+            int section = -1;
+            const int found = core.oppositeOnWay(head.signal, function, trainPath, &section);
+            // Over the track held for the train: again when the section on
+            // its side is given back.
+            if (!trainPath)
+                readSection(section);
+            return found;
+        }
+        int signalEnabled(int id) override {
+            if (!valid(id))
+                return 0;
+            readState(id);
+            return core.clearedFor[size_t(id)] != NoHolder ? 1 : 0;
+        }
+        int signalAspect(int id, int function) override {
+            if (!valid(id))
+                return 0;
+            read(id);
+            const int found = aspectOf(id, function, true);
+            return found >= 0 ? found : function == int(SignalFunction::Normal) ? 7 : 0;
+        }
+        void storeLocal(int index, int value) override {
+            std::map<int, int> &locals = core.signalLocals[size_t(head.signal)];
+            const auto it = locals.find(index);
+            if (it != locals.end() && it->second == value)
+                return;
+            locals[index] = value;
+            localsChanged = true;
+        }
+        int local(int id, int index) override {
+            if (!valid(id))
+                return 0;
+            readState(id);
+            const std::map<int, int> &locals = core.signalLocals[size_t(id)];
+            const auto it = locals.find(index);
+            return it != locals.end() ? it->second : 0;
+        }
+        int hasNormalSubtype(int id, int subtype) override {
+            if (!valid(id))
+                return 0;
+            for (int g : network.signalGroups()[size_t(id)].heads) {
+                const SignalHead &other = network.heads()[size_t(g)];
+                if (network.isNormal(other) && network.kinds()[size_t(other.kind)].normalSubtype == subtype)
+                    return 1;
+            }
+            return 0;
+        }
+        void noUpdate() override { core.noUpdate[size_t(head.signal)] = 1; }
+        int switchstand(int route0, int route1) override {
+            const int junction = network.firstFacingJunction(head.node, head.forward);
+            if (junction < 0)
+                return route0;
+            switchJunction = junction;
+            readThrough({junction});
+            return core.switchAt[size_t(junction)] == 1 ? route0 : route1;
+        }
+        void activateTimingTrigger() override { core.timingTrigger[size_t(head.signal)] = core.now; }
+        int checkTimingTrigger(int seconds) override {
+            const double set = core.timingTrigger[size_t(head.signal)];
+            // Open Rails: (int)(now - set) > seconds.
+            if (int(core.now - set) > seconds)
+                return 1;
+            // Run again once it will be.
+            const double due = set + double(seconds) + 1.0;
+            for (std::pair<int, double> &waiting : core.timedWatch)
+                if (waiting.first == head.signal) {
+                    waiting.second = std::min(waiting.second, due);
+                    return 0;
+                }
+            core.timedWatch.push_back({head.signal, due});
+            return 0;
+        }
+        void clearAhead(ClearAhead change, int value) override {
+            // From its heads' most in Open Rails mode (Open Rails'
+            // SignalNumClearAhead_ORTS); nothing in the legacy mode.
+            int type = TypeClearAhead;
+            for (int g : network.signalGroups()[size_t(head.signal)].heads) {
+                const SignalHead &other = network.heads()[size_t(g)];
+                if (other.kind >= 0 && network.kinds()[size_t(other.kind)].countsSignals)
+                    type = std::max(type, network.kinds()[size_t(other.kind)].clearAhead);
+            }
+            if (type == TypeClearAhead)
+                return;
+            int active = type;
+            switch (change) {
+            case ClearAhead::Increase: active = type + value; break;
+            case ClearAhead::Decrease: active = type - value; break;
+            case ClearAhead::Set: active = value; break;
+            case ClearAhead::Reset: break;
+            }
+            core.clearAheadActive[size_t(head.signal)] = active == type ? TypeClearAhead : active;
+        }
+        int requestStop() override {
+            int train = NoHolder;
+            const bool stop = core.requestStop(head.signal, train);
+            if (train >= 0) {
+                // Each step while the train comes (its next stop changes).
+                if (std::find(core.stepWatch.begin(), core.stepWatch.end(), head.signal) == core.stepWatch.end())
+                    core.stepWatch.push_back(head.signal);
+            } else {
+                // Again when a train takes the track it stands on.
+                readSection(network.sectionAt(head.node, head.distance, head.forward));
+            }
+            return stop ? 1 : 0;
+        }
+        int requiresNextSignal(int id, int position) override {
+            return core.requiresNextSignal(head.signal, id, position) ? 1 : 0;
+        }
+        int findRequiredNormal(int subtype) override {
+            int next = -1;
+            if (!network.signalGroups()[size_t(head.signal)].normal) {
+                next = nextStop(head.signal);
+                readState(next);
+            }
+            return core.findRequiredNormal(head.signal, subtype, next);
+        }
+        int routeClearedTo(int id, bool callOn) override {
+            int wait = -1;
+            const int state = core.routeClearedTo(head.signal, id, callOn, wait);
+            readSection(wait);
+            return state;
+        }
+        int approachRequired(bool speed) override {
+            const float value = speed ? kind.approachSpeed : kind.approachPosition;
+            // Open Rails: Convert.ToInt32 (to the nearest, halves to even).
+            return value < 0.0f ? -1 : int(std::nearbyint(value));
         }
     };
     // Each head from the aspects it reads now; a head that changes puts
@@ -2185,6 +2399,20 @@ void SimulationCore::evaluateAspects() {
             Host host(*this, network, h, [&](int signal) { return nextOf(signal); });
             int state = headAspect[size_t(h)], drawState = headDraw[size_t(h)];
             RunSignalScript(network.scripts[size_t(kind.script)], host, state, drawState);
+            // Task 11: those reading its signal's local variables run again
+            // (its own run has them); a THIS_SIG_NOUPDATE signal keeps no
+            // readings but its switchstand's switch.
+            if (host.localsChanged) {
+                const std::vector<int> reading = stateScriptReaders[size_t(head.signal)];
+                for (int r : reading)
+                    if (r != h)
+                        push(r);
+            }
+            if (noUpdate[size_t(head.signal)]) {
+                unregister(h);
+                if (host.switchJunction >= 0)
+                    host.readThrough({host.switchJunction});
+            }
             aspect = state;
             draw = drawState >= 0 ? drawState : host.drawStateOf(state);
             if (draw < 0)
@@ -2261,6 +2489,8 @@ void SimulationCore::clearedChanged(int signal) {
 void SimulationCore::blockChanged(int section) {
     if (in->network == nullptr)
         return;
+    if (size_t(section) < sectionScriptReaders.size() && !sectionScriptReaders[size_t(section)].empty())
+        dirtySections.push_back(section);
     for (int signal : in->network->fixedRouteSignals(section))
         if (size_t(signal) >= clearedFor.size() || clearedFor[size_t(signal)] == NoHolder)
             dirtyGroups.push_back(signal);
@@ -2301,8 +2531,8 @@ int SimulationCore::approachControl(int signal, int metres, int speed, bool forc
     if (train < 0 || size_t(train) >= states.size())
         return 0;
     const auto watch = [&] {
-        if (std::find(approachWatch.begin(), approachWatch.end(), signal) == approachWatch.end())
-            approachWatch.push_back(signal);
+        if (std::find(stepWatch.begin(), stepWatch.end(), signal) == stepWatch.end())
+            stepWatch.push_back(signal);
         return 0;
     };
     const TrainState &s = states[size_t(train)];
@@ -2374,17 +2604,247 @@ bool SimulationCore::nextOnClearedRoute(int signal, int next) const {
     // the signal ending the track section the way ends in (sections are cut
     // at NORMAL heads), facing the way, is still its next; a junction or a
     // track end there, none.
-    const std::vector<ProjectedSection> &passes = rt.ways[size_t(s.part)].sections;
+    return wayEndsAt(rt.ways[size_t(s.part)], next);
+}
+
+bool SimulationCore::wayEndsAt(const Projection &way, int signal) const {
     const std::vector<TrackSection> &sections = in->network->sections();
-    for (auto pass = passes.rbegin(); pass != passes.rend(); ++pass) {
+    for (auto pass = way.sections.rbegin(); pass != way.sections.rend(); ++pass) {
         const TrackSection &last = sections[size_t(pass->section)];
         if (last.kind != TrackSection::Track)
             continue;
-        const SignalGroup &group = in->network->signalGroups()[size_t(next)];
+        const SignalGroup &group = in->network->signalGroups()[size_t(signal)];
         const float end = pass->forward ? last.to : last.from;
         return group.node == last.node && group.forward == pass->forward && std::abs(group.distance - end) < 0.5f;
     }
     return false;
+}
+
+int SimulationCore::wayEndSignal(const Projection &way) const {
+    const std::vector<TrackSection> &sections = in->network->sections();
+    for (auto pass = way.sections.rbegin(); pass != way.sections.rend(); ++pass) {
+        const TrackSection &last = sections[size_t(pass->section)];
+        if (last.kind != TrackSection::Track)
+            continue;
+        const float end = pass->forward ? last.to : last.from;
+        const int found = in->network->nextStopSignal(last.node, pass->forward ? end - 1.0f : end + 1.0f, pass->forward,
+                                                      switchAt, 2.0);
+        return found >= 0 && wayEndsAt(way, found) ? found : -1;
+    }
+    return -1;
+}
+
+int SimulationCore::clearAheadOf(int signal, const SignalKind &kind) const {
+    // Open Rails: a script changes it only in Open Rails mode.
+    if (kind.countsSignals && size_t(signal) < clearAheadActive.size() && clearAheadActive[size_t(signal)] != TypeClearAhead)
+        return clearAheadActive[size_t(signal)];
+    return kind.clearAhead;
+}
+
+int SimulationCore::trainForSignal(int signal) const {
+    if (size_t(signal) >= clearedFor.size())
+        return NoHolder;
+    if (clearedFor[size_t(signal)] != NoHolder || in->network == nullptr)
+        return clearedFor[size_t(signal)];
+    const SignalGroup &group = in->network->signalGroups()[size_t(signal)];
+    if (group.normal)
+        return NoHolder;
+    const int section = in->network->sectionAt(group.node, group.distance, group.forward);
+    const int train = section >= 0 ? holder[size_t(section)] : NoHolder;
+    if (train < 0 || size_t(train) >= states.size() || signalOnWay(train, signal) < 0.0)
+        return NoHolder;
+    return train;
+}
+
+double SimulationCore::signalOnWay(int train, int signal) const {
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (in->network == nullptr || size_t(s.part) >= rt.ways.size())
+        return -1.0;
+    const double rear = s.front - rt.length;
+    const std::vector<SignalHead> &heads = in->network->heads();
+    for (const ProjectedItem &item : rt.ways[size_t(s.part)].heads)
+        if (heads[size_t(item.index)].signal == signal && item.at >= rear - 1e-6)
+            return item.at;
+    return -1.0;
+}
+
+int SimulationCore::oppositeOnWay(int signal, int function, bool wholePath, int *section) const {
+    if (section != nullptr)
+        *section = -1;
+    const int train = size_t(signal) < clearedFor.size() ? clearedFor[size_t(signal)] : NoHolder;
+    if (train < 0 || size_t(train) >= states.size() || in->network == nullptr)
+        return -1;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (size_t(s.part) >= rt.ways.size())
+        return -1;
+    const Projection &way = rt.ways[size_t(s.part)];
+    const double at = signalOnWay(train, signal);
+    if (at < 0.0)
+        return -1;
+    // Back to the start of the track section its rear is in (Open Rails:
+    // while the sections are set for it), or the part's start.
+    double limit = -1e12;
+    if (!wholePath) {
+        const double rear = s.front - rt.length;
+        for (const ProjectedSection &pass : way.sections)
+            if (pass.leave >= rear - 1e-6) {
+                limit = pass.enter;
+                break;
+            }
+    }
+    const TrackNetwork &network = *in->network;
+    const std::vector<SignalHead> &heads = network.heads();
+    const std::vector<SignalKind> &kinds = network.kinds();
+    const std::vector<RouteInterval> &intervals = rt.parts[size_t(s.part)].intervals();
+    std::vector<int> on;
+    for (auto iv = intervals.rbegin(); iv != intervals.rend(); ++iv) {
+        const double length = iv->length();
+        const double low = std::max(iv->start, limit), high = std::min(iv->start + length, at - 0.05);
+        if (iv->start + length < limit)
+            break;
+        if (high < low)
+            continue;
+        const double sign = iv->forward() ? 1.0 : -1.0;
+        on.clear();
+        network.headsOn(iv->node, float(iv->from + sign * (low - iv->start)), float(iv->from + sign * (high - iv->start)),
+                        on);
+        // The nearest the signal: the last along the interval.
+        int found = -1;
+        double foundAt = -1e12;
+        for (int h : on) {
+            const SignalHead &head = heads[size_t(h)];
+            if (head.signal == signal || head.forward == iv->forward() || head.kind < 0
+                    || int(kinds[size_t(head.kind)].function) != function)
+                continue;
+            const double along = iv->start + sign * (double(head.distance) - iv->from);
+            if (along > foundAt) {
+                foundAt = along;
+                found = head.signal;
+            }
+        }
+        if (found >= 0) {
+            if (section != nullptr)
+                for (const ProjectedSection &pass : way.sections)
+                    if (pass.leave > foundAt + 0.05 && in->network->sections()[size_t(pass.section)].kind == TrackSection::Track) {
+                        *section = pass.section;
+                        break;
+                    }
+            return found;
+        }
+    }
+    return -1;
+}
+
+bool SimulationCore::requiresNextSignal(int signal, int next, int position) const {
+    const int train = size_t(signal) < clearedFor.size() ? clearedFor[size_t(signal)] : NoHolder;
+    if (train < 0 || size_t(train) >= states.size() || in->network == nullptr || next < 0
+            || size_t(next) >= in->network->signalGroups().size() || !in->network->signalGroups()[size_t(next)].normal)
+        return false;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (size_t(s.part) >= rt.ways.size())
+        return false;
+    const Projection &way = rt.ways[size_t(s.part)];
+    // The section before it (0) or past it (1) on the train's way ahead.
+    for (size_t k = rt.passed; k < way.stopSignals.size(); ++k)
+        if (way.stopSignals[k].signal == next)
+            return position == 0 || way.stopSignals[k].section < way.sections.size();
+    return position == 0 && wayEndsAt(way, next);
+}
+
+int SimulationCore::findRequiredNormal(int signal, int subtype, int fromHead) const {
+    if (in->network == nullptr)
+        return -1;
+    const TrackNetwork &network = *in->network;
+    const SignalGroup &group = network.signalGroups()[size_t(signal)];
+    // A signal without NORMAL heads not reserved for a train: the train its
+    // next stop signal is cleared for (Open Rails).
+    int train = trainForSignal(signal);
+    if (train < 0 && !group.normal && fromHead >= 0)
+        train = size_t(fromHead) < clearedFor.size() ? clearedFor[size_t(fromHead)] : NoHolder;
+    if (train < 0 || size_t(train) >= states.size())
+        return -1;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (size_t(s.part) >= rt.ways.size())
+        return -1;
+    const double at = signalOnWay(train, signal);
+    if (at < 0.0)
+        return -1;
+    const std::vector<ProjectedSignal> &stops = rt.ways[size_t(s.part)].stopSignals;
+    const auto hasSubtype = [&](int candidate) {
+        for (int h : network.signalGroups()[size_t(candidate)].heads) {
+            const SignalHead &head = network.heads()[size_t(h)];
+            if (network.isNormal(head) && network.kinds()[size_t(head.kind)].normalSubtype == subtype)
+                return true;
+        }
+        return false;
+    };
+    for (size_t k = rt.passed; k < stops.size(); ++k)
+        if (stops[k].at > at + 0.05 && stops[k].signal != signal && hasSubtype(stops[k].signal))
+            return stops[k].signal;
+    // Open Rails' route holds whole track sections: the signal ending the
+    // last one too.
+    const int last = wayEndSignal(rt.ways[size_t(s.part)]);
+    return last >= 0 && last != signal && hasSubtype(last) ? last : -1;
+}
+
+int SimulationCore::routeClearedTo(int signal, int to, bool callOn, int &waitSection) const {
+    waitSection = -1;
+    const int train = size_t(signal) < clearedFor.size() ? clearedFor[size_t(signal)] : NoHolder;
+    if (train < 0 || size_t(train) >= states.size() || to < 0 || size_t(to) >= clearedFor.size())
+        return BlockJunctionObstructed;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (size_t(s.part) >= rt.ways.size())
+        return BlockJunctionObstructed;
+    const Projection &way = rt.ways[size_t(s.part)];
+    size_t from = way.stopSignals.size(), upTo = way.stopSignals.size();
+    for (size_t k = rt.passed; k < way.stopSignals.size(); ++k) {
+        if (from == way.stopSignals.size() && way.stopSignals[k].signal == signal)
+            from = k;
+        else if (from < way.stopSignals.size() && way.stopSignals[k].signal == to) {
+            upTo = k;
+            break;
+        }
+    }
+    // Up to the section ending at `to` (Open Rails' route holds whole track
+    // sections: the way's last one may end at it).
+    if (from == way.stopSignals.size() || (upTo == way.stopSignals.size() && !wayEndsAt(way, to)))
+        return BlockJunctionObstructed;
+    const size_t first = way.stopSignals[from].section;
+    const size_t last = upTo < way.stopSignals.size() ? std::min(way.stopSignals[upTo].section, way.sections.size())
+                                                      : way.sections.size();
+    for (size_t k = first; k < last; ++k) {
+        const int h = holder[size_t(way.sections[k].section)];
+        if (h == train)
+            continue;
+        waitSection = way.sections[k].section;
+        // Call-on (task 11 has TSRE's own: toward the train it attaches to
+        // or picks up, as it lets it into an occupied block).
+        if (callOn && h >= 0 && size_t(h) < states.size() && shuntsWith(train, h))
+            return BlockOccupied;
+        return BlockJunctionObstructed;
+    }
+    return BlockClear;
+}
+
+bool SimulationCore::requestStop(int signal, int &train) const {
+    train = trainForSignal(signal);
+    if (train < 0 || size_t(train) >= states.size())
+        return false;
+    const TrainState &s = states[size_t(train)];
+    const Runtime &rt = runtime[size_t(train)];
+    if (s.nextStop < 0 || size_t(s.nextStop) >= rt.stops.size())
+        return false;
+    const StopPlan &stop = rt.stops[size_t(s.nextStop)];
+    if (!stop.request || !stop.pickUp || stop.part != s.part)
+        return false;
+    // The signal beside its platform (Open Rails: inside its ends).
+    const double at = signalOnWay(train, signal);
+    return at > stop.platformStart && at < stop.platformEnd;
 }
 
 void SimulationCore::switchChanged(int junction) {
@@ -3173,7 +3633,7 @@ size_t SimulationCore::clearable(const Projection &way, size_t first) const {
         return 1;
     const std::vector<SignalKind> &kinds = in->network->kinds();
     const SignalKind &leading = kinds[size_t(stopSignals[first].kind)];
-    const int wanted = leading.clearAhead;
+    const int wanted = clearAheadOf(stopSignals[first].signal, leading);
     // Legacy: NORMAL heads, the first signal's included. Open Rails mode:
     // signals; a type of 0 clears none beyond it, one of -1 is not counted.
     size_t allowed = 0;
@@ -3186,7 +3646,8 @@ size_t SimulationCore::clearable(const Projection &way, size_t first) const {
             counted += stopSignals[k].normalHeads;
             continue;
         }
-        const int ahead = stopSignals[k].kind >= 0 ? kinds[size_t(stopSignals[k].kind)].clearAhead : 1;
+        const int ahead = stopSignals[k].kind >= 0 ? clearAheadOf(stopSignals[k].signal, kinds[size_t(stopSignals[k].kind)])
+                                                   : 1;
         if (ahead != -1)
             ++counted;
         if (ahead == 0)

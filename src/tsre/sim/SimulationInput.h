@@ -147,6 +147,9 @@ struct StopPlan {
     bool departsEarly = false;
     bool request = false;
     bool needed = true;
+    // Task 11: a request stop someone gets on at (Open Rails' pickupSet,
+    // TRAIN_HAS_REQUEST_STOP).
+    bool pickUp = false;
     bool endStop = false;
     bool forcePosition = false;
     // What its place was made from (MakeInput): at the platform's end

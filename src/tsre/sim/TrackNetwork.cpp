@@ -72,6 +72,10 @@ SignalKind kindOf(const SignalType &type, const SigCfg *config, bool openRailsCo
     if (!type.numClearAhead.isEmpty())
         kind.clearAhead = type.numClearAhead.first();
     kind.countsSignals = openRailsConfig || type.numClearAhead.size() >= 2;
+    if (config != nullptr && !type.normalSubtype.isEmpty())
+        kind.normalSubtype = int(config->normalSubtypes.indexOf(type.normalSubtype));
+    kind.approachPosition = type.approachControlPositionM;
+    kind.approachSpeed = type.approachControlSpeedMpS;
     kind.scriptName = type.script.isEmpty() ? type.name.toLower() : type.script.toLower();
     return kind;
 }
@@ -388,7 +392,8 @@ void TrackNetwork::readScripts(const SigCfg *config) {
             continue;
         }
         hasScripts = true;
-        for (SignalScript &script : ReadSignalScripts(text, QFileInfo(path).fileName(), &problems)) {
+        for (SignalScript &script : ReadSignalScripts(text, QFileInfo(path).fileName(), &problems,
+                                                      config->normalSubtypes)) {
             if (byName.contains(script.name)) {
                 problems << QString("%1 line %2: a second script %3, not used").arg(script.file).arg(script.line)
                                 .arg(script.name);
@@ -480,6 +485,37 @@ void TrackNetwork::levelCrossingsOn(int node, float from, float to, std::vector<
     for (const OnNode &on : levelCrossingsOnNode[size_t(node)])
         if (on.distance >= low && on.distance <= high)
             out.push_back(on.index);
+}
+
+void TrackNetwork::headsOn(int node, float from, float to, std::vector<int> &out) const {
+    if (node <= 0 || size_t(node) >= headsOnNode.size())
+        return;
+    const float low = std::min(from, to), high = std::max(from, to);
+    for (const OnNode &on : headsOnNode[size_t(node)])
+        if (on.distance >= low && on.distance <= high)
+            out.push_back(on.index);
+}
+
+int TrackNetwork::firstFacingJunction(int node, bool forward) const {
+    for (int hops = 0; hops < 256; ++hops) {
+        if (node <= 0 || size_t(node) >= nodes.size() || nodes[size_t(node)].length < 0.0f)
+            return -1;
+        const int end = forward ? 1 : 0;
+        const int junction = nodes[size_t(node)].end[end];
+        if (junction < 0)
+            return -1;
+        const int in = nodes[size_t(node)].pin[end];
+        if (in == 0)
+            return junction;
+        // Trailing: on from its input.
+        const int track = all[size_t(junction)].link[0];
+        if (track < 0)
+            return -1;
+        const TrackSection &next = all[size_t(track)];
+        node = next.node;
+        forward = next.link[0] == junction && track == nodes[size_t(node)].first;
+    }
+    return -1;
 }
 
 int TrackNetwork::junctionSection(int junctionNode) const {

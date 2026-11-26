@@ -295,7 +295,7 @@ SCRIPT Broken
             int nextSignal(int, bool, int) override { return next; }
             int thisSignal(int, bool) override { return 0; }
             int oppositeSignal(int, bool) override { return 0; }
-            int distantMulti(int, int) override { return 0; }
+            int distantMulti(int, int, bool) override { return 0; }
             int feature(int) override { return 0; }
             int drawStateOf(int aspect) override { return aspect; }
         } host;
@@ -335,6 +335,45 @@ SCRIPT Broken
         check(loopState == 105 && loopDraw > Sim::MaxScriptSteps / 2 && loopDraw <= Sim::MaxScriptSteps + 1,
               QString("for, continue, break, +=, do while, ++, ?: (%1); an endless loop stopped (%2 rounds)")
                   .arg(loopState).arg(loopDraw));
+        // Task 11: Open Rails' additions read and run; its normal subtypes
+        // by name (ORSUBTYPE_<name>: an index in sigcfg.dat's list), its
+        // approach control settings read only; the rest still not run.
+        const std::vector<Sim::SignalScript> eleven = Sim::ReadSignalScripts(R"(SCRIPT Known
+	extern float state, draw_state, approach_control_req_position;
+	extern float this_sig_hasnormalsubtype (), next_sig_lvar (), store_lvar ();
+	store_lvar (3, 4);
+	state = this_sig_hasnormalsubtype (ORSUBTYPE_SHUNT) + approach_control_req_position;
+	draw_state = next_sig_lvar (SIGFN_NORMAL, 2) + train_has_request_stop ();
+SCRIPT Unknown
+	extern float state;
+	state = next_sig_hasnormalsubtype (ORSUBTYPE_NONE);
+	approach_control_req_speed = 1;
+	state = hashead (1) + next_sig_id ();
+)", "eleven.dat", nullptr, {"MAIN", "SHUNT"});
+        struct ElevenHost : Host {
+            int stored = -1, storedAt = -1;
+            int thisSignalId() override { return 5; }
+            int nextSignalId(int function, int nth) override { return function == 0 && nth == 1 ? 6 : -1; }
+            int local(int id, int index) override { return id == 6 && index == 2 ? 20 : 0; }
+            void storeLocal(int index, int value) override { storedAt = index; stored = value; }
+            int hasNormalSubtype(int id, int subtype) override { return id == 5 && subtype == 1 ? 1 : 0; }
+            int approachRequired(bool speed) override { return speed ? 7 : 300; }
+            int requestStop() override { return 1; }
+        } elevenHost;
+        int elevenState = -1, elevenDraw = -1;
+        const bool elevenRead = eleven.size() == 2 && eleven[0].usable() && eleven[0].openRails.isEmpty();
+        if (elevenRead)
+            Sim::RunSignalScript(eleven[0], elevenHost, elevenState, elevenDraw);
+        const QString unknownText = eleven.size() == 2 ? eleven[1].problems.join(" | ") : QString();
+        check(elevenRead && elevenState == 301 && elevenDraw == 21 && elevenHost.storedAt == 3 && elevenHost.stored == 4
+                  && eleven[1].openRails == QStringList{"hashead"} && unknownText.contains("unknown normal subtype none")
+                  && unknownText.contains("approach_control_req_speed cannot be set")
+                  && unknownText.contains("next_sig_id takes 1 arguments"),
+              QString("Open Rails' additions (task 11) run: ORSUBTYPE_SHUNT the second subtype, the approach control "
+                      "setting, the next signal's local variable, the request stop (state %1, draw %2, stored %3 at "
+                      "%4); an unknown subtype, setting a read-only one, a wrong argument count told, HASHEAD still "
+                      "not run (%5)")
+                  .arg(elevenState).arg(elevenDraw).arg(elevenHost.stored).arg(elevenHost.storedAt).arg(unknownText));
     }
 
     // An engine's file: mass, force, power, speed, resistance, passengers.
@@ -1700,6 +1739,292 @@ Engine ( Test
                       QString("Open Rails' approach control (task 10): true within 300 m of the train's next signal: "
                               "500 m far %1, near %2; 1000 m far %3, near but not next %4, next but far %5, near %6")
                           .arg(far500).arg(near500).arg(far1000).arg(notNext1000).arg(far1000Next).arg(near1000));
+            }
+            // Task 11: Open Rails' additions in the core, on a line in Open
+            // Rails mode: signals (subtypes MAIN, SHUNT) at 500, 1000 (SHUNT),
+            // 1500 and 1700 m, one facing the other way at 300 m, a request
+            // stop's signal at 700 m, two distants at 1400 and 1450 m (one
+            // calling THIS_SIG_NOUPDATE), a switchstand at 1800 m before a
+            // junction at 2000 m; the train's path takes its second branch.
+            // The signals' scripts store what the functions answer in their
+            // local variables.
+            {
+                TestTrack::Layout t11;
+                t11.end(1, 40);
+                t11.track(40, 1, 2, 20, true);
+                t11.junction(2, 40, 41, 42);
+                t11.track(41, 2, 3, 5, true);
+                t11.end(3, 41);
+                t11.track(42, 2, 4, 5, true);
+                t11.end(4, 42);
+                TestTrack::signalHead(t11, 40, 1101, 500.0f, true, "Main");
+                TestTrack::signalHead(t11, 40, 1102, 1000.0f, true, "Shunt");
+                TestTrack::signalHead(t11, 40, 1103, 1500.0f, true, "Main");
+                TestTrack::signalHead(t11, 40, 1104, 1700.0f, true, "Main");
+                TestTrack::signalHead(t11, 40, 1105, 1800.0f, true, "Stand");
+                TestTrack::signalHead(t11, 40, 1106, 700.0f, true, "Req");
+                TestTrack::signalHead(t11, 40, 1107, 1400.0f, true, "Still");
+                TestTrack::signalHead(t11, 40, 1108, 1450.0f, true, "Live");
+                TestTrack::signalHead(t11, 40, 1111, 300.0f, false, "Main");
+                const QScopedValueRollback<TDB *> t11Live(Game::trackDB, &t11.db);
+                auto t11Geometry = std::make_shared<const Sim::TrackGeometry>(&t11.db);
+                const auto typeOf = [](const char *name, const char *function, const char *extra, const char *aspects) {
+                    return QString(R"(	SignalType ( "%1"
+		SignalFnType ( %2 )
+		%3
+		SignalLightTex ( "ltex" )
+		SignalLights ( 2
+			SignalLight ( 0 "Red Light" Position ( 0 0 0 ) Radius ( 0.1 ) )
+			SignalLight ( 1 "Green Light" Position ( 0 0.3 0 ) Radius ( 0.1 ) )
+		)
+		SignalDrawStates ( 3
+			SignalDrawState ( 0 "Red" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 1 "Yellow" DrawLights ( 1 DrawLight ( 0 ) ) )
+			SignalDrawState ( 2 "Green" DrawLights ( 1 DrawLight ( 1 ) ) )
+		)
+		%4
+		SignalNumClearAhead ( 2 )
+	)
+)").arg(name, function, extra, aspects);
+                };
+                const char *threeAspects = R"(SignalAspects ( 3
+			SignalAspect ( STOP "Red" )
+			SignalAspect ( APPROACH_1 "Yellow" )
+			SignalAspect ( CLEAR_2 "Green" )
+		))";
+                const char *twoAspects = R"(SignalAspects ( 2
+			SignalAspect ( APPROACH_1 "Yellow" )
+			SignalAspect ( CLEAR_2 "Green" )
+		))";
+                const QString t11Config = QString(R"(SIMISA@@@@@@@@@@JINX0G0t______
+
+LightTextures ( 1
+	LightTex ( "ltex" "SigLight.ace" 0 0 1 1 )
+)
+LightsTab ( 2
+	LightsTabEntry ( "Red Light" colour ( 255 255 40 40 ) )
+	LightsTabEntry ( "Green Light" colour ( 255 40 255 40 ) )
+)
+ORTSNormalSubtypes ( 2 ORTSNormalSubtype ( "Main" ) ORTSNormalSubtype ( "Shunt" ) )
+ScriptFiles ( ScriptFile ( sigscr.dat ) )
+SignalTypes ( 6
+)") + typeOf("Main", "NORMAL", "ORTSNormalSubtype ( \"MAIN\" ) ApproachControlSettings ( PositionM ( 300.5 ) SpeedMpS ( 12.5 ) )", threeAspects)
+                        + typeOf("Shunt", "NORMAL", "ORTSNormalSubtype ( \"SHUNT\" ) ORTSScript ( Main )", threeAspects)
+                        + typeOf("Stand", "INFO", "", threeAspects) + typeOf("Req", "INFO", "", threeAspects)
+                        + typeOf("Still", "DISTANCE", "", twoAspects) + typeOf("Live", "DISTANCE", "", twoAspects)
+                        + ")\nSignalShapes ( 0 )\n)\n";
+                const QString mainScript = R"(SCRIPT Main
+	extern float state, draw_state, enabled, approach_control_req_position, approach_control_req_speed;
+	if (enabled)
+		state = SIGASP_CLEAR_2;
+	else
+		state = SIGASP_STOP;
+	store_lvar (1, next_sig_id (SIGFN_NORMAL));
+	store_lvar (2, next_nsig_id (SIGFN_NORMAL, 2));
+	store_lvar (3, opp_sig_id (SIGFN_NORMAL));
+	store_lvar (4, opp_sig_id_trainpath (SIGFN_NORMAL));
+	store_lvar (5, id_sig_enabled (next_sig_id (SIGFN_NORMAL)));
+	store_lvar (6, id_sig_lr (next_sig_id (SIGFN_NORMAL), SIGFN_NORMAL));
+	store_lvar (7, this_sig_hasnormalsubtype (ORSUBTYPE_MAIN) * 10 + next_sig_hasnormalsubtype (ORSUBTYPE_SHUNT));
+	store_lvar (8, find_req_normal_signal (ORSUBTYPE_MAIN));
+	store_lvar (9, train_requires_next_signal (next_sig_id (SIGFN_NORMAL), 1));
+	store_lvar (10, route_cleared_to_signal (next_nsig_id (SIGFN_NORMAL, 2)));
+	store_lvar (11, next_sig_lvar (SIGFN_NORMAL, 1));
+	store_lvar (12, approach_control_req_position);
+	store_lvar (13, approach_control_req_speed);
+	store_lvar (14, train_requires_next_signal (next_sig_id (SIGFN_NORMAL), 0));
+	store_lvar (15, route_cleared_to_signal_callon (next_nsig_id (SIGFN_NORMAL, 2)));
+	store_lvar (16, id_sig_lvar (next_sig_id (SIGFN_NORMAL), 1));
+	if (!enabled)
+		activate_timing_trigger ();
+	store_lvar (17, check_timing_trigger (30));
+	draw_state = def_draw_state (state);
+)";
+                const QString otherScripts = R"(SCRIPT Stand
+	extern float state, draw_state;
+	state = switchstand (SIGASP_CLEAR_2, SIGASP_STOP);
+	this_sig_noupdate ();
+	draw_state = def_draw_state (state);
+SCRIPT Req
+	extern float state, draw_state;
+	if (train_has_request_stop ())
+		state = SIGASP_CLEAR_2;
+	else
+		state = SIGASP_STOP;
+	draw_state = def_draw_state (state);
+SCRIPT Still
+	extern float state, draw_state;
+	if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	this_sig_noupdate ();
+	draw_state = def_draw_state (state);
+SCRIPT Live
+	extern float state, draw_state;
+	if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = def_draw_state (state);
+)";
+                int folders = 0;
+                const auto t11Network = [&](const QString &main, bool openRails) {
+                    const QString folder = scripted.path() + QString("/t11-%1").arg(folders++);
+                    QDir().mkpath(folder);
+                    writeUtf16(folder + "/sigcfg.dat", t11Config);
+                    writeText(folder + "/sigscr.dat", main + otherScripts);
+                    const SigCfg config(folder + "/sigcfg.dat");
+                    return std::make_shared<const Sim::TrackNetwork>(&t11.db, *t11Geometry, &config, openRails);
+                };
+                auto n11 = t11Network(mainScript, true);
+                const auto signalOf = [&](const Sim::TrackNetwork &n, int item) {
+                    return n.heads()[size_t(n.headOfItem(item))].signal;
+                };
+                const int s300 = signalOf(*n11, 1111), s500 = signalOf(*n11, 1101), s1000 = signalOf(*n11, 1102);
+                const int s1500 = signalOf(*n11, 1103), s1700 = signalOf(*n11, 1104);
+                bool allScripted = !n11->kinds().empty();
+                for (const Sim::SignalKind &kind : n11->kinds())
+                    allScripted = allScripted && kind.rule == Sim::SignalKind::Rule::Script;
+                const Sim::TrainRoute toBranch = routeOf(&t11.db, {{40, 100.0f}, {42, 300.0f}}, 31.0);
+                Sim::SimulationCore c11(inputOf(t11Geometry, n11, {trainOn(toBranch, *n11, t0)}));
+                c11.step(0.1);
+                const auto locals = [&](const Sim::SimulationCore &c, int signal, std::initializer_list<int> which) {
+                    QStringList out;
+                    for (int index : which)
+                        out << QString::number(c.scriptLocal(signal, index));
+                    return out.join(" ");
+                };
+                const auto aspectAt = [&](const Sim::SimulationCore &c, const Sim::TrackNetwork &n, int item) {
+                    return c.aspects()[size_t(n.headOfItem(item))];
+                };
+                const auto lv = [&](int signal, int index) { return c11.scriptLocal(signal, index); };
+                const QString ids = QString("ids: 300 m %1, 500 m %2, 1000 m %3, 1500 m %4, 1700 m %5")
+                        .arg(s300).arg(s500).arg(s1000).arg(s1500).arg(s1700);
+                check(allScripted && c11.cleared()[size_t(s500)] == 0 && c11.cleared()[size_t(s1000)] == 0
+                          && c11.cleared()[size_t(s1500)] < 0 && lv(s500, 1) == s1000 && lv(s500, 2) == s1500
+                          && lv(s1000, 1) == s1500 && lv(s1000, 2) == s1700 && lv(s500, 11) == s1500
+                          && lv(s500, 16) == s1500 && lv(s500, 5) == 1 && lv(s1000, 5) == 0
+                          && lv(s500, 6) == SignalType::CLEAR_2 && lv(s1000, 6) == SignalType::STOP,
+                      QString("Open Rails' signal idents (task 11): NEXT_SIG_ID, NEXT_NSIG_ID, ID_SIG_ENABLED, "
+                              "ID_SIG_LR, and the next signal's local variable (NEXT_SIG_LVAR, ID_SIG_LVAR): at 500 m "
+                              "[%1], at 1000 m [%2]; %3")
+                          .arg(locals(c11, s500, {1, 2, 5, 6, 11, 16}), locals(c11, s1000, {1, 2, 5, 6}), ids));
+                check(lv(s500, 7) == 11 && lv(s1000, 7) == 0 && lv(s500, 8) == s1500 && lv(s1000, 8) == s1500
+                          && lv(s500, 12) == 300 && lv(s500, 13) == 12 && lv(s1000, 12) == -1,
+                      QString("normal subtypes (THIS_ and NEXT_SIG_HASNORMALSUBTYPE: 500 m MAIN before a SHUNT %1, "
+                              "1000 m %2; FIND_REQ_NORMAL_SIGNAL(MAIN) past the SHUNT: %3, %4), the type's approach "
+                              "control settings to the nearest, halves to even (300.5 m %5, 12.5 m/s %6; none %7)")
+                          .arg(lv(s500, 7)).arg(lv(s1000, 7)).arg(lv(s500, 8)).arg(lv(s1000, 8)).arg(lv(s500, 12))
+                          .arg(lv(s500, 13)).arg(lv(s1000, 12)));
+                const int opp1000 = lv(s1000, 3), oppPath1000 = lv(s1000, 4), cleared1000 = lv(s1000, 10);
+                const int callOn1000 = lv(s1000, 15), cleared500 = lv(s500, 10);
+                const int enabled1500Before = lv(s1000, 5), timerEarly = lv(s1000, 17);
+                const int upTo1000 = lv(s500, 14), past1000 = lv(s500, 9);
+                const int still = aspectAt(c11, *n11, 1107), live = aspectAt(c11, *n11, 1108);
+                const int standBefore = aspectAt(c11, *n11, 1105);
+                // On until the train's rear is past 500 m (its next signal
+                // 1000 m: 1500 m cleared too), 32 s at least.
+                for (int i = 0; i < 8000 && (c11.trains()[0].front + 69.0 - 40.0 < 520.0 || c11.time() < t0 + 32.0); ++i)
+                    c11.step(0.1);
+                check(opp1000 == s300 && oppPath1000 == s300 && lv(s1000, 3) == -1 && lv(s1000, 4) == s300
+                          && lv(s1500, 3) == -1 && lv(s1500, 4) == s300,
+                      QString("OPP_SIG_ID: the signal facing the other way behind it on the track held for its train "
+                              "(at 1000 m: %1, -1 once the train's rear is past 500 m: %2); OPP_SIG_ID_TRAINPATH "
+                              "back along the path (%3, then %4; at 1500 m %5 and %6)")
+                          .arg(opp1000).arg(lv(s1000, 3)).arg(oppPath1000).arg(lv(s1000, 4)).arg(lv(s1500, 3))
+                          .arg(lv(s1500, 4)));
+                check(cleared500 == Sim::BlockClear && cleared1000 == Sim::BlockJunctionObstructed
+                          && callOn1000 == Sim::BlockJunctionObstructed && lv(s1000, 10) == Sim::BlockClear
+                          && upTo1000 == 1 && past1000 == 1 && enabled1500Before == 0 && lv(s1000, 5) == 1,
+                      QString("ROUTE_CLEARED_TO_SIGNAL: 500 m to 1500 m held %1; 1000 m to 1700 m not yet %2 (call-on "
+                              "%3), held once 1500 m is cleared %4; TRAIN_REQUIRES_NEXT_SIGNAL up to and past it %5 "
+                              "%6; ID_SIG_ENABLED run again as 1500 m is cleared (%7, %8)")
+                          .arg(cleared500).arg(cleared1000).arg(callOn1000).arg(lv(s1000, 10)).arg(upTo1000)
+                          .arg(past1000).arg(enabled1500Before).arg(lv(s1000, 5)));
+                check(timerEarly == 0 && lv(s1000, 17) == 1 && still == SignalType::APPROACH_1
+                          && live == SignalType::APPROACH_1 && aspectAt(c11, *n11, 1108) == SignalType::CLEAR_2
+                          && aspectAt(c11, *n11, 1107) == SignalType::APPROACH_1,
+                      QString("CHECK_TIMING_TRIGGER(30) set before 1000 m was cleared: no at first (%1), yes 32 s on "
+                              "(%2, run again then); THIS_SIG_NOUPDATE: the distant at 1400 m keeps its first aspect "
+                              "(%3, then %4), the one at 1450 m follows 1500 m (%5, then %6)")
+                          .arg(timerEarly).arg(lv(s1000, 17)).arg(still).arg(aspectAt(c11, *n11, 1107)).arg(live)
+                          .arg(aspectAt(c11, *n11, 1108)));
+                // On until the junction is held (its second branch set).
+                for (int i = 0; i < 20000 && c11.cleared()[size_t(s1700)] < 0; ++i)
+                    c11.step(0.1);
+                check(standBefore == SignalType::CLEAR_2 && aspectAt(c11, *n11, 1105) == SignalType::STOP,
+                      QString("SWITCHSTAND: the switch beyond it on its first route (CLEAR_2, %1), set to the second "
+                              "(STOP, %2), with THIS_SIG_NOUPDATE")
+                          .arg(standBefore).arg(aspectAt(c11, *n11, 1105)));
+                // The path ending at 1200 m: 1000 m's next signal is 1500 m
+                // (its track section's end), the path goes up to it, not past.
+                const Sim::TrainRoute to1200 = routeOf(&t11.db, {{40, 100.0f}, {40, 1200.0f}}, 31.0);
+                Sim::SimulationCore shortCore(inputOf(t11Geometry, n11, {trainOn(to1200, *n11, t0)}));
+                shortCore.step(0.1);
+                // Open Rails' route holds whole track sections: 1500 m is the
+                // MAIN signal FIND_REQ_NORMAL_SIGNAL finds, and the route to
+                // it is held (ROUTE_CLEARED_TO_SIGNAL from 500 m: BLOCK_CLEAR).
+                check(shortCore.scriptLocal(s1000, 1) == s1500 && shortCore.scriptLocal(s1000, 14) == 1
+                          && shortCore.scriptLocal(s1000, 9) == 0 && shortCore.scriptLocal(s1000, 8) == s1500
+                          && shortCore.scriptLocal(s500, 10) == Sim::BlockClear,
+                      QString("the path ending at 1200 m: TRAIN_REQUIRES_NEXT_SIGNAL up to 1500 m %1, past it %2; the "
+                              "signal ending its last track section FIND_REQ_NORMAL_SIGNAL's MAIN one (%3), the route "
+                              "from 500 m to it held (%4)")
+                          .arg(shortCore.scriptLocal(s1000, 14)).arg(shortCore.scriptLocal(s1000, 9))
+                          .arg(shortCore.scriptLocal(s1000, 8)).arg(shortCore.scriptLocal(s500, 10)));
+                // How far ahead it clears (Open Rails mode): two from the
+                // type; three, one with the scripts' INCREASE_ and DECREASE_-
+                // SIGNALNUMCLEARAHEAD(1); two with INCREASE_ in the legacy mode.
+                const auto clearedAtStart = [&](const QString &line, bool openRails) {
+                    QString script = mainScript;
+                    script.replace("\tdraw_state = def_draw_state (state);\n", line + "\tdraw_state = def_draw_state (state);\n");
+                    auto n = t11Network(script, openRails);
+                    Sim::SimulationCore c(inputOf(t11Geometry, n, {trainOn(toBranch, *n, t0)}));
+                    c.step(0.1);
+                    int count = 0;
+                    for (int s : {s500, s1000, s1500, s1700})
+                        count += c.cleared()[size_t(s)] == 0 ? 1 : 0;
+                    return count;
+                };
+                const int byType = clearedAtStart("", true);
+                const int increased = clearedAtStart("\tincrease_signalnumclearahead (1);\n", true);
+                const int decreased = clearedAtStart("\tdecrease_signalnumclearahead (1);\n", true);
+                const int legacy = clearedAtStart("\tincrease_signalnumclearahead (1);\n", false);
+                const int setAndReset = clearedAtStart("\tset_signalnumclearahead (4);\n\treset_signalnumclearahead ();\n", true);
+                check(byType == 2 && increased == 3 && decreased == 1 && legacy == 2 && setAndReset == 2,
+                      QString("SIGNALNUMCLEARAHEAD from scripts: signals cleared at the start %1 by the type, %2 "
+                              "increased by one, %3 decreased, %4 increased in the legacy mode (no change), %5 set "
+                              "then reset").arg(byType).arg(increased).arg(decreased).arg(legacy).arg(setAndReset));
+                // TRAIN_HAS_REQUEST_STOP: the train's next stop a request stop
+                // at the platform beside the signal at 700 m: someone to pick
+                // up (CLEAR_2), only to set down (STOP).
+                const auto requestAspect = [&](bool pickUp) {
+                    Sim::TrainPlan plan = trainOn(toBranch, *n11, t0);
+                    double at = -1.0;
+                    for (const Sim::ProjectedItem &item : plan.projection[0].heads)
+                        if (item.index == n11->headOfItem(1106))
+                            at = item.at;
+                    Sim::StopPlan stop;
+                    stop.part = 0;
+                    stop.platformStart = at - 60.0;
+                    stop.platformEnd = at + 40.0;
+                    stop.front = at + 30.0;
+                    stop.platform = "Request";
+                    stop.holdsExit = false;
+                    stop.request = true;
+                    stop.needed = true;
+                    stop.pickUp = pickUp;
+                    plan.stops = {stop};
+                    Sim::SimulationCore c(inputOf(t11Geometry, n11, {plan}));
+                    c.step(0.1);
+                    return aspectAt(c, *n11, 1106);
+                };
+                const int pickingUp = requestAspect(true), settingDown = requestAspect(false);
+                check(pickingUp == SignalType::CLEAR_2 && settingDown == SignalType::STOP,
+                      QString("TRAIN_HAS_REQUEST_STOP: a signal without NORMAL heads beside the platform of the "
+                              "train's next stop, a request stop: someone to pick up %1, only to set down %2")
+                          .arg(pickingUp).arg(settingDown));
             }
             Sim::SimulationCore basicCore(run(homeOnly));
             basicCore.step(0.1);
