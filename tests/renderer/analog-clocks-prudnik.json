@@ -1,0 +1,192 @@
+{
+  "notes": "Open Rails' analog clocks (docs/tasks/shapes/22-analog-clocks.md) on PRUDNIK (--game-root ~/ORTS/OR_PSK --route PRUDNIK --set core.rendering.tileRadius=0 --set core.rendering.objectLodDistance=300). zegarperon_2.s (UiD 10420, tile w-005389+014862, hands 3.99 m up, a face each side along x) at 10:08:37 and 15:45:20; zegar_DYSTEN_okragly.s (UiD 6068, tile w-005382+014866, a second hand, turned 165 degrees) at 10:08:37 from four sides. A view's \"time\" is the world clock's hours (no simulation); a load-tiles view first on each tile.",
+  "output": "build/renderer-analog-clocks",
+  "width": 960,
+  "height": 600,
+  "pickGrid": [
+    1,
+    1
+  ],
+  "timingFrames": 1,
+  "diffTolerance": 16,
+  "shadows": false,
+  "hideAll": true,
+  "settle": {
+    "minFrames": 6,
+    "stableFrames": 2,
+    "maxFrames": 120,
+    "maxSeconds": 180
+  },
+  "views": [
+    {
+      "name": "load-tiles",
+      "tile": [
+        -5389,
+        -14862
+      ],
+      "pos": [
+        432.105,
+        282.484,
+        -410.292
+      ],
+      "rot": [
+        -1.5708,
+        0.0
+      ],
+      "time": 10.143611
+    },
+    {
+      "name": "zegarperon-east-1008",
+      "tile": [
+        -5389,
+        -14862
+      ],
+      "pos": [
+        432.105,
+        282.484,
+        -410.292
+      ],
+      "rot": [
+        -1.5708,
+        0.0
+      ],
+      "time": 10.143611
+    },
+    {
+      "name": "zegarperon-west-1008",
+      "tile": [
+        -5389,
+        -14862
+      ],
+      "pos": [
+        426.105,
+        282.484,
+        -410.292
+      ],
+      "rot": [
+        1.5708,
+        0.0
+      ],
+      "time": 10.143611
+    },
+    {
+      "name": "zegarperon-east-1545",
+      "tile": [
+        -5389,
+        -14862
+      ],
+      "pos": [
+        432.105,
+        282.484,
+        -410.292
+      ],
+      "rot": [
+        -1.5708,
+        0.0
+      ],
+      "time": 15.755556
+    },
+    {
+      "name": "zegarperon-west-1545",
+      "tile": [
+        -5389,
+        -14862
+      ],
+      "pos": [
+        426.105,
+        282.484,
+        -410.292
+      ],
+      "rot": [
+        1.5708,
+        0.0
+      ],
+      "time": 15.755556
+    },
+    {
+      "name": "load-tiles-2",
+      "tile": [
+        -5382,
+        -14866
+      ],
+      "pos": [
+        -391.438,
+        267.062,
+        163.377
+      ],
+      "rot": [
+        1.3121,
+        0.0
+      ],
+      "time": 10.143611
+    },
+    {
+      "name": "dysten-a-1008",
+      "tile": [
+        -5382,
+        -14866
+      ],
+      "pos": [
+        -391.438,
+        267.062,
+        163.377
+      ],
+      "rot": [
+        1.3121,
+        0.0
+      ],
+      "time": 10.143611
+    },
+    {
+      "name": "dysten-b-1008",
+      "tile": [
+        -5382,
+        -14866
+      ],
+      "pos": [
+        -385.638,
+        267.062,
+        164.913
+      ],
+      "rot": [
+        -1.8295,
+        0.0
+      ],
+      "time": 10.143611
+    },
+    {
+      "name": "dysten-c-1008",
+      "tile": [
+        -5382,
+        -14866
+      ],
+      "pos": [
+        -391.438,
+        267.062,
+        164.913
+      ],
+      "rot": [
+        1.8295,
+        0.0
+      ],
+      "time": 10.143611
+    },
+    {
+      "name": "dysten-d-1008",
+      "tile": [
+        -5382,
+        -14866
+      ],
+      "pos": [
+        -385.638,
+        267.062,
+        163.377
+      ],
+      "rot": [
+        -1.3121,
+        0.0
+      ],
+      "time": 10.143611
+    }
+  ]
+}

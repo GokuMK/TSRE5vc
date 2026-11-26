@@ -24,6 +24,7 @@
 #include <tsre/ErrorMessage.h>
 #include <tsre/renderer/Renderer.h>
 #include <tsre/ui/UiRouteDisplays.h>
+#include <tsre/environment/WorldClock.h>
 
 StaticObj::StaticObj() {
     this->shape = -1;
@@ -86,6 +87,8 @@ void StaticObj::load(int x, int y) {
     this->shapeState = shapePointer->newState();
     shapePointer->setAnimated(shapeState, isAnimated());
     this->repaintApplied = false;
+    this->clockLooked = false;
+    this->clockHands.clear();
     this->x = x;
     this->y = y;
     this->position[2] = -this->position[2];
@@ -140,9 +143,51 @@ void StaticObj::updateSim(float deltaTime){
     if (!loaded) return;
     if (shape < 0) return;
     if (jestPQ < 2) return;
-    
-    if(shapePointer != NULL)
-        shapePointer->updateSim(deltaTime, shapeState);
+    if (shapePointer == NULL) return;
+    // A clock's hands follow the time where it is drawn; nothing loops.
+    if (isClock()) return;
+    shapePointer->updateSim(deltaTime, shapeState);
+}
+
+// Open Rails' analog clocks (task shapes 22): a Static or CollideObject
+// whose shape has clock hands shows the time of day with them (showTime).
+// Its other parts stay at rest whatever its Animate flag says. False when
+// it is no clock (or its shape is not loaded yet).
+bool StaticObj::isClock(){
+    if (!shapePointer->isLoaded()) {
+        // Loading (again): looked at once it has.
+        clockLooked = false;
+        clockHands.clear();
+        return false;
+    }
+    if (!clockLooked) {
+        clockLooked = true;
+        clockHands.clear();
+        if (typeID == sstatic || typeID == collideobject)
+            clockHands = ShapeClock::hands(*shapePointer);
+        clockFlag = !isAnimated();
+    }
+    if (clockHands.empty())
+        return false;
+    // Its loop stopped, again after the Animate flag was set.
+    if (clockFlag != isAnimated()) {
+        clockFlag = isAnimated();
+        shapePointer->setAnimated(shapeState, false);
+    }
+    return true;
+}
+
+// The hands at the time of day: the simulation's while one exists, else
+// the world's clock (stopped or not); set where it is drawn, so a paused
+// world (the editor, captures) shows the time too. Unchanged frames cost
+// nothing (Pose::setFrame).
+void StaticObj::showTime(){
+    const double seconds = WorldClock::instance()->hours() * 3600.0;
+    for (const ShapeClock::HandPart &hand : clockHands) {
+        const float frame = ShapeClock::frame(*shapePointer, hand.part, hand.hand, seconds);
+        if (frame >= 0.0f)
+            shapePointer->setPartFrame(shapeState, hand.part, frame);
+    }
 }
 
 bool StaticObj::castsShadows(){
@@ -221,6 +266,9 @@ void StaticObj::pushRenderItems(RenderQueue &queue, float lod, float posx, float
             appliedRepaint = tsreRepaint;
             repaintApplied = true;
         }
+        // Its clock's hands at the time now (task shapes 22).
+        if (isClock())
+            showTime();
         const ShapeLod::Drawing drawing = ShapeLod::apply(*shapePointer, shapeState,
                 {lod, position[1] - playerW[1], {-posx, playerW[1] - position[1], -posz}, matrix});
         queue.setLightsShown(drawing.lights);
@@ -422,6 +470,8 @@ void StaticObj::removeCollisions(){
 void StaticObj::reload(){
     if(shapePointer != NULL)
         shapePointer->reload();
+    clockLooked = false;
+    clockHands.clear();
 }
 
 void StaticObj::save(QTextStream* out){
