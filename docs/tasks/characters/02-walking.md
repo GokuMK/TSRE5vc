@@ -179,8 +179,8 @@ same collision world) stood the character on it. Now:
 
 Platform II's middle, north end and south end now stand on the platform's
 floor (0.65 m over the rail; the middle was on the terrain, 1 m lower).
-The walk areas keep their own rule (the box's tiles, half the diagonal);
-it finds this platform shape.
+The walk areas take their objects the same way since (task humans 04's
+"Fixed later").
 
 ## Left
 - The head's motion as a player setting (comfort): smoothed only, for

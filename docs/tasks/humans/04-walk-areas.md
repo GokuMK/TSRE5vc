@@ -137,6 +137,19 @@ every seed on floor; the parking deck over the platforms is built but not
 reached (dropped). Build 8-9 s on this box while it was loaded (load 35),
 not measured alone.
 
+### Fixed later: a large shape from the next tile (2026-11-26)
+The walking character's collision missed Krakow Glowny's platforms (one
+shape, `CMK-krg-p1.s`, its origin past their south end in the next
+tile; characters task 02's "Fixed later"). The walk areas took objects
+by the same rule: only from the tiles under the box, and by half their
+bounds' diagonal about the origin. Krakow worked as the box reaches into
+that tile; a station on one tile whose platforms' shape has its origin in
+the next, or far from its geometry, would have had no platform floor.
+Now an object reaches as far as its bounds' farthest corner
+(`RouteCollision::reachOf`), and the tiles about the box's (up to
+`RouteCollision::LargestReach`, 1024 m) are looked in too: there only
+shapes already loaded count, and they are not waited for.
+
 ## Left
 - MaSzyna's e3d route shapes give no triangles yet (their objects are left
   out of walk areas).

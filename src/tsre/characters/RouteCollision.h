@@ -50,7 +50,8 @@ public:
     static constexpr float Needed = 16.0f;
     static constexpr float Again = 4.0f;
     // The farthest a shape is looked for beyond Ahead: objects in the tiles
-    // within Ahead + LargestReach, whose shapes reach within Ahead.
+    // within Ahead + LargestReach, whose shapes reach within Ahead (the
+    // walk areas likewise beyond their box).
     static constexpr float LargestReach = 1024.0f;
     static constexpr float DefaultReach = 100.0f;
 
