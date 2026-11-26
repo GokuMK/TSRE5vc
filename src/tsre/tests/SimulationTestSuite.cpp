@@ -1,4 +1,5 @@
 #include <tsre/tests/SimulationTestSuite.h>
+#include <tsre/tests/RouteDatabase.h>
 
 #include <QDebug>
 #include <QDir>
@@ -48,7 +49,6 @@
 #include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/world/Route.h>
-#include <tsre/world/Trk.h>
 
 namespace {
 
@@ -1496,6 +1496,115 @@ Engine ( Test
                       && aspectIn(scriptedCore, *byScript, 972) == SignalType::CLEAR_2,
                   QString("the train past it: the signal at 500 m at stop, the one at 1000 m still clear (%1 %2)")
                       .arg(aspectIn(scriptedCore, *byScript, 971)).arg(aspectIn(scriptedCore, *byScript, 972)));
+            // Not cleared for a train (Open Rails' getBlockState_notRouted):
+            // a signal's block state on its fixed route, as CMK's block
+            // signals read it (PKP_BLOK_NORMAL: RESTRICTING while its block
+            // is clear, STOP while occupied).
+            {
+                const QString blokScript = R"(SCRIPT Home
+	extern float block_state (), def_draw_state ();
+	extern float state, draw_state, enabled;
+	state = SIGASP_CLEAR_2;
+	if (enabled && block_state() !=# BLOCK_CLEAR)
+		state = SIGASP_STOP;
+	if (!enabled && block_state() ==# BLOCK_OCCUPIED)
+		state = SIGASP_STOP;
+	if (!enabled && block_state() ==# BLOCK_CLEAR)
+		state = SIGASP_RESTRICTING;
+	if (!enabled && block_state() ==# BLOCK_JN_OBSTRUCTED)
+		state = SIGASP_STOP_AND_PROCEED;
+	draw_state = def_draw_state (state);
+)";
+                auto blok = networkWith(blokScript + distScript, scripted.path() + "/blok");
+                Sim::SimulationCore blokCore(run(blok));
+                blokCore.step(0.1);
+                const int s973Start = aspectIn(blokCore, *blok, 973);
+                const int signal500 = blok->heads()[size_t(blok->headOfItem(971))].signal;
+                for (int i = 0; i < 4000 && blokCore.trains()[0].front + 69.0 < 600.0; ++i)
+                    blokCore.step(0.1);
+                const int inBlock = aspectIn(blokCore, *blok, 971);
+                const bool notCleared = blokCore.cleared()[size_t(signal500)] < 0;
+                for (int i = 0; i < 8000 && blokCore.trains()[0].front + 69.0 - blokCore.lengthOf(0) < 1010.0; ++i)
+                    blokCore.step(0.1);
+                const int leftBlock = aspectIn(blokCore, *blok, 971);
+                check(!blok->fixedRoute(signal500).empty() && s973Start == SignalType::STOP && notCleared
+                          && inBlock == SignalType::STOP && leftBlock == SignalType::RESTRICTING,
+                      QString("signals not cleared read their fixed route's block (Open Rails): standing cars past "
+                              "1500 m: STOP (%1); the train past 500 m in its block: STOP (%2), out of it: "
+                              "RESTRICTING (%3)").arg(s973Start).arg(inBlock).arg(leftBlock));
+            }
+            // A signal cleared into a route ending before its next signal
+            // (Open Rails' sigfound): a line with signals at 500, 1000 and
+            // 1500 m, a junction at 2000 m, a signal 200 m up its main
+            // branch; automatic block signals (USA2's BNSF3LightA: their
+            // block, then the next signal, cleared or not).
+            {
+                TestTrack::Layout fork;
+                fork.end(1, 20);
+                fork.track(20, 1, 2, 20, true);
+                fork.junction(2, 20, 21, 22);
+                fork.track(21, 2, 3, 5, true);
+                fork.end(3, 21);
+                fork.track(22, 2, 4, 5, true);
+                fork.end(4, 22);
+                for (int k = 1; k <= 3; ++k)
+                    TestTrack::signalHead(fork, 20, 980 + k, 500.0f * k, true, "Home");
+                TestTrack::signalHead(fork, 21, 984, 200.0f, true, "Home");
+                const QScopedValueRollback<TDB *> forkLive(Game::trackDB, &fork.db);
+                auto forkGeometry = std::make_shared<const Sim::TrackGeometry>(&fork.db);
+                const QString absScript = R"(SCRIPT Home
+	extern float block_state (), next_sig_lr (), def_draw_state ();
+	extern float state, draw_state;
+	if (block_state() !=# BLOCK_CLEAR)
+		state = SIGASP_STOP;
+	else if (next_sig_lr (SIGFN_NORMAL) ==# SIGASP_STOP)
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = def_draw_state (state);
+)";
+                QString config = QString(testSigCfg);
+                config.replace("SignalShapes ( 0 )", "ScriptFiles ( ScriptFile ( sigscr.dat ) )\nSignalShapes ( 0 )");
+                const QString folder = scripted.path() + "/fork";
+                QDir().mkpath(folder);
+                writeUtf16(folder + "/sigcfg.dat", config);
+                writeText(folder + "/sigscr.dat", absScript);
+                const SigCfg forkConfig(folder + "/sigcfg.dat");
+                auto forkNetwork = std::make_shared<const Sim::TrackNetwork>(&fork.db, *forkGeometry, &forkConfig, false);
+                const auto forkAspect = [&](const Sim::SimulationCore &c, int item) {
+                    return c.aspects()[size_t(forkNetwork->headOfItem(item))];
+                };
+                const auto forkSignal = [&](int item) {
+                    return forkNetwork->heads()[size_t(forkNetwork->headOfItem(item))].signal;
+                };
+                // Its path ends 1700 m in, before the junction: the signal at
+                // 1500 m, cleared for it, has no next signal (APPROACH_1),
+                // not the branch's one (clear past its block).
+                const Sim::TrainRoute toFork = routeOf(&fork.db, {{20, 100.0f}, {20, 1700.0f}}, 31.0);
+                Sim::SimulationCore before(inputOf(forkGeometry, forkNetwork, {trainOn(toFork, *forkNetwork, t0)}));
+                before.step(0.1);
+                for (int i = 0; i < 8000 && before.cleared()[size_t(forkSignal(983))] < 0; ++i)
+                    before.step(0.1);
+                const bool lastCleared = before.cleared()[size_t(forkSignal(983))] == 0;
+                const int lastAspect = forkAspect(before, 983), branchAspect = forkAspect(before, 984);
+                // Its path ends 700 m in: the signal at 500 m reads the one at
+                // 1000 m ending that track section (Open Rails' route holds
+                // whole sections), not cleared: APPROACH_1 before the one at
+                // 1500 m (no fixed route: a junction in its block).
+                const Sim::TrainRoute short700 = routeOf(&fork.db, {{20, 100.0f}, {20, 700.0f}}, 31.0);
+                Sim::SimulationCore shortCore(inputOf(forkGeometry, forkNetwork, {trainOn(short700, *forkNetwork, t0)}));
+                shortCore.step(0.1);
+                const bool firstCleared = shortCore.cleared()[size_t(forkSignal(981))] == 0
+                        && shortCore.cleared()[size_t(forkSignal(982))] < 0;
+                const int firstAspect = forkAspect(shortCore, 981), secondAspect = forkAspect(shortCore, 982);
+                check(lastCleared && lastAspect == SignalType::APPROACH_1 && branchAspect == SignalType::APPROACH_1
+                          && firstCleared && firstAspect == SignalType::CLEAR_2 && secondAspect == SignalType::APPROACH_1,
+                      QString("a signal cleared into a route ending before its next signal has none (Open Rails): "
+                              "the path ending before the junction, the signal at 1500 m at APPROACH_1 (%1; the "
+                              "branch's at %2); ending inside a track section that ends at a signal, that one is still "
+                              "the next: the signal at 500 m CLEAR_2 (%3) before the one at 1000 m (%4)")
+                          .arg(lastAspect).arg(branchAspect).arg(firstAspect).arg(secondAspect));
+            }
             Sim::SimulationCore basicCore(run(homeOnly));
             basicCore.step(0.1);
             Sim::SimulationCore brokenCore(run(broken));
@@ -2208,20 +2317,9 @@ Engine ( Test
 
 int TsreTests::runSimulationRouteSuite(bool verbose) {
     const QDir sourceRoute(Game::root + "/ROUTES/" + Game::route);
-    // The route's TDB: its only one, else the one its TRK names (the app's
-    // choice; E30-Podkarpacie keeps a second "&" copy beside it).
-    QString databaseName;
-    const auto databases = sourceRoute.entryInfoList({"*.tdb"}, QDir::Files);
-    if (databases.size() == 1) {
-        databaseName = databases.first().completeBaseName();
-    } else if (databases.size() > 1) {
-        Trk trk;
-        if (Game::checkRoute(Game::route))
-            trk.load();
-        for (const QFileInfo &file : databases)
-            if (file.completeBaseName() == trk.routeName)
-                databaseName = trk.routeName;
-    }
+    // Its only TDB, else the one its TRK names (E30-Podkarpacie keeps a
+    // second "&" copy beside it).
+    const QString databaseName = TsreTestRoute::databaseName();
     if (databaseName.isEmpty()) {
         qWarning() << "simulation-route requires a route with one TDB or the one its TRK names (--game-root, --route)";
         return 1;

@@ -655,6 +655,12 @@ private:
         // a passing path (stops, waits and passing paths further on moved
         // with it).
         std::vector<RouteTrack> parts;
+        // Where it reverses on each part short of its end (the plan's,
+        // moved with a passing path); -1 the part's end.
+        std::vector<double> reversalAt;
+        // Where its run ends on its last part (the plan's endAt, moved with
+        // a passing path); -1 the part's end.
+        double endAt = -1.0;
         std::vector<Projection> ways;
         std::vector<std::vector<SpeedLimit>> limits;
         std::vector<StopPlan> stops;
@@ -677,6 +683,12 @@ private:
         double activatedAt = -1.0;
         double delay = 0.0;
         bool delayKnown = false;
+        // Phase 9 (`$connect`): when it was put on its track (-1 not yet),
+        // when it arrived at each stop (-1 not), and the connections it gave
+        // up waiting for (stop, its index there): the other train too late.
+        double placedAt = -1.0;
+        std::vector<double> arrivedAt;
+        std::vector<std::pair<int, int>> connectionsDropped;
         std::vector<WaitPlan> waits;
         std::vector<PassingPlan> passing;
         // Each passing path's own track: its track sections, sorted.
@@ -729,11 +741,36 @@ private:
         // into an occupied block (a signal of the network, -1 none).
         bool uncondAttach = false;
         int permission = -1;
+        // The stop signal at STOP it was let past into an occupied block
+        // (permission, work, or phase 9's call-on toward the train it
+        // attaches to or picks up): it leaves a stop with that exit signal
+        // (-1 none; cleared as it departs or reverses).
+        int letPast = -1;
         // The living train it last parted from (took or left cars, was cut
         // off from): a section they both stand in is shared, and it does not
         // attach to that train again until more than UncoupledApart away
         // (Open Rails' UncoupledFrom).
         int partedFrom = -1;
+        // The trains put on the track with it one ahead of another (an Open
+        // Rails timetable's `$create /ahead` chains, task 08 phase 9: three
+        // EMUs stacked on one siding): sections any of them stand in are
+        // shared, as with partedFrom.
+        std::vector<int> placedWith;
+        // Phase 9 (Open Rails' timetable shunting): trains still to attach
+        // to it before it may start (`$attach`); the cars it is placed with
+        // (`$detach /forms` naming it: their track in the cutting train's
+        // way, rear first, and vehicles; who cut them, when), its `$attach`
+        // and `$pickup` done, standing at its path's end waiting for the
+        // train it attaches to.
+        int attachesAwaited = 0;
+        std::vector<RouteInterval> detachTrack;
+        std::vector<Vehicle> detachVehicles;
+        int detachedBy = -1;
+        double detachedAt = -1.0;
+        bool attached = false;
+        bool pickedUp = false;
+        bool transferred = false;
+        bool awaitsAttach = false;
         // The train that joined it after 60001 and runs again with the cars
         // it next cuts off (Open Rails' incorporated train), -1 none.
         int carries = -1;
@@ -901,7 +938,27 @@ private:
     // Cars cut off the train: keeping `keep` cars from its front (in the
     // direction of travel) or from its rear; the others a standing train
     // where they stand. False when the kept part would have no engine.
-    bool cut(int train, int keep, bool keepFront, double time);
+    bool cut(int train, int keep, bool keepFront, double time, bool needsEngine = true);
+    // Phase 9: Open Rails' timetable `$detach` (its portion chosen on the
+    // train's cars from the front; the cars standing, or placed as the
+    // train they form); its partner for `$attach` or `$pickup` (a train, or
+    // StandingConsist for `/static`), -1 none; a standing train's cars
+    // gone from the track.
+    void detach(int train, const TrainPlan::Detach &what, double time);
+    bool shuntsWith(int train, int other) const;
+    // How far ahead of the train's front the other train's nearer end is:
+    // on its route, or just beyond its route's end on the same track node;
+    // -1 not there.
+    double gapTo(int train, int other) const;
+    // A train put on its track may stand beside `other`, standing at rest
+    // in a section it would stand in, the two not overlapping (Open Rails'
+    // CanPlaceTrain); then they share the sections both stand in.
+    bool placesBeside(int train, int other) const;
+    void removeStanding(int standingTrain);
+    // The train on its route where both ends of `track` (cars, rear first,
+    // in another train's way) lie on one of its parts, from its present
+    // part on: its part, front and vehicles set; false where none.
+    bool placeOnCars(int train, const std::vector<RouteInterval> &track, const std::vector<Vehicle> &vehicles);
     // The track of a route part between two route distances, in the
     // route's order.
     static std::vector<RouteInterval> slice(const RouteTrack &part, double from, double to);
@@ -963,6 +1020,14 @@ private:
     bool delayOf(int train, double t, double &delay) const;
     float topSpeedOf(int train, double t) const;
     void takeFormingVehicles(int train);
+    // Phase 9 (Open Rails' StartFromAITrain): a train formed of another's
+    // vehicles (`$forms`) stands where that one stands, its front at that
+    // one's front or rear where its first part passes there; else at its
+    // own start.
+    void placeWhereFormed(int train);
+    // Puts the train on part `part` at `front`, its next stop and waiting
+    // point the first ones ahead.
+    void placeAt(int train, int part, double front);
     bool aheadFront(int train, double &front) const;
     // Its run begins (at its start time, on its track): at its first station
     // when it stands there, else running.
@@ -981,6 +1046,22 @@ private:
     // Standing at a station: its exit signal is next and shows STOP while
     // it waits for it (task 08).
     bool waitsAtExit(int train) const;
+    // Where its run on the part it is on ends: the part's end, or on its
+    // last part its path's end short of that (phase 9, endAt).
+    double runEnd(int train) const;
+    // The train it waits for at its path's end to couple to (`$attach` not
+    // done yet), -1 none.
+    int awaitedPartner(int train) const;
+    // Phase 9: a train standing in the section where a train's path with a
+    // `$transfer` naming it ends waits for that transfer (Open Rails'
+    // NeedTrainTransfer); not on its track yet, where it would stand.
+    bool awaitsTransfer(int train) const;
+    // Each train's trains with a `$transfer` naming it.
+    std::vector<std::vector<int>> transferers;
+    // Standing at its stop `stop` (phase 9, `$connect`): true while it waits
+    // for a connecting train on its way; `heldUntil` raised to when it may
+    // leave after those that arrived.
+    bool connectionWait(int train, int stop, double now, double &heldUntil);
     void record(double time, int train, TrainEvent::Kind kind, int index = -1);
     // Reservation (task 02): the sections under a train standing at its
     // start, all or nothing; the track ahead up to its lookahead, a section
@@ -1010,6 +1091,23 @@ private:
     // may have changed.
     void evaluateAspects();
     void clearedChanged(int signal);
+    // A section's holder changed: the signals not cleared for a train whose
+    // fixed route has it run their scripts again (their block state).
+    void blockChanged(int section);
+    // A signal not cleared for a train (Open Rails' getBlockState_notRouted):
+    // on its fixed route, occupied by a train going its way or standing
+    // cars, BLOCK_OCCUPIED; by one coming the other way, JN_OBSTRUCTED;
+    // else clear. Without a fixed route (a junction or crossing in its
+    // block), JN_OBSTRUCTED.
+    int unroutedBlockState(int signal) const;
+    // Whether `next` is a signal's next NORMAL signal as Open Rails takes
+    // it: for a signal cleared for a train, the one its cleared route ends
+    // at (Open Rails' sigfound): on the train's way (its last part) or
+    // ending the track section the way ends in; none when the way ends
+    // before a junction or track end. Else (a part ending at a reversal,
+    // which Open Rails runs on past the reversal point; a signal not
+    // cleared) the next along the switches.
+    bool nextOnClearedRoute(int signal, int next) const;
     void switchChanged(int junction);
     // The stretches of each pair of trains; those of two trains' parts.
     void findStretches();

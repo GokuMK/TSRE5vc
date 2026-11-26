@@ -1,4 +1,5 @@
 #include <tsre/tests/ActivityExportTestSuite.h>
+#include <tsre/tests/RouteDatabase.h>
 
 #include <QDebug>
 #include <QDir>
@@ -55,16 +56,17 @@ int TsreTests::runActivityExportSuite(bool verbose) {
         return 1;
     }
     const QDir sourceRoute(Game::root + "/ROUTES/" + Game::route);
-    const auto databases = sourceRoute.entryInfoList({"*.tdb"}, QDir::Files);
-    if (databases.size() != 1) {
-        qWarning() << "activity-export requires a route with one TDB (--game-root, --route)";
+    // Its only TDB, else the one its TRK names.
+    const QString databaseName = TsreTestRoute::databaseName();
+    if (databaseName.isEmpty()) {
+        qWarning() << "activity-export requires a route with one TDB or the one its TRK names (--game-root, --route)";
         return 1;
     }
     // The files of an earlier run go first (their names would be taken).
     for (const QString &dir : {"ACTIVITIES", "TRAFFIC"})
         for (const QString &entry : QDir(sourceRoute.filePath(dir)).entryList({"tsre_*"}, QDir::Files))
             QFile::remove(sourceRoute.filePath(dir) + "/" + entry);
-    const QScopedValueRollback<QString> routeName(Game::routeName, databases.first().completeBaseName());
+    const QScopedValueRollback<QString> routeName(Game::routeName, databaseName);
     const QScopedValueRollback<bool> write(Game::writeEnabled, true);
     TSectionDAT sections(false, false);
     if (QFileInfo::exists(sourceRoute.filePath("tsection.dat")))

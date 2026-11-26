@@ -300,21 +300,21 @@ int runTimetableUiSuite(bool verbose) {
         emit start->editingFinished();
         QApplication::processEvents();
     }
-    // Phase 8: commands edited: T1's note (with $connect, not run by TSRE:
-    // kept, shown in orange), its stop's at Beta, Beta's for every train
-    // ($closeup, not run either; undone and set again).
+    // Phase 8: commands edited: T1's note (with $connect, and $callon not
+    // run by TSRE: kept, shown in orange), its stop's at Beta, Beta's for
+    // every train ($closeup, not run either; undone and set again).
     QLineEdit *note = timetable.findChild<QLineEdit *>("orTrainNote");
     if (note != nullptr) {
-        note->setText("$acc=2 $connect=T2 /maxdelay=5 /hold=2");
+        note->setText("$acc=2 $connect=T2 /maxdelay=5 /hold=2 $callon");
         emit note->editingFinished();
         QApplication::processEvents();
     }
     const OrTimetable::Train &noted = set->timetables[0]->trains[t1];
     note = timetable.findChild<QLineEdit *>("orTrainNote");
-    check(note != nullptr && noted.notes.size() == 2 && noted.notes[1].name == "connect"
-              && note->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=2" && note->styleSheet().contains("color")
-              && note->toolTip().contains("$connect") && set->isUnSaved(),
-          "T1's note edited: $connect kept, the field orange with what TSRE does not run: "
+    check(note != nullptr && noted.notes.size() == 3 && noted.notes[1].name == "connect" && noted.notes[2].name == "callon"
+              && note->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=2 $callon" && note->styleSheet().contains("color")
+              && note->toolTip().contains("$callon") && !note->toolTip().contains("$connect") && set->isUnSaved(),
+          "T1's note edited: $connect and $callon kept, the field orange with what TSRE does not run ($callon): "
               + (note ? note->toolTip() : QString()));
     stops = timetable.findChild<QTreeWidget *>("orTrainStops");
     if (stops != nullptr && stops->topLevelItemCount() > 1)
@@ -378,11 +378,13 @@ int runTimetableUiSuite(bool verbose) {
     QTreeWidgetItem *acc = commandItem(commandList, "$acc");
     QTreeWidgetItem *connect = commandItem(commandList, "$connect");
     QTreeWidgetItem *doo = commandItem(commandList, "$doo");
+    QTreeWidgetItem *callon = commandItem(commandList, "$callon");
     check(picker != nullptr && acc != nullptr && acc->checkState(0) == Qt::Checked && connect != nullptr
-              && connect->checkState(0) == Qt::Checked && connect->foreground(0) != acc->foreground(0) && doo != nullptr
+              && connect->checkState(0) == Qt::Checked && connect->foreground(0) == acc->foreground(0) && callon != nullptr
+              && callon->checkState(0) == Qt::Checked && callon->foreground(0) != acc->foreground(0) && doo != nullptr
               && doo->checkState(0) == Qt::Unchecked && commandItem(commandList, "$hold") == nullptr
               && commandItem(commandList, "$follow") != nullptr,
-          "the note's picker: its commands, $acc and $connect (not run: orange) ticked, no station commands");
+          "the note's picker: its commands, $acc, $connect and $callon (not run: orange) ticked, no station commands");
     if (doo != nullptr)
         doo->setCheckState(0, Qt::Checked);
     if (connect != nullptr)
@@ -398,7 +400,7 @@ int runTimetableUiSuite(bool verbose) {
         emit holdValue->textEdited("3");
     }
     QLineEdit *commandText = picker != nullptr ? picker->findChild<QLineEdit *>("orCommandText") : nullptr;
-    check(filled && commandText != nullptr && commandText->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=3 $doo",
+    check(filled && commandText != nullptr && commandText->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=3 $callon $doo",
           "$connect's value and /hold filled (the other trains offered), $doo ticked, /hold 3: "
               + (commandText ? commandText->text() : QString()));
     if (qEnvironmentVariableIsSet("TSRE_ACTIVITY_UI_SHOTS") && picker != nullptr)
@@ -418,11 +420,11 @@ int runTimetableUiSuite(bool verbose) {
     }
     const OrTimetable::Train &picked = set->timetables[0]->trains[t1];
     note = timetable.findChild<QLineEdit *>("orTrainNote");
-    check(picked.notes.size() == 3 && picked.notes[2].name == "doo" && picked.notes[1].qualifier("hold") == QStringList{"3"}
-              && note != nullptr && note->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=3 $doo",
+    check(picked.notes.size() == 4 && picked.notes[3].name == "doo" && picked.notes[1].qualifier("hold") == QStringList{"3"}
+              && note != nullptr && note->text() == "$acc=2 $connect=T2 /maxdelay=5 /hold=3 $callon $doo",
           "OK: the note set as chosen");
     Undo::UndoLast();
-    check(set->timetables[0]->trains[t1].notes.size() == 2, "undo: the note as it was");
+    check(set->timetables[0]->trains[t1].notes.size() == 3, "undo: the note as it was");
 
     // A stop's cell: the "…" at its right end opens the stop's picker
     // (station commands, $keepclear only for a train's stop); $keepclear
@@ -546,7 +548,7 @@ int runTimetableUiSuite(bool verbose) {
     const QString copied = timetable.addTimetableTrain("T1_2", true);
     const int copy = set->timetables[0]->trainNamed("T1_2");
     check(copied.isEmpty() && copy == t1 + 1 && set->timetables[0]->trains[copy].stops.size() == 2
-              && set->timetables[0]->trains[copy].notes.size() == 2 && set->timetables[0]->trains[copy].path == "P1"
+              && set->timetables[0]->trains[copy].notes.size() == 3 && set->timetables[0]->trains[copy].path == "P1"
               && trains->currentItem() != nullptr && trains->currentItem()->text(1) == "T1_2",
           "Clone Train: T1_2 after T1 with its stops and commands, chosen");
     const QStringList naming = set->timetables[0]->trainsNaming("T2");
@@ -797,7 +799,7 @@ int runTimetableUiSuite(bool verbose) {
     const int r1 = reread.trainNamed("T1");
     check(!set->isUnSaved() && kept.readAll() == originalBytes && r1 >= 0
               && reread.trains[r1].stops[0].timing.departure == 8 * 3600 + 600 && reread.trains[r1].startTime == 8 * 3600 + 120
-              && reread.trains[r1].notes.size() == 2 && reread.trains[r1].notes[1].name == "connect"
+              && reread.trains[r1].notes.size() == 3 && reread.trains[r1].notes[1].name == "connect"
               && reread.trains[r1].stops.size() == 2 && reread.trains[r1].stops[1].commands.size() == 1
               && reread.stations.size() == 2 && reread.stations[1].commands.size() == 1
               && reread.stations[0].commands.size() == 1 && reread.description == "UI timetable"

@@ -305,7 +305,69 @@ TrackNetwork::TrackNetwork(TDB *tdb, const TrackGeometry &geometry, const SigCfg
         last->normal = last->normal
                 || (head.kind >= 0 && types[size_t(head.kind)].function == SignalFunction::Normal);
     }
+    findFixedRoutes();
     readScripts(config);
+}
+
+void TrackNetwork::findFixedRoutes() {
+    fixedRoutes.assign(groups.size(), {});
+    fixedOf.assign(all.size(), {});
+    for (size_t g = 0; g < groups.size(); ++g) {
+        const SignalGroup &group = groups[g];
+        if (!group.normal)
+            continue;
+        std::vector<std::pair<int, bool>> route;
+        int node = group.node;
+        float from = group.distance;
+        bool forward = group.forward;
+        bool fixed = false;
+        for (int hops = 0; hops < 256; ++hops) {
+            if (node <= 0 || size_t(node) >= nodes.size() || nodes[size_t(node)].length < 0.0f)
+                break;
+            // The next NORMAL signal facing this way on the node.
+            bool found = false;
+            float stop = forward ? nodes[size_t(node)].length + 1.0f : -1.0f;
+            const std::vector<OnNode> &on = headsOnNode[size_t(node)];
+            for (size_t i = 0; i < on.size() && !found; ++i) {
+                const OnNode &o = forward ? on[i] : on[on.size() - 1 - i];
+                const SignalHead &head = signalHeads[size_t(o.index)];
+                if (head.forward == forward && head.signal != int(g) && isNormal(head)
+                        && (forward ? o.distance > from + Same : o.distance < from - Same)) {
+                    stop = o.distance;
+                    found = true;
+                }
+            }
+            // Its sections up to there; none a crossing.
+            bool crossing = false;
+            const Node &n = nodes[size_t(node)];
+            for (int i = 0; i < n.count; ++i) {
+                const int k = forward ? n.first + i : n.first + n.count - 1 - i;
+                const TrackSection &section = all[size_t(k)];
+                const float low = std::min(from, stop), high = std::max(from, stop);
+                if (section.to <= low + Same || section.from >= high - Same)
+                    continue;
+                if (section.kind != TrackSection::Track) {
+                    crossing = true;
+                    break;
+                }
+                route.push_back({k, forward});
+            }
+            if (crossing)
+                break;
+            if (found) {
+                fixed = true;
+                break;
+            }
+            // A track end; a junction: none.
+            fixed = n.end[forward ? 1 : 0] < 0;
+            break;
+        }
+        if (!fixed)
+            continue;
+        for (const auto &[section, way] : route)
+            fixedOf[size_t(section)].push_back(int(g));
+        fixedRoutes[g] = std::move(route);
+    }
 }
 
 void TrackNetwork::readScripts(const SigCfg *config) {

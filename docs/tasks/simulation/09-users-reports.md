@@ -149,11 +149,36 @@ flashes. Captured at Psary's exit 3529 showing S3 for a train at 05:41
   100). The copies now drop what names other trains.
 - Route suite on routes with two TDBs (E30 keeps `E30-Podkarpacie&.tdb`):
   the one the TRK names, as the app takes it.
-- E30 in TSRE: 77 of 238 trains end stuck waiting for track and 3 pairs
-  of shunting moves deadlock (CMK: 120 of 521 stuck); 87 more never start,
-  formed of stuck ones. Most wait for other stuck trains, several for
-  freight and shunting moves: the timetables lean on Open Rails'
-  dispatching (loops, `$wait`, shunting). Next after signals.
+- Stuck trains: commands TSRE does not run yet, not differences (task
+  08's catalogue lists them as reported). E30: 71 of 238 trains end stuck
+  waiting for track, 3 pairs of shunting moves deadlock, 87 never start
+  (formed of stuck ones); CMK: 120 of 521 stuck. The timetables' own
+  reports (`timetable-route`): E30 uses `$forcereversal` in 155 trains,
+  `$attach` 31, `$detach` 30, `$connect` 5, `$pickup` 3, `$transfer` 1;
+  CMK `$pickup` 41, `$detach` 38, `$transfer` 7, `$forcereversal` 2,
+  `$connect` 1, `$attach` 1. Followed back through the trains each waits
+  for and the trains each is formed of, every E30 stuck train leads to a
+  train using one of them (the deadlocks are all `$attach`/`$detach`/
+  `$forcereversal` shunting moves); on CMK 78 do, and the other 42 chains
+  run through trains held by `$wait` (KM 91600, IR 11158, the draisine
+  Drezyna 10) whose waited-for trains are blocked the same way, except
+  one still to explain: KM 91300 (Grodzisk to Warszawa Wschodnia,
+  `$wait=SKM 99700 ... /notstarted` at Brwinow) never finishes though
+  SKM 99700 shows no problem, and KM 19600 waits for track behind it.
+  Explained 2026-11-26: not the `$wait`; at Grodzisk KM a shunting
+  signal and a marker stand 21.6 m apart, each clearing only itself, and
+  the train stood 30 m short of the marker, before the shunting signal
+  (KM 91600 the same). Open Rails asks for a signal within 60 m of a
+  stopped train; so does TSRE now (task 08's phase 9).
+- All six commands done (the user, 2026-11-26: not differences but
+  features to add; task 08's phase 9): `$forcereversal`, `$connect`,
+  `$detach`, `$attach`, `$pickup`, `$transfer`, with what they needed
+  and two signal rules found on CMK (above and in task 08). E30: 179 of
+  238 trains finish (63 before), CMK 301 of 521 (87); neither timetable
+  has a command TSRE does not run. USA2's times that moved with them
+  checked against new Open Rails runs (a third rule found there: a
+  signal cleared into a route ending before its next signal has none);
+  task 08's results.
 - Aspects trains see, TSRE against Open Rails, E30 04:45 to 07:50 (3,244
   samples): the same in 63 % (the MSTS routes 80 to 100 %). Most: block
   signals (`PKP_SBL_4st`) CLEAR_1 in Open Rails, CLEAR_2 in TSRE (291:
@@ -193,4 +218,7 @@ flashes. Captured at Psary's exit 3529 showing S3 for a train at 05:41
 
 ## Left
 
-- The E30 and CMK stuck trains, then the aspect comparison again.
+- The stuck trains left (E30 26, CMK 89): followed back, as above.
+- The aspect comparison again once the traffic is alike (E30 now 67 %
+  of 5,900 samples; most: block signals CLEAR_1 or APPROACH_2 in Open
+  Rails where TSRE shows CLEAR_2).

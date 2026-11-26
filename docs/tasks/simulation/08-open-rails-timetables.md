@@ -573,6 +573,150 @@ item, its people (task humans 06) far behind it. Two faults, both in
   stop centred on that. Without the fix: T6 drove on to Eta's far item
   and stood 20 m past it, T7 stood with its middle on Theta's near item.
 
+**Phase 9, the commands CMK and E30 use (2026-11-26, task 09's content).**
+The user: what TSRE does not run yet is not a difference from Open Rails
+but a feature to add; all six these timetables use, in an order chosen
+here: `$forcereversal` (E30 155 trains), `$connect`, then the shunting
+set (`$detach`, `$attach`, `$pickup`, `$transfer`; MSTS activities'
+shunting is task 07's).
+- **Reversals (`$forcereversal`):** Open Rails' timetable trains do not
+  run to their path's reversal point. Where the parts before and after a
+  reversal share track (from the reversal back to where they diverge,
+  `Train.TCReversalInfo`; the walk back not before where the train came
+  onto its part at the reversal before), the train turns once its rear is
+  on that track, past the diverging junction, or, where a signal facing
+  the way back stands on it and the train fits between that signal and
+  the part's end, once its rear has passed that signal (TTTrain's
+  reversal check; `$forcereversal`: the junction always). With a station
+  stop still due on the part it turns at the last one. TSRE ran every
+  part to its end: `TimetableReversals` (input, timetable trains only)
+  gives each part its reversal point (`TrainPlan::reversalAt`, the
+  front's route distance: the rear's place plus the train's length and
+  1 m), the core stands the train there and turns it short of the
+  part's end (task 07's `shortOfEnd`), the point moved with a passing
+  path. Fixture (`timetable-commands-more`): a stub with a signal 200 m
+  in facing back; RV turns with its front 241 m past the junction (signal,
+  40 m train, 1 m), RF (`$forcereversal`) 41 m; both end on the other
+  branch. PRUDNIK unchanged (266 of 266 finish, median 51 s early).
+- **`$create /ahead` chains:** three EMUs stacked on Rzeszów's siding
+  (TLO PR 33414 manewry 1 at 00:01, 33411 ahead of it at 00:02, 33406
+  ahead of that at 00:03); a train shared the sections it stands in only
+  with the one train it was last put ahead of (`partedFrom`, task 07), so
+  33406 could not leave past 33414 and the day jammed around Rzeszów.
+  Now each train put ahead of another joins that one's group
+  (`Runtime::placedWith`): every pair of the group shares, and a freed
+  section goes to one of them still standing in it. E30: 91 trains
+  finish (63 before the two), 477 station stops (343).
+- **`$connect=<train> /maxdelay /hold`** (Open Rails'
+  `TTTrain.ProcessConnections`; minutes): a station command; with each
+  train named that stops at the same station (Open Rails' platform name
+  is the station's) the stop's `StopPlan::connections`. Standing there,
+  the train leaves no earlier than `/hold` after such a train arrived
+  (only if it was itself on its track by then: Open Rails notes the
+  arrival for trains that exist); while one runs towards the station,
+  not past it, it waits; with `/maxdelay` only while that one is no
+  later than that, or expected before it leaves (its own delay known),
+  else given up for good. A train not yet on its track, ended or past
+  the station holds nothing. Fixture: A ($max=10 km/h) at Sta 355 s
+  after 08:00; B (`/hold=2`) leaves 120 s after it, C (`/maxdelay=1`, A
+  two minutes late at its 08:03) on time. The `timetable-ui` suite's
+  example of a command not run is `$callon` now.
+- **The shunting set** (Open Rails' `TTTrain`, `DetachInfo`,
+  `AttachInfo`, `TransferInfo`):
+  - `$detach`: in `#dispose` at the path's end before it forms or goes
+    static, last to first, and only with `$forms`, `$triggers` or
+    `$static` (Open Rails ignores it otherwise); in a station's cell on
+    arriving there (a cell without a time: as it starts); in `#note` as
+    it starts. The portion by Open Rails' `GetUnitsToDetach` (power:
+    engines and tenders; `/units=n` cars from the front, -n from the
+    rear); `/forms` puts that train on the cars cut off (not at its own
+    start), `/static` leaves them standing. `/consist` not run.
+  - `$attach=<train>` (`#dispose`): the train named, put on its track,
+    starts only once all attaching to it have; at its path's end the
+    train couples to it within coupling reach, else waits there for it,
+    and is gone. `/firstin /setback` not run.
+  - `$pickup=<train>`, `$pickup /static`: it takes that train's cars, or
+    on its last part the first standing cars or train left static it
+    meets, and goes on.
+  - `$transfer` (`#dispose`): coming up to the other train it moves the
+    giving train's portion (`/give`, `/keep` all but it: this train's;
+    `/take`, `/leave`: the other's), chosen as `$detach`'s from the end
+    met (`/onepower`, `/allpower`, `/nonpower`, `/units`), to the taking
+    train's end met; all of them: the giving train joins the other. Its
+    run then ends where it stands (its `$forms` follows). The train
+    named, standing in the section where this one's path ends, waits for
+    it (`NeedTrainTransfer`); not there at the path's end: no transfer
+    (Open Rails transfers only coming up to it). `/static` without a
+    name: standing cars or a train left static. Transfers in a station's
+    cell and `/consist` not run.
+  - What they need: an attaching, picking up or transferring train's last
+    part goes on to the end of the track section its path ends in (Open
+    Rails' route holds whole sections; it still ends at its path's end
+    when nobody is there, `TrainPlan::endAt`); the two share the
+    sections they stand in; a signal at STOP into the partner's block
+    lets it in (call-on), and it leaves a stop past that exit signal;
+    a train put on its track may stand beside one at rest in its
+    sections (`CanPlaceTrain`); a train formed of another's vehicles is
+    put where that one stands (`StartFromAITrain`), keeping a first stop
+    whose platform it stands on.
+  - Fixtures (`timetable-commands-more`): D's engine forms DL (`$detach
+    /power /forms`), A joins X, A2 waits for X2, P picks up SD (`/static`),
+    G gives R its carriage (`/give /nonpower`), TK takes the unit at S2's
+    end (`/static /take /units=1`), TS takes the carriage SC cut off.
+- **Two signal rules found on CMK** (fixture: `timetable-commands-more`'s
+  close signals; `simulation-core`):
+  - KM 91300 and KM 91600 never left Grodzisk KM: a shunting signal and a
+    marker 21.6 m apart, each clearing only itself; the train stood 30 m
+    short of the marker, before the shunting signal, so it never passed
+    that to ask for the marker. Open Rails' stopped train asks for a
+    signal within twice its clearing distance (60 m) when the one before
+    is cleared (`TTTrain.UpdateStoppedState`); TSRE does too now.
+  - A signal not cleared for a train reads its block on Open Rails' fixed
+    route (`setSignalDefaultNextSignal`, `getBlockState_notRouted`: the
+    sections to the next NORMAL signal or a track end, no junction or
+    crossing between): a train in it going its way or standing cars
+    BLOCK_OCCUPIED, one coming the other way JN_OBSTRUCTED, else
+    BLOCK_CLEAR; without a fixed route JN_OBSTRUCTED (TSRE said that for
+    every signal not cleared). CMK's `PKP_BLOK_NORMAL` shows RESTRICTING
+    not cleared, so Warszawa Zachodnia's exit signal (`PKP_SEM_5k_BC`,
+    reading the next signal) shows RESTRICTING to the shunting move of
+    PWE 021010: Open Rails, run 2026-11-26, leaves 06:01:20, runs round
+    and picks up the coaches about 06:06; TSRE 06:09.
+  - Found with it on USA2 (Open Rails runs 2026-11-26): a signal cleared
+    for a train whose route ends before the next signal has no next
+    signal (Open Rails' `sigfound` -1, `next_sig_lr` STOP). Open Rails'
+    route holds whole track sections, so the signal ending the section
+    the path ends in is still the next one; a junction or a track end
+    there, none. Only a train's last part: Open Rails runs a part ending
+    at a reversal on past the reversal point. TSRE took the next signal
+    along the switches, past the path's end (`SimulationCore::
+    nextOnClearedRoute`; fixture in `simulation-core`). Before the fixed
+    routes that signal read JN_OBSTRUCTED, which happened to give the
+    same aspect.
+- **Results:** E30 179 of 238 trains finish (63 before phase 9, 91 after
+  the reversals), 26 stuck; CMK 301 of 521 (87), 89 stuck, 4135 station
+  stops (1434); PRUDNIK unchanged (266 of 266). MSTS routes: EUROPE1
+  and JAPAN1 the same event by event. Neither timetable has a command
+  TSRE does not run (their reports list content problems only). E30's
+  aspects against Open Rails: the same in 67 % of 5,900 samples (the
+  fixed routes 12 of them).
+- **USA2 against Open Rails** (2026-11-26; the earlier runs' samples were
+  not kept, so five activities were run again in Open Rails with
+  `scripts/orts-simulation-compare.sh`, TSRE with `TSRE_SIM_NOWORK`;
+  whitpull crashes Open Rails, in `Lights.cs` with both builds): 7 of
+  its 16 activities' event times differ from main (11 with the aspects
+  sampled every 10 s), AI trains reaching their path's end up to 32 s
+  sooner (one 13 s later), mornimod's activity ending 23 s sooner. Where
+  main and this phase differ, Open Rails
+  agrees with this phase on all 46 paired aspect samples (local_one 9,
+  local_cutbank 8, evegrain 29); the same aspect as Open Rails in 176 of
+  281 paired samples of these runs (main 130). local_one's traffic train
+  leaves Open Rails at about 08:20:57, TSRE 08:20:58 (main 08:21:19).
+  Left: dawnoil's player train sees RESTRICTING in Open Rails at a
+  signal whose route ends before a junction (block JN_OBSTRUCTED while
+  the signal is not yet the train's next one), CLEAR_2 here (main
+  APPROACH_2).
+
 ## Left
 - **Train data rows** (`#tsre.extra.<key>`, displays task scripting 02,
   2026-11-01; TSRE's own fields `#tsre.<field>` with its step 10): read,
@@ -743,7 +887,7 @@ PRUDNIK copy (phase 8's notes).
 | --- | --- | --- |
 | `$acc`, `$dec` | Runs | |
 | `$doo` | As Open Rails (only a player's departure sound) | driving |
-| `$forcereversal` | Reported | |
+| `$forcereversal` | Runs (phase 9: with every timetable train's reversal where its way back leaves the way it came) | |
 
 **Speed and train commands** (the speed row)
 
@@ -777,13 +921,13 @@ PRUDNIK copy (phase 8's notes).
 | `$follow` and `$wait` `/trigger /endtrigger` | Reported (experimental in Open Rails) | |
 | `$wait=<train>` with `/maxdelay /notstarted /owndelay` | Runs (one wait where the routes join, either way) | |
 | `$wait /atstart` | Reported (waiting in the section it stands in) | |
-| `$connect=<train> /maxdelay /hold` | Reported | |
+| `$connect=<train> /maxdelay /hold` | Runs (phase 9) | |
 | `$waitany=<path> /both /opposite` | Reported | |
 | `$callon`, `$noclaim` | Reported | |
-| `$attach=<train> /firstin /setback` | Reported | shunting |
-| `$detach` (`/power`, `/leadingpower`, `/allleadingpower`, `/trailingpower`, `/alltrailingpower`, `/nonpower`, `/units`, `/consist`; `/forms`, `/static`) | Reported | shunting |
-| `$pickup=<train> /static` | Reported | shunting |
-| `$transfer=<train> /static` (`/give`, `/take`, `/keep`, `/leave`; `/onepower`, `/allpower`, `/nonpower`, `/units`, `/consist`) | Reported | shunting |
+| `$attach=<train> /firstin /setback` | Runs (phase 9, in `#dispose`; `/firstin /setback` reported) | shunting |
+| `$detach` (`/power`, `/leadingpower`, `/allleadingpower`, `/trailingpower`, `/alltrailingpower`, `/nonpower`, `/units`, `/consist`; `/forms`, `/static`) | Runs (phase 9; `/consist` reported) | |
+| `$pickup=<train> /static` | Runs (phase 9, in `#dispose`) | |
+| `$transfer=<train> /static` (`/give`, `/take`, `/keep`, `/leave`; `/onepower`, `/allpower`, `/nonpower`, `/units`, `/consist`) | Runs (phase 9, in `#dispose`; in a station's cell and `/consist` reported) | shunting |
 | `$activate=<train> [/depart]` | Runs* (arriving; `/depart` leaving) | |
 | `$req /pu /pd` | Runs* | |
 | `$req /laststop /approach /message /sound` | Reported (notices for a player) | driving |
@@ -801,7 +945,7 @@ PRUDNIK copy (phase 8's notes).
 | `$stable /out_path /out_time /in_path /in_time /closeup /callon /runround /rrtime /rrpos /speed /name /static /forms /triggers` | Reported (the train ends) | shunting |
 | `$pool=<pool> /direction` | Reported (the train ends) | pools |
 | `$activate` | Runs (when its run ends) | |
-| `$attach`, `$detach`, `$pickup`, `$transfer` | Reported | shunting |
+| `$attach`, `$detach`, `$pickup`, `$transfer` | Runs (phase 9) | |
 
 **Other files**
 
@@ -812,8 +956,10 @@ PRUDNIK copy (phase 8's notes).
 | `.weather-or` (chosen when Open Rails starts) | Not read | weather |
 
 In all: 49 commands (48 in the manual, `$endatlastsignal` in the code);
-TSRE runs 27 (`$static` and `$triggers` with qualifiers it reports), three
-need nothing to run (as Open Rails), 19 are reported. Of the cell
+TSRE runs 33 (`$static` and `$triggers` with qualifiers it reports), three
+need nothing to run (as Open Rails), 13 are reported (phase 9:
+`$forcereversal`, `$connect` and the shunting set `$detach`, `$attach`,
+`$pickup`, `$transfer` run). Of the cell
 notations, `x` and `*` run; `P`'s time is reported.
 
 ## Design (proposal)
@@ -906,10 +1052,11 @@ arrivals and departures at their stations, the formed and static trains.
 
 ## Not in this task
 
-- The shunting commands (`$attach`, `$detach`, `$pickup`, `$transfer`,
-  `$forms` with run-rounds), pools and turntables, Open Rails' weather
-  files, `$callon`, request stops: read and reported, not run; later
-  tasks.
+- `$forms` with run-rounds, `$stable`, pools and turntables, Open
+  Rails' weather files, `$callon`, request stops: read and reported, not
+  run; later tasks. (The shunting commands `$attach`, `$detach`,
+  `$pickup`, `$transfer` run since phase 9, 2026-11-26; transfers in a
+  station's cell and `/consist` not.)
 - Activity events and objects with timetables; events looking at the
   train the player controls (the driving tasks).
 
