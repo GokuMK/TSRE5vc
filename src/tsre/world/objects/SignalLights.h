@@ -40,9 +40,10 @@ public:
         virtual ~StateSource() = default;
         // Changes whenever a draw state it gives may have.
         virtual unsigned long long stateSerial() const = 0;
-        // The draw state's name (lower case) the head of a TDB item shows;
-        // empty for its default.
-        virtual QString drawStateOf(int item) const = 0;
+        // The draw state the head of a TDB item shows: its number in the
+        // type (SignalDrawState's, as a script sets draw_state; several
+        // may share a name, so not by name); -1 for its default.
+        virtual int drawStateOf(int item) const = 0;
     };
     // Null: every head in its default draw state.
     static void setStateSource(const StateSource *source);
@@ -83,13 +84,19 @@ private:
         // as Open Rails lays it (mirrored along x).
         int texture = -1;
         float uv[6] = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+        // A flashing light (DrawLight's FLASHING): lit the first `flashOn`
+        // seconds of every `flashCycle` of the world clock (its type's
+        // SigFlashDuration, Open Rails' 1 s and 1 s by default).
+        bool flashing = false;
+        float flashOn = 1.0f;
+        float flashCycle = 2.0f;
     };
     QVector<Light> lights;
     bool built = false;
     unsigned int builtHeads = 0;
-    // The draw states built (by sub-object; empty the default) and the
-    // source's serial they were asked at.
-    QVector<QString> states;
+    // The draw states built (by sub-object, their numbers; -1 the default)
+    // and the source's serial they were asked at.
+    QVector<int> states;
     unsigned long long statesSerial = 0;
     bool emissive = false;
     // The packets draw the light textures (each loaded; discs until then).

@@ -208,6 +208,15 @@ model as the first operating policy, and threading.
   a median of 22 s earlier in TSRE, 81 % within a minute; open: PRUDNIK's
   block signals Open Rails passes unenabled at 25 km/h, and which train
   takes a junction first at times.
+- [ ] `09-users-reports.md` (started 2026-11-25): users' reports, signals
+  first, on the Polish routes in `~/ORTS/CMK_E30` (CMK and E30, Open
+  Rails timetables): draw states drawn by number (stripe heads such as
+  PKP's `1PAS`, whose states share a name, stayed dark) and flashing
+  lights drawn; Radymno's exit signal (E30): the reporter's TDB lacked a
+  USER1 flag their world file had (Open Rails reads `sig_feature` from
+  the world, TSRE from the TDB; the user, 2026-11-26: TSRE does not load
+  every world file at game load, the editor is to report such content);
+  found: E30's and CMK's stuck trains, aspects 63 % as Open Rails' on E30.
 - [ ] Later: the Open Rails additions that need world data (stored in the
   TDB, `tdb-signal-extension.md`), approach control, location-linked
   passing paths, curve resistance; Open Rails' slower AI pre-run as a

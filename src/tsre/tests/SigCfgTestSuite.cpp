@@ -122,6 +122,14 @@ int TsreTests::runSigCfgSuite(const QString &configurationPath, bool verbose) {
     test.check(home->drawStates[3].name == "red" && home->drawStates[3].index == 3
                    && home->drawState("red") && home->drawState("red")->index == 0,
                "a shared draw state name is kept and finds the first state, as in MSTS");
+    // What a script sets (draw_state = n) and the lights are drawn by: the
+    // number, whatever the names (PKP's 1PAS: three states named "pas").
+    const SignalType *noAspects = cfg.findSignalType("noaspects");
+    test.check(home->drawStateAt(3) == &home->drawStates[3] && home->drawStateAt(0) == &home->drawStates[0]
+                   && home->drawStateAt(7) == nullptr && noAspects && noAspects->drawStateAt(0)
+                   && noAspects->drawStateAt(0)->name == "on",
+               "a draw state found by its number: the second of a shared name, one declared out of order, none "
+               "for a number the type lacks");
     test.check(home->aspects.size() == 3 && home->aspects[1].aspect == SignalType::APPROACH_1
                    && near(home->aspects[1].speedMpS, 20) && home->aspects[2].asap,
                "aspects with speeds and flags");

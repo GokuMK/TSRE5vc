@@ -24,6 +24,13 @@ const SignalType::DrawState *SignalType::drawState(const QString &stateName) con
     return nullptr;
 }
 
+const SignalType::DrawState *SignalType::drawStateAt(int index) const {
+    for (const DrawState &state : drawStates)
+        if (state.index == index)
+            return &state;
+    return nullptr;
+}
+
 const SignalType::DrawState *SignalType::defaultDrawState() const {
     const AspectEntry *restrictive = nullptr;
     for (const AspectEntry &entry : aspects)

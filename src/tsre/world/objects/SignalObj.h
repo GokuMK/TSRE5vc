@@ -58,6 +58,11 @@ public:
     bool isTrackItem();
     void initTrItems(float* tpos);
     ErrorMessage* checkForErrors();
+    // Its heads' options (plates, USER1 to USER4) in their TDB items against
+    // the world file's enabled sub-objects: an Error naming each item that
+    // differs, with a Fix setting them from the world file; NULL when they
+    // agree. checkForErrors runs it last.
+    ErrorMessage* checkOptionFlags();
     void deleteTrItems();
     void enableSubObj(int i);
     void disableSubObj(int i);
