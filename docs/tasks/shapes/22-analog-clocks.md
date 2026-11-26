@@ -74,6 +74,11 @@ hands stood at rest (12:00 on most); the one with the Animate flag looped its 4 
   from `WorldClock::hours()`: the simulation's time while one exists, else
   the world's clock. Posed where drawn, not in `updateSim`, because the
   editor's paused world and captures do not update objects.
+- The Shape Viewer (the user, 2026-11-26: "start from 00:00 time or so"):
+  a clock shape's hands show the viewer's clock, 00:00 when the shape is
+  shown, running in real time while Play is on; nothing else moves, Last
+  Frame does not apply. Captures set it (`"clockTime": "HH:mm:ss"`,
+  `ShapeViewerGLWidget::setClockSeconds`).
 
 ## Where it differs from Open Rails
 1. Hands are found by part (matrix) names, not anim_node names; the two
@@ -94,6 +99,9 @@ hands stood at rest (12:00 on most); the one with the Animate flag looped its 4 
   without animation no clock; each hand's frame (the 4-key hand's last
   quarter on key 0); posed matrices at 03:00 and 10:30 alike in both
   backends.
+- Capture `tests/renderer/analog-clocks-viewer.json`
+  (`shape-viewer-capture`, `--game-root ~/ORTS/OR_PSK`): the viewer at
+  00:00 and at set times.
 - Capture `tests/renderer/analog-clocks-prudnik.json`: PRUDNIK's
   `zegarperon_2.s` (UiD 10420) and a DYSTEN clock with a second hand at
   set times.
@@ -107,6 +115,8 @@ hands stood at rest (12:00 on most); the one with the Animate flag looped its 4 
   reads 10:08 on both faces and 15:45 (the hour hand three quarters on to
   4); the DYSTEN clock 10:08:37, its red second hand on 37 (views a and b
   face it, c and d are from behind or the side).
+- Viewer capture: `zegarperon_2.s` at 00:00 (both hands on 12) and 10:08 on
+  both faces, the DYSTEN clock 10:08:37 with its second hand on 37.
 - `ctest` 11/11; `car-animation`, `shape-materials`, `shape-lights`,
   `shape-emitters`, `shape-axes`, `shape-complex`, `shape-complex-gl`,
   `token-shape-gl`, `displays`, `token-world`, `cab3d`, `eng-lights`,
@@ -115,4 +125,3 @@ hands stood at rest (12:00 on most); the one with the Animate flag looped its 4 
 
 ## Later
 - glTF clocks (part posing for glTF shapes; the same names on nodes).
-- The shape viewer shows a clock's loop (its `updateSim`), not the time.
