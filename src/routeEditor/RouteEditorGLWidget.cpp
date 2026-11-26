@@ -11,6 +11,7 @@
 #include <tsre/world/RouteSwitch.h>
 #include <tsre/world/objects/GroupObj.h>
 #include "RouteEditorGLWidget.h"
+#include "LookPointer.h"
 #include <tsre/renderer/FrameLog.h>
 #include <tsre/renderer/MemoryLog.h>
 #include <tsre/KeyTaker.h>
@@ -182,6 +183,7 @@ viewRole(role) {
     exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
     warmth = float(Settings::floating("core.rendering.warmth"));
     walkMouseSensitivity = float(Settings::floating("core.explore.mouseSensitivity"));
+    lookQtOnly = qEnvironmentVariableIntValue("TSRE_LOOK_QT_POINTER") == 1;
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
     connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
@@ -1244,10 +1246,18 @@ void RouteEditorGLWidget::capturePointer(bool on) {
     // this widget (QRhi), which a widget's cursor does not reach.
     if (on) {
         QGuiApplication::setOverrideCursor(Qt::BlankCursor);
-        QCursor::setPos(mapToGlobal(QPoint(width() / 2, height() / 2)));
+        lookOffsetLogged = false;
+        lookLandingKnown = false;
+        lookLanding = QPointF();
+        centrePointer();
     } else {
         QGuiApplication::restoreOverrideCursor();
     }
+}
+
+void RouteEditorGLWidget::centrePointer() {
+    QCursor::setPos(mapToGlobal(QPoint(width() / 2, height() / 2)));
+    lookAnchorKnown = !lookQtOnly && LookPointer::position(&lookAnchor);
 }
 
 // Each tick before the camera: the characters move (the player's, then the
@@ -5066,21 +5076,56 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
     if (walker() != nullptr) {
         if (pointerCaptured) {
             const QPoint middle(width() / 2, height() / 2);
-            const QPointF by = event->position() - QPointF(middle);
+            // The move: the cursor now against where the last centring put
+            // it, both in the screen's pixels (as view pixels for the
+            // sensitivity). The event's own position is read against the
+            // middle in view pixels, which at fractional scaling the cursor
+            // never quite reaches. A stale queued event reads the cursor
+            // as it is now, so nothing is counted twice; the event the
+            // centring makes reads nothing.
+            QPointF by;
+            QPoint at;
+            const QPointF off = event->position() - QPointF(middle);
+            // The centring's own error stays under a view pixel (under half
+            // a screen pixel rounding the middle, half a view pixel rounding
+            // the window's place); a larger reading is a move.
+            const bool nearMiddle = std::abs(off.x()) < 1.0 && std::abs(off.y()) < 1.0;
+            if (lookAnchorKnown && LookPointer::position(&at)) {
+                by = QPointF(at - lookAnchor) / devicePixelRatioF();
+                if (!lookOffsetLogged && at == lookAnchor && nearMiddle) {
+                    lookOffsetLogged = true;
+                    qInfo().noquote() << QString("Character: the look's pointer centred; Qt reads it %1, %2 view pixels off the middle (scale %3)")
+                            .arg(off.x(), 0, 'f', 2).arg(off.y(), 0, 'f', 2).arg(devicePixelRatioF());
+                }
+            } else {
+                // Qt alone: the first event after the capture's centring is
+                // (as a rule) the one the centring makes, the landing. A
+                // move instead, larger than the error: no landing, as before.
+                if (!lookLandingKnown) {
+                    lookLandingKnown = true;
+                    if (nearMiddle) {
+                        lookLanding = off;
+                        qInfo().noquote() << QString("Character: the look reads Qt's positions; the centred pointer lands %1, %2 view pixels off the middle (scale %3)")
+                                .arg(off.x(), 0, 'f', 2).arg(off.y(), 0, 'f', 2).arg(devicePixelRatioF());
+                        return;
+                    }
+                }
+                by = off - lookLanding;
+            }
             // A cab's lever held: the mouse's moves are its (the view holds).
             if (cabGrab.control >= 0 && (by.x() != 0.0 || by.y() != 0.0)) {
                 cabVirtualCursor += by;
                 QMouseEvent atCursor(QEvent::MouseMove, cabVirtualCursor, mapToGlobal(cabVirtualCursor.toPoint()),
                                      Qt::NoButton, Qt::LeftButton, event->modifiers());
                 cabDrag(&atCursor);
-                QCursor::setPos(mapToGlobal(middle));
+                centrePointer();
                 return;
             }
             if (by.x() != 0.0 || by.y() != 0.0) {
                 const float scale = walkMouseSensitivity / 30.0f * (camera->fov / 45.0f);
                 camera->patrzX(-float(by.x()) * scale);
                 camera->patrzY(-float(by.y()) * scale);
-                QCursor::setPos(mapToGlobal(middle));
+                centrePointer();
             }
         }
         return;

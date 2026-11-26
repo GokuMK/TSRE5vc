@@ -858,6 +858,22 @@ private:
     // core.explore.mouseSensitivity, the look's mouse speed, kept as
     // lampsByDay (the editor's other mouse moves use Game::mouseSpeed).
     float walkMouseSensitivity = 1.0f;
+    // The look's pointer back to the view's middle; where it really landed,
+    // in the screen's pixels (LookPointer), is what the next moves are read
+    // against. lookOffsetLogged: the middle's error as Qt read it, logged
+    // once a capture.
+    void centrePointer();
+    QPoint lookAnchor;
+    bool lookAnchorKnown = false;
+    bool lookOffsetLogged = false;
+    // Without LookPointer (Linux for now; on Windows with
+    // TSRE_LOOK_QT_POINTER=1, for testing): Qt's event positions, less
+    // lookLanding, where the centred pointer reads against the middle in
+    // view pixels. It is fixed while the window stays where it is; taken
+    // from the event the capture's centring makes.
+    bool lookQtOnly = false;
+    bool lookLandingKnown = false;
+    QPointF lookLanding;
     // Captures: the characters held as they are (no time passes for them).
     bool characterHeld = false;
     void stepCharacter(double seconds);
