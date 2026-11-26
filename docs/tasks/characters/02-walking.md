@@ -107,6 +107,30 @@ panel. Riding, doors, seats and cabs are task 03.
   Walking ends when the camera rides something else, the run stops or a
   train is driven. Its keys let go of with it (the view held them: a
   crash found by the captures, a released character's keys called).
+- **The look's pointer** (2026-11-26, the user's report: turning left and
+  right pushed the view up or down at a low sensitivity):
+  - **The cause:** at fractional scaling (the Deck's 250 %) the view's
+    middle in view pixels lies between screen pixels, so the centred
+    pointer lands up to a screen pixel off it; every move read against
+    the middle carried that error, as large as a slow move's own counts.
+    Measured: Qt reads it 0.00, 0.40 view pixels off at scale 2.5.
+  - **Windows (done):** `LookPointer::position` (`src/routeEditor`) reads
+    the cursor in screen pixels (`GetCursorPos`); a move is the cursor
+    against where the last centring put it (`centrePointer`), divided by
+    the scale, so the sensitivity is as before. A stale queued event
+    reads the cursor as it is now; the centring's own event reads nothing.
+  - **Elsewhere (done, the fallback):** Qt's event positions less the
+    landing error, learned from the event the capture's centring makes
+    (under a view pixel; a larger first reading is a move, nothing
+    learned). `TSRE_LOOK_QT_POINTER=1` forces this path on Windows for
+    testing. Both paths tried by the user on Windows.
+  - One log line a capture: `Character: the look's pointer centred; Qt
+    reads it X, Y view pixels off the middle` (Windows), or `the look
+    reads Qt's positions; the centred pointer lands X, Y ...` (fallback).
+  - The look's speed is `core.explore.mouseSensitivity` (System → Explore
+    mode → Mouse sensitivity, until a Controls tab exists), not the
+    editor's `core.camera.mouseSensitivity`.
+  - Open: X11 and Wayland, under Left.
 - **Station people walk round it:** each nearby station's Detour crowd
   has an agent for it (`StationPeople::Impl::placePlayer`): asked the
   character's velocity each step, no avoidance of its own, put again
@@ -145,8 +169,18 @@ panel. Riding, doors, seats and cabs are task 03.
   03 (the user: the complex cabs are in that format).
 - A character left on a track: a train goes through it (the renderer's
   only; the simulation's part, task 04).
-- The pointer: put back with `QCursor::setPos`, which Wayland does not
-  allow (TSRE through XWayland there).
+- The pointer (see "The look's pointer" above):
+  - **X11:** `LookPointer::position` is a commented placeholder
+    (`XQueryPointer` on the root window, `<X11/Xlib.h>`, libX11 linked in
+    the Linux build): to be written and tested on Linux. Until then Linux
+    reads Qt's event positions less the learned landing.
+  - **Wayland:** Qt's own Wayland platform cannot put the pointer back
+    (`QCursor::setPos` does nothing): a look there needs the
+    relative-pointer and pointer-constraints protocols, a task of its own.
+    TSRE runs through XWayland there; whether the X11 path works under
+    XWayland is untested.
+  - The landing (Qt path) is learned once a capture: a window moved while
+    the pointer is captured reads it stale until the next click.
 - Gamepads.
 
 ## Checks

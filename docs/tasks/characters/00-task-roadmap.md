@@ -207,7 +207,11 @@ The character is a `GameObj` the riding camera rides, as a consist:
   held in the window's middle, every move a turn of the look; Escape (or
   the UI taking the keys) lets it go. Qt has no pointer lock: the pointer
   is put back each move (`QCursor::setPos`), which works on Windows and
-  X11; Wayland does not allow it (TSRE through XWayland there);
+  X11; Wayland does not allow it (TSRE through XWayland there). Moves
+  are read in screen pixels on Windows (`LookPointer`, 2026-11-26: at
+  250 % scaling the middle lies between screen pixels and the look
+  drifted up or down); the X11 read is a placeholder still, open in
+  [`02-walking.md`](02-walking.md) (Left);
 - moving, the body turns to the look's way; standing, only past about 60
   degrees;
 - `keyTaker`: move (W A S D and the arrows), run, walk slowly, jump
@@ -420,7 +424,9 @@ server's task 06; 01-03 on the renderer's side.
   reach; the character as a ridden object, Walk, Fly and Here in the
   run's panel, keys, the captured pointer, camera (first and third
   person, the head's motion); stations' people avoiding it; the run
-  keeping its character (step 5).
+  keeping its character (step 5). The look read in screen pixels on
+  Windows (2026-11-26, merged); open: the X11 read, written and tested on
+  Linux, and Wayland's own platform (Left there).
 - [x] [`03-trains.md`](03-trains.md) (built 2026-11-20): riding in a
   car's frame, doors, inside cars, seats; the cab: sit, Stand up, out by
   its door at a stop and back; using things (label under the mark, a
