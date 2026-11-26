@@ -181,16 +181,23 @@ flashes. Captured at Psary's exit 3529 showing S3 for a train at 05:41
   task 08's results.
 - Aspects trains see, TSRE against Open Rails, E30 04:45 to 07:50 (3,244
   samples): the same in 63 % (the MSTS routes 80 to 100 %). Most: block
-  signals (`PKP_SBL_4st`) CLEAR_1 in Open Rails, CLEAR_2 in TSRE (291:
-  in Open Rails the block signal after the next shows APPROACH_2, the one
-  after it not yet cleared); entry signals (`PKP_SEM_5k_A`) CLEAR_2 and
-  APPROACH_2 both ways. The traffic differs while so many TSRE trains are
-  stuck, so this waits for the stuck trains; the block signal pattern
-  is one-sided and looks like the roadmap's open item (Open Rails shows
-  the signal after next uncleared where TSRE clears it). Open Rails' code
-  read so far (requests at each signal passed, `SignalNumClearAhead` in
-  Open Rails mode, `propagateRequest`'s conditions) matches TSRE's
-  window; needs tracing in Open Rails.
+  signals (`PKP_SBL_4st`) CLEAR_1 in Open Rails, CLEAR_2 in TSRE; entry
+  signals (`PKP_SEM_5k_A`) CLEAR_2 and APPROACH_2 both ways.
+- [The block signals explained](reports/e30-block-signals.md)
+  (2026-11-26, the user: how serious is it in reality, what would a real
+  Polish line show): traced in Open Rails, it clears the block signals ahead of a train one
+  at a time as it comes up (the type asks for four); one not yet cleared
+  reads as stop, so the signals before it show S5 (APPROACH_2) and S3
+  (CLEAR_1) with every block free. A real 4-aspect automatic block shows
+  what is on the track (S5 one block free, S3 two, S2 three or more), as
+  TSRE's cleared signals do: of the differing block-signal samples TSRE
+  shows the real aspect in 349, Open Rails in 3 (an occupied block); 126
+  depend on when a station's route is set (TSRE clears its entry signal
+  earlier). TSRE keeps its block signals (the user); the comparison sets
+  Open Rails' clearing window aside (`--trace`, tools below): E30 62 %
+  the same, 73 % without the samples before automatic block signals not
+  yet cleared in Open Rails, 82 % without those before stations' signals
+  too.
 - Open Rails' Linux build cannot load this content's wagons: every
   `TRAINSET/*/OPENRAILS/*.wag` includes its MSTS file as `..\name.wag`,
   and its include path keeps the backslash. Comparison runs use a local
@@ -213,12 +220,26 @@ flashes. Captured at Psary's exit 3529 showing S3 for a train at 05:41
 - Route suite events: each "signal" sample names the next signal's first
   NORMAL head (`item`); `ORTS_ASPECTS_BY_SIGNAL=<n>` makes
   `scripts/orts-compare-aspects.py` list the n signals that differ most.
+- Open Rails' signal trace: the local trace build (`../openrails-wz-trace`,
+  branch `wz-signal-trace`, never pushed; how to build and run it in the
+  block signals report) prints the listed signals' states to its log.
+  `scripts/orts-compare-aspects.py --trace-items <TSRE events>` lists the
+  signals to trace; `... <TSRE events> <samples> --trace <Open Rails
+  log>` sets aside the samples where Open Rails is more restrictive only
+  because a signal ahead is not yet cleared there (on plain track with
+  its block clear, or a station's signal with a junction in its block),
+  and compares the rest.
 - `--test-verbose` lists heads linked to junctions not within three
   junctions ahead.
 
 ## Left
 
 - The stuck trains left (E30 26, CMK 89): followed back, as above.
-- The aspect comparison again once the traffic is alike (E30 now 67 %
-  of 5,900 samples; most: block signals CLEAR_1 or APPROACH_2 in Open
-  Rails where TSRE shows CLEAR_2).
+- The aspect comparison again once the traffic is alike, with Open
+  Rails' clearing window set aside (the block signals report). Left on
+  E30 then: stations' signals (640 of 681 differences): CLEAR_2 in Open
+  Rails where TSRE shows APPROACH_2 (169), RESTRICTING where TSRE shows
+  STOP (91), APPROACH_2 where TSRE shows CLEAR_2 (84).
+- When a station's route is set: TSRE clears up to the type's count of
+  signals ahead (an entry signal included), Open Rails later; a real
+  dispatcher's timing is modelled by neither (dispatching, later).
