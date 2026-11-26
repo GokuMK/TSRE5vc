@@ -224,8 +224,27 @@ model as the first operating policy, and threading.
 
 ## Open items
 - Aspects: Open Rails shows the signal after next uncleared where ours
-  clears it (JAPAN1 APP3/CLR2, task 05: propagation only while the block
-  is reserved or in the train's route, to study).
+  clears it (JAPAN1 APP3/CLR2, task 05). Traced on E30 (task 09,
+  [report](reports/e30-block-signals.md)): Open Rails clears the signals
+  ahead of a train one at a time as it comes up, though the type asks for
+  more; TSRE clears the type's count, and on automatic block signals that
+  is what a real line shows. Kept (the user, 2026-11-26); comparisons set
+  it aside (`scripts/orts-compare-aspects.py --trace`).
+- Signal rules chosen per route (the user's idea, 2026-11-26, later):
+  where the right behaviour depends on the content, a route could choose
+  it: follow Open Rails, or show more what a real line does. Found so far:
+  automatic block signals reading their blocks whether cleared or not
+  (real SBL, task 09's report); how far ahead a station's route is set
+  (now the type's `SignalNumClearAhead`; a dispatcher's timing in
+  reality); the S3 reading on the last block signal before a station's
+  entry signal at S5 (Polish rules read both ways); a signal cleared into
+  a route ending before its next signal (Open Rails: none, task 08's
+  phase 9). Open Rails' sigcfg has no place for such rules (its
+  extensions: `ORTSSignalFunctionType`, `ORTSNormalSubtype`, `ORTSScript`,
+  approach control, glow, flash and request-stop entries); a TSRE entry
+  in a `SignalType` of `OPENRAILS/sigcfg.dat` would do (Open Rails skips
+  an unknown entry and its block silently, MSTS does not read that
+  folder), or route-wide in the same file. Format to settle when built.
 - Stopping at a red signal: Open Rails' AI stands about 30 m short with 10
   cars or more but 15 to 20 m with fewer (it aims 5 m short); ours 30 m
   for all.
