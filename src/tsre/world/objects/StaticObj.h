@@ -15,6 +15,8 @@
 #include <QString>
 #include <memory>
 #include <tsre/fileFunctions/FileBuffer.h>
+#include <tsre/shape/ShapeClock.h>
+#include <vector>
 
 class RenderQueue;
 namespace Ui {
@@ -69,6 +71,14 @@ private:
     // Its shape's displays (task scripting 02), made on its first drawn
     // frame.
     std::unique_ptr<Ui::PlacedDisplays> displays;
+    // Open Rails' analog clock (task shapes 22): its shape's hands, looked
+    // for once the shape has loaded (again after it loads again), and its
+    // Animate flag when its shape's loop was last stopped.
+    std::vector<ShapeClock::HandPart> clockHands;
+    bool clockLooked = false;
+    bool clockFlag = false;
+    bool isClock();
+    void showTime();
 };
 
 #endif	/* STATICOBJ_H */

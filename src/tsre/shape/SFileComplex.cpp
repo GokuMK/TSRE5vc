@@ -798,6 +798,11 @@ float SFileComplex::partLastFrame(int part) const {
         return -1.0f;
     return d->animations[0].channels[part].lastFrame();
 }
+const ShapeAnimation::Channel *SFileComplex::partChannel(int part) const {
+    if (part < 0 || part >= partCount() || d->animations.empty() || part >= int(d->animations[0].channels.size()))
+        return nullptr;
+    return &d->animations[0].channels[part];
+}
 bool SFileComplex::partAtFrame(int part, float frame, float *out) const {
     if (part < 0 || part >= partCount())
         return false;

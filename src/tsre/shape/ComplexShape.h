@@ -24,6 +24,9 @@
 #include <tsre/shape/ShapeLod.h>
 
 class RenderQueue;
+namespace ShapeAnimation {
+struct Channel;
+}
 
 class ContentHierarchyInfo;
 class ShapeHierarchyInfo;
@@ -143,6 +146,12 @@ public:
     virtual int partParent(int part) const;
     virtual bool partRest(int part, float *out) const;
     virtual float partLastFrame(int part) const;
+    // The part's keys in the shape's first animation (null without any):
+    // analog clocks pick their keys by index (task shapes 22).
+    virtual const ShapeAnimation::Channel *partChannel(int part) const {
+        (void)part;
+        return nullptr;
+    }
     // The part's transform relative to its parent at a frame of its keys
     // (its rest transform without keys).
     virtual bool partAtFrame(int part, float frame, float *out) const;
