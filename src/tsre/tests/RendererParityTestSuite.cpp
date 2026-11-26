@@ -2252,6 +2252,8 @@ struct ViewerItem {
     QStringList animation;
     bool animationEnd = false;
     double travelled = 0.0;
+    // An analog clock's time (task shapes 22): "clockTime" ("HH:mm:ss").
+    double clockSeconds = 0.0;
     // A tsection junction drawn procedurally (tracks task 17 step 9): the
     // path set ("switchRoute", -1 its MainRoute) and how far its switches
     // have moved to it ("switchPose", 0 to 1; 1 there).
@@ -2378,6 +2380,8 @@ bool loadViewerOptions(const QString &casesFile, ViewerOptions &options, QString
         item.switchRoute = object.value("switchRoute").toInt(-1);
         item.switchPose = object.value("switchPose").toDouble(1.0);
         item.travelled = object.value("travelled").toDouble(0.0);
+        if (object.contains("clockTime"))
+            item.clockSeconds = QTime::fromString(object.value("clockTime").toString(), "HH:mm:ss").msecsSinceStartOfDay() / 1000.0;
         item.clip = object.value("clip").toString();
         item.clipTime = object.value("clipTime").toDouble(0.0);
         item.blend = object.value("blend").toString();
@@ -2767,6 +2771,7 @@ int TsreTests::runShapeViewerCaptureSuite(const QString &casesFile, const QStrin
             widget.setCarAnimation(g, item.animation.contains(groups[g]), true);
         widget.setAnimationEnd(item.animationEnd);
         widget.setAnimationTravelled(item.travelled);
+        widget.setClockSeconds(item.clockSeconds);
         widget.setClipName(item.clip);
         widget.setClipTime(float(item.clipTime));
         widget.setBlend(item.blend, float(item.blendWeight));

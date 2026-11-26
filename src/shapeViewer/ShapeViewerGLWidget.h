@@ -22,7 +22,9 @@
 #include <math.h>
 #include <tsre/shape/ShapeLib.h>
 #include <tsre/trains/CarAnimation.h>
+#include <tsre/shape/ShapeClock.h>
 #include <memory>
+#include <vector>
 #include <tsre/ui/UiDisplayDocument.h>
 #include <tsre/ui/UiShapeDisplays.h>
 
@@ -193,6 +195,10 @@ public slots:
     void setCarAnimation(int group, bool on, bool now = false);
     // Metres a shown car has gone (its wheels and running gear; captures).
     void setAnimationTravelled(double metres) { animationTravelled = metres; }
+    // An analog clock's time (task shapes 22): the seconds after midnight
+    // its hands show; 00:00 when a shape is shown, running while Play is on
+    // (captures set it).
+    void setClockSeconds(double seconds) { clockSeconds = seconds; }
     // glTF clips (task humans 02), by name, found once the shape has loaded:
     // the clip played (empty: the rest pose), a second one blended in by
     // weight at the same share of its length, the playing speed, and the
@@ -324,6 +330,12 @@ private:
     int shapeCarParts = 0;
     // Metres a shown car has gone while playing.
     double animationTravelled = 0.0;
+    // The shown shape's analog clock hands (task shapes 22), the shape and
+    // part count they were found for, and the viewer's clock.
+    std::vector<ShapeClock::HandPart> clockHands;
+    const ComplexShape *clockFor = nullptr;
+    int clockParts = -1;
+    double clockSeconds = 0.0;
     // glTF clips (setClipName ...).
     QString clipName, blendName, clipsFile;
     float blendWeight = 0.0f, clipSpeed = 1.0f, clipTime = 0.0f;
