@@ -1923,6 +1923,12 @@ float SFileLegacy::partLastFrame(int part) const {
     return animations[0].node[part].lastFrame();
 }
 
+const ShapeAnimation::Channel *SFileLegacy::partChannel(int part) const {
+    if (part < 0 || part >= partCount() || animations.empty() || part >= animations[0].node.size())
+        return nullptr;
+    return &animations[0].node[part];
+}
+
 bool SFileLegacy::partAtFrame(int part, float frame, float *out) const {
     if (part < 0 || part >= partCount())
         return false;

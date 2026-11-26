@@ -183,6 +183,26 @@ void ShapeViewerGLWidget::animate(float seconds) {
         return;
     }
     if (renderItem == 4 && complexShape != NULL && complexShape->isLoaded()) {
+        // Open Rails' analog clock (task shapes 22): its hands at the viewer's
+        // clock (00:00 when shown, running while Play is on); nothing else
+        // moves, as in the world.
+        if (clockFor != complexShape || clockParts != complexShape->partCount()) {
+            clockHands = ShapeClock::hands(*complexShape);
+            clockFor = complexShape;
+            clockParts = complexShape->partCount();
+        }
+        if (!clockHands.empty()) {
+            if (animationPlaying)
+                clockSeconds += seconds;
+            complexShape->setAnimated(0, false);
+            complexShape->clearPose(0);
+            for (const ShapeClock::HandPart &hand : clockHands) {
+                const float frame = ShapeClock::frame(*complexShape, hand.part, hand.hand, clockSeconds);
+                if (frame >= 0.0f)
+                    complexShape->setPartFrame(0, hand.part, frame);
+            }
+            return;
+        }
         complexShape->setAnimated(0, animationPlaying);
         if (animationPlaying)
             complexShape->updateSim(seconds, 0);
@@ -1355,6 +1375,9 @@ void ShapeViewerGLWidget::showShape(QString path, QString texPath, ComplexShape 
     renderItem = 4;
     con = NULL;
     eng = NULL;
+    // A clock starts at 00:00 (task shapes 22).
+    clockFor = nullptr;
+    clockSeconds = 0.0;
 }
 
 void ShapeViewerGLWidget::deleteGenerated(){
@@ -1401,6 +1424,9 @@ void ShapeViewerGLWidget::showShape(ComplexShape *currentShape){
     renderItem = 4;
     con = NULL;
     eng = NULL;
+    // A clock starts at 00:00 (task shapes 22).
+    clockFor = nullptr;
+    clockSeconds = 0.0;
 }
 
 void ShapeViewerGLWidget::setMode(QString n){

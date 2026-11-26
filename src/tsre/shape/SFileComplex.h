@@ -131,6 +131,7 @@ class SFileComplex final : public ComplexShape {
     int partParent(int) const override;
     bool partRest(int, float *) const override;
     float partLastFrame(int) const override;
+    const ShapeAnimation::Channel *partChannel(int) const override;
     bool partAtFrame(int, float, float *) const override;
     float animationFrames() const override;
     float animationRate() const override;

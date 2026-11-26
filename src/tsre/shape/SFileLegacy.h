@@ -253,6 +253,7 @@ public:
     int partParent(int part) const override;
     bool partRest(int part, float *out) const override;
     float partLastFrame(int part) const override;
+    const ShapeAnimation::Channel *partChannel(int part) const override;
     bool partAtFrame(int part, float frame, float *out) const override;
     float animationFrames() const override;
     float animationRate() const override;

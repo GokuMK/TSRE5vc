@@ -1,0 +1,43 @@
+{
+  "comment": "Open Rails' analog clocks in the Shape Viewer (docs/tasks/shapes/22-analog-clocks.md): PRUDNIK's zegarperon_2.s at the viewer's 00:00 (a shape shown) and at 10:08:37 from both faces, zegar_DYSTEN_okragly.s (a second hand) at 10:08:37; close up on the clock (fov 15, look 17). Run with --game-root ~/ORTS/OR_PSK (paths from the game root).",
+  "width": 800,
+  "height": 600,
+  "output": "build/analog-clocks-viewer",
+  "items": [
+    {
+      "name": "zegarperon-0000",
+      "type": "shape",
+      "path": "ROUTES/PRUDNIK/SHAPES/zegarperon_2.s",
+      "yaw": 0,
+      "fov": 15,
+      "look": 17
+    },
+    {
+      "name": "zegarperon-1008-front",
+      "type": "shape",
+      "path": "ROUTES/PRUDNIK/SHAPES/zegarperon_2.s",
+      "yaw": 0,
+      "fov": 15,
+      "look": 17,
+      "clockTime": "10:08:37"
+    },
+    {
+      "name": "zegarperon-1008-back",
+      "type": "shape",
+      "path": "ROUTES/PRUDNIK/SHAPES/zegarperon_2.s",
+      "yaw": 180,
+      "fov": 15,
+      "look": 17,
+      "clockTime": "10:08:37"
+    },
+    {
+      "name": "dysten-1008",
+      "type": "shape",
+      "path": "ROUTES/PRUDNIK/SHAPES/zegar_DYSTEN_okragly.s",
+      "yaw": 0,
+      "fov": 15,
+      "look": 17,
+      "clockTime": "10:08:37"
+    }
+  ]
+}

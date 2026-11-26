@@ -40,6 +40,8 @@ This folder contains ordered tasks for generalizing TSRE "complex shapes" (curre
 
 - [ ] [21-sd-for-every-shape.md](21-sd-for-every-shape.md) — future (the user's plans, 2026-11-22): every complex shape reads an `.sd` (glTF and later formats; replaces task 03's JSON sidecar), and in W files the `.sd` becomes what is placed (several object definitions on one shape; a mesh file named directly gets a plain `.sd` object); notes only.
 
+- [ ] [22-analog-clocks.md](22-analog-clocks.md) — Open Rails' analog station clocks: a `Static` or `CollideObject` whose shape has `ORTS_HHand_Clock`/`MHand`/`SHand`/`CHand` parts shows the time of day by Open Rails' quarter rule on the hands' five keys (its `clocks.dat` list is dead code); PRUDNIK has 139; the user's go 2026-11-26, built on `feature/analog-clocks` and merged into main the same day.
+
 ## Ground Rules For All Tasks
 
 - Keep MSTS `.s` + `.sd` support working throughout.
