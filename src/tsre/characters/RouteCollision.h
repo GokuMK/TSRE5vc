@@ -31,7 +31,10 @@ namespace Characters {
 //   TSRECollision over its shape's) placed within Near metres; read ahead
 //   on workers within Ahead, those within Needed read here when not yet;
 //   placed again when it has moved Again metres, a read has finished, or
-//   its tile changed (the frame is then the new tile's);
+//   its tile changed (the frame is then the new tile's); an object by how
+//   far its shape reaches from its origin (its bounds' farthest corner), so
+//   a large shape whose origin lies in a tile further away (up to
+//   LargestReach) is placed too;
 // - the trains' cars within 40 m as last drawn (a moving train's within
 //   the last second: a car not drawn, behind the camera, is left out),
 //   each its shape's collision mesh placed by its body's matrix, every
@@ -46,10 +49,20 @@ public:
     static constexpr float Ahead = 96.0f;
     static constexpr float Needed = 16.0f;
     static constexpr float Again = 4.0f;
+    // The farthest a shape is looked for beyond Ahead: objects in the tiles
+    // within Ahead + LargestReach, whose shapes reach within Ahead (the
+    // walk areas likewise beyond their box).
+    static constexpr float LargestReach = 1024.0f;
     static constexpr float DefaultReach = 100.0f;
 
     RouteCollision();
     ~RouteCollision();
+    // How far a shape reaches from its origin (m), from its bounds (max x,
+    // min x, max y, min y, max z, min z): to their farthest corner, so a
+    // shape with its origin at one end counts whole (CMK's Krakow Glowny:
+    // its platforms one shape, the origin past their south end); 10 m at
+    // least (a shape not loaded yet has no bounds).
+    static float reachOf(const float *bound);
     // About a place: the editor's tile (x, z) and the place in it.
     void update(const int *tile, const float *position);
     const CollisionWorld &world() const { return collisions; }

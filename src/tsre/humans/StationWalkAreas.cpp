@@ -26,6 +26,7 @@
 #include <tsre/ErrorMessage.h>
 #include <tsre/ErrorMessagesLib.h>
 #include <tsre/Game.h>
+#include <tsre/characters/RouteCollision.h>
 #include <tsre/humans/ShapeTriangles.h>
 #include <tsre/math3d/GLMatrix.h>
 #include <tsre/ogl/OglObj.h>
@@ -384,9 +385,21 @@ bool StationWalkAreas::gather(int s, Job &job) {
         delete[] buffer;
     }
 
-    // The objects in the box and their roles.
-    for (int tx = tx0; tx <= tx1; ++tx)
-        for (int tz = tz0; tz <= tz1; ++tz) {
+    // The objects reaching into the box and their roles, each by how far its
+    // shape reaches from its origin (as the walking collision takes them,
+    // RouteCollision::reachOf): those in the box's tiles, and in the tiles
+    // about them (up to LargestReach) a large shape whose origin lies there,
+    // only when it is loaded and not waited for (a station on one tile
+    // whose platforms are a shape with its origin in the next, as Krakow
+    // Glowny's on CMK lies across two: the user, 2026-11-26).
+    const double around = double(Characters::RouteCollision::LargestReach);
+    const int ax0 = int(std::floor((box[0] - around + 1024.0) / 2048.0));
+    const int ax1 = int(std::floor((box[2] + around + 1024.0) / 2048.0));
+    const int az0 = int(std::floor((box[1] - around + 1024.0) / 2048.0));
+    const int az1 = int(std::floor((box[3] + around + 1024.0) / 2048.0));
+    for (int tx = ax0; tx <= ax1; ++tx)
+        for (int tz = az0; tz <= az1; ++tz) {
+            const bool within = tx >= tx0 && tx <= tx1 && tz >= tz0 && tz <= tz1;
             Tile *tile = route->tile.value(tx * 10000 + tz, nullptr);
             if (tile == nullptr || tile->loaded != 1)
                 continue;
@@ -395,12 +408,16 @@ bool StationWalkAreas::gather(int s, Job &job) {
                 WalkArea::Role role = WalkArea::Role::Floor;
                 if (object == nullptr || !object->loaded || object->shape < 0 || !roleOfType(object->typeID, role))
                     continue;
+                const double x = double(object->x) * 2048.0 + object->position[0];
+                const double z = double(object->y) * 2048.0 + object->position[2];
+                if (!within && (x < box[0] - around || x > box[2] + around || z < box[1] - around || z > box[3] + around))
+                    continue;
                 const auto shape = Game::currentShapeLib->shape.find(object->shape);
                 if (shape == Game::currentShapeLib->shape.end() || shape->second == nullptr)
                     continue;
-                const double x = double(object->x) * 2048.0 + object->position[0];
-                const double z = double(object->y) * 2048.0 + object->position[2];
-                const double radius = std::max(double(shape->second->getSize()) * 0.5, 10.0);
+                if (!within && !shape->second->isLoaded())
+                    continue;
+                const double radius = double(Characters::RouteCollision::reachOf(shape->second->getBound()));
                 if (x < box[0] - radius || x > box[2] + radius || z < box[1] - radius || z > box[3] + radius)
                     continue;
                 Job::Object out;
