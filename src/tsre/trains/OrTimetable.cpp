@@ -1024,12 +1024,15 @@ bool OrTimetableCommandRun(const QString &name) {
     // `$wait`, `$cruise` and `$maxdelay`, `$activate` and `$activated`,
     // `$forms`; and three Open Rails' AI does nothing with: `$creep` (its
     // creep speed is fixed), `$doo` (only the player's departure sound),
-    // `$endstop` (its AI and autopilot trains run on past it).
+    // `$endstop` (its AI and autopilot trains run on past it). Phase 9:
+    // `$forcereversal`, `$connect`, `$detach`, `$attach`, `$pickup`,
+    // `$transfer`.
     static const QSet<QString> run = {"acc", "dec", "follow", "nowaitsignal", "create", "hold", "nohold", "forcehold",
                                       "static", "triggers", "closeupsignal", "extendplatformtosignal", "forcewait",
                                       "max", "waitsignal", "next", "terminal", "stoptime", "endstop",
                                       "restrictplatformtosignal", "keepclear", "req", "wait", "cruise", "maxdelay",
-                                      "activate", "activated", "forms", "creep", "doo"};
+                                      "activate", "activated", "forms", "creep", "doo", "forcereversal", "connect",
+                                      "detach", "attach", "pickup", "transfer"};
     return run.contains(name);
 }
 
@@ -1042,7 +1045,12 @@ bool OrTimetableQualifierRun(const QString &command, const QString &qualifier) {
     static const QSet<QString> run = {"create/ahead", "follow/maxdelay", "follow/notstarted", "follow/owndelay",
                                       "wait/maxdelay", "wait/notstarted", "wait/owndelay",
                                       "keepclear/front", "keepclear/rear", "keepclear/force", "req/pu", "req/pd",
-                                      "activate/depart"};
+                                      "activate/depart", "connect/maxdelay", "connect/hold", "detach/power",
+                                      "detach/leadingpower", "detach/allleadingpower", "detach/trailingpower",
+                                      "detach/alltrailingpower", "detach/nonpower", "detach/units", "detach/forms",
+                                      "detach/static", "pickup/static", "transfer/give", "transfer/take",
+                                      "transfer/keep", "transfer/leave", "transfer/onepower", "transfer/allpower",
+                                      "transfer/nonpower", "transfer/units", "transfer/static"};
     return run.contains(command + "/" + qualifier);
 }
 
@@ -1066,8 +1074,9 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
     // The commands naming another train.
     static const QSet<QString> referring = {"follow", "triggers", "forms", "wait", "connect", "activate", "attach",
                                             "pickup", "transfer"};
+    // Phase 9: `$attach`, `$pickup` and `$transfer` run in #dispose only.
     const auto checkCommands = [&](const OrTimetable::Train &train, const QVector<OrTimetable::Command> &commands,
-                                   const QString &where) {
+                                   const QString &where, bool disposeRow = false) {
         for (const OrTimetable::Command &command : commands) {
             // (A name with a space: what follows a command in the cell, a
             // timing after it, which Open Rails does not read either.)
@@ -1075,7 +1084,9 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
                 out.push_back(OrTimetableProblem{train.name,
                                                  //% "%1: '$%2' is no command; a timing must come before the commands"
                                                  qtTrId("timetable.check.command.text").arg(where, command.name)});
-            else if (!OrTimetableCommandRun(command.name))
+            else if (!OrTimetableCommandRun(command.name)
+                     || (!disposeRow && (command.name == "attach" || command.name == "pickup"
+                                         || command.name == "transfer")))
                 out.push_back(OrTimetableProblem{train.name,
                                                  //% "%1: $%2 is not run by TSRE yet"
                                                  qtTrId("timetable.check.command").arg(where, command.name),
@@ -1127,7 +1138,7 @@ QVector<OrTimetableProblem> CheckTimetable(const OrTimetable &timetable, const Q
         //% "note"
         checkCommands(train, train.notes, qtTrId("timetable.check.where.note"));
         //% "dispose"
-        checkCommands(train, train.dispose, qtTrId("timetable.check.where.dispose"));
+        checkCommands(train, train.dispose, qtTrId("timetable.check.where.dispose"), true);
         //% "speed"
         checkCommands(train, train.speedCommands, qtTrId("timetable.check.where.speed"));
         for (const OrTimetable::Stop &stop : train.stops)

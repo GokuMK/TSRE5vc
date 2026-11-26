@@ -219,6 +219,21 @@ public:
     int nextSignalWhere(int node, float distance, bool forward, const std::vector<int> &switches, double reach,
                         std::vector<int> *facing, const std::function<bool(const SignalHead &)> &wanted,
                         bool opposite = false, int self = -1) const;
+    // Open Rails' fixed route of a signal with a NORMAL head
+    // (SignalObject.setSignalDefaultNextSignal): the track sections from it
+    // to the next NORMAL signal facing its way, or to a track end, each with
+    // its way (true: the node's), when no junction or crossing comes
+    // between; empty for none. A signal not cleared for a train reads its
+    // block state there (getBlockState_notRouted's fixed route).
+    const std::vector<std::pair<int, bool>> &fixedRoute(int signal) const {
+        static const std::vector<std::pair<int, bool>> none;
+        return size_t(signal) < fixedRoutes.size() ? fixedRoutes[size_t(signal)] : none;
+    }
+    // The signals whose fixed route has a section.
+    const std::vector<int> &fixedRouteSignals(int section) const {
+        static const std::vector<int> none;
+        return size_t(section) < fixedOf.size() ? fixedOf[size_t(section)] : none;
+    }
     bool isNormal(const SignalHead &head) const {
         return head.kind >= 0 && types[size_t(head.kind)].function == SignalFunction::Normal;
     }
@@ -234,6 +249,9 @@ public:
 private:
     // The signal scripts sigcfg.dat lists, each type's rule (task 05).
     void readScripts(const SigCfg *config);
+    void findFixedRoutes();
+    std::vector<std::vector<std::pair<int, bool>>> fixedRoutes;
+    std::vector<std::vector<int>> fixedOf;
     struct Node {
         int first = 0;
         int count = 0;

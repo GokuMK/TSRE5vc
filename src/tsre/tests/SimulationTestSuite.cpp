@@ -1,4 +1,5 @@
 #include <tsre/tests/SimulationTestSuite.h>
+#include <tsre/tests/RouteDatabase.h>
 
 #include <QDebug>
 #include <QDir>
@@ -48,7 +49,6 @@
 #include <tsre/trains/OrTimetable.h>
 #include <tsre/trains/PathTrack.h>
 #include <tsre/world/Route.h>
-#include <tsre/world/Trk.h>
 
 namespace {
 
@@ -1496,6 +1496,43 @@ Engine ( Test
                       && aspectIn(scriptedCore, *byScript, 972) == SignalType::CLEAR_2,
                   QString("the train past it: the signal at 500 m at stop, the one at 1000 m still clear (%1 %2)")
                       .arg(aspectIn(scriptedCore, *byScript, 971)).arg(aspectIn(scriptedCore, *byScript, 972)));
+            // Not cleared for a train (Open Rails' getBlockState_notRouted):
+            // a signal's block state on its fixed route, as CMK's block
+            // signals read it (PKP_BLOK_NORMAL: RESTRICTING while its block
+            // is clear, STOP while occupied).
+            {
+                const QString blokScript = R"(SCRIPT Home
+	extern float block_state (), def_draw_state ();
+	extern float state, draw_state, enabled;
+	state = SIGASP_CLEAR_2;
+	if (enabled && block_state() !=# BLOCK_CLEAR)
+		state = SIGASP_STOP;
+	if (!enabled && block_state() ==# BLOCK_OCCUPIED)
+		state = SIGASP_STOP;
+	if (!enabled && block_state() ==# BLOCK_CLEAR)
+		state = SIGASP_RESTRICTING;
+	if (!enabled && block_state() ==# BLOCK_JN_OBSTRUCTED)
+		state = SIGASP_STOP_AND_PROCEED;
+	draw_state = def_draw_state (state);
+)";
+                auto blok = networkWith(blokScript + distScript, scripted.path() + "/blok");
+                Sim::SimulationCore blokCore(run(blok));
+                blokCore.step(0.1);
+                const int s973Start = aspectIn(blokCore, *blok, 973);
+                const int signal500 = blok->heads()[size_t(blok->headOfItem(971))].signal;
+                for (int i = 0; i < 4000 && blokCore.trains()[0].front + 69.0 < 600.0; ++i)
+                    blokCore.step(0.1);
+                const int inBlock = aspectIn(blokCore, *blok, 971);
+                const bool notCleared = blokCore.cleared()[size_t(signal500)] < 0;
+                for (int i = 0; i < 8000 && blokCore.trains()[0].front + 69.0 - blokCore.lengthOf(0) < 1010.0; ++i)
+                    blokCore.step(0.1);
+                const int leftBlock = aspectIn(blokCore, *blok, 971);
+                check(!blok->fixedRoute(signal500).empty() && s973Start == SignalType::STOP && notCleared
+                          && inBlock == SignalType::STOP && leftBlock == SignalType::RESTRICTING,
+                      QString("signals not cleared read their fixed route's block (Open Rails): standing cars past "
+                              "1500 m: STOP (%1); the train past 500 m in its block: STOP (%2), out of it: "
+                              "RESTRICTING (%3)").arg(s973Start).arg(inBlock).arg(leftBlock));
+            }
             Sim::SimulationCore basicCore(run(homeOnly));
             basicCore.step(0.1);
             Sim::SimulationCore brokenCore(run(broken));
@@ -2208,20 +2245,9 @@ Engine ( Test
 
 int TsreTests::runSimulationRouteSuite(bool verbose) {
     const QDir sourceRoute(Game::root + "/ROUTES/" + Game::route);
-    // The route's TDB: its only one, else the one its TRK names (the app's
-    // choice; E30-Podkarpacie keeps a second "&" copy beside it).
-    QString databaseName;
-    const auto databases = sourceRoute.entryInfoList({"*.tdb"}, QDir::Files);
-    if (databases.size() == 1) {
-        databaseName = databases.first().completeBaseName();
-    } else if (databases.size() > 1) {
-        Trk trk;
-        if (Game::checkRoute(Game::route))
-            trk.load();
-        for (const QFileInfo &file : databases)
-            if (file.completeBaseName() == trk.routeName)
-                databaseName = trk.routeName;
-    }
+    // Its only TDB, else the one its TRK names (E30-Podkarpacie keeps a
+    // second "&" copy beside it).
+    const QString databaseName = TsreTestRoute::databaseName();
     if (databaseName.isEmpty()) {
         qWarning() << "simulation-route requires a route with one TDB or the one its TRK names (--game-root, --route)";
         return 1;

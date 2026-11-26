@@ -259,6 +259,13 @@ void addStop(Digest &d, const StopPlan &s) {
     d.add(s.passengers);
     d.add(s.alighting);
     d.add(s.platformKey);
+    d.add(s.connections.size());
+    for (const StopPlan::Connection &c : s.connections) {
+        d.add(c.train);
+        d.add(c.stop);
+        d.add(c.maxDelay);
+        d.add(c.hold);
+    }
 }
 
 void addTrain(Digest &d, const TrainPlan &t) {
@@ -306,6 +313,28 @@ void addTrain(Digest &d, const TrainPlan &t) {
     d.add(t.activationStop);
     d.add(t.cruiseSpeed);
     d.add(t.cruiseMaxDelay);
+    d.add(t.detaches.size());
+    for (const TrainPlan::Detach &detach : t.detaches) {
+        d.add(int(detach.where));
+        d.add(detach.stop);
+        d.add(int(detach.portion));
+        d.add(detach.units);
+        d.add(detach.forms);
+    }
+    d.add(t.detachedFrom);
+    d.add(t.attachTo);
+    d.add(t.attachesAwaited);
+    d.add(t.pickup);
+    d.add(t.pickupStatic);
+    d.add(t.transfers);
+    d.add(int(t.transfer.kind));
+    d.add(int(t.transfer.portion));
+    d.add(t.transfer.units);
+    d.add(t.transferTo);
+    d.add(t.endAt);
+    d.add(t.reversalAt.size());
+    for (double at : t.reversalAt)
+        d.add(at);
     d.add(t.follows.size());
     for (const FollowPlan &f : t.follows) {
         d.add(f.train);
@@ -1439,6 +1468,94 @@ void placeStops(const SimulationInput &input, TrainPlan &plan) {
     }
 }
 
+// Where an Open Rails timetable's train reverses (task 08, phase 9; Open
+// Rails' Train.TCReversalInfo and TTTrain's reversal check): not at its
+// path's reversal point but where its way back leaves the way it came. The
+// two parts share the track from the reversal back to where they diverge
+// (the walk back not before where the train came onto its part at the
+// reversal before); it turns once its rear is on that shared track, past
+// the diverging junction, or, where a signal facing the way back stands on
+// it and the train fits between that signal and the part's end, once its
+// rear has passed that signal (`$forcereversal`: the junction always). A
+// station stop on the part comes first (Open Rails turns only with none
+// left on the part): it turns at the last one. Not where the two do not
+// diverge within the parts (the shared track their whole length).
+void TimetableReversals(const SimulationInput &input, TrainPlan &plan, bool force) {
+    plan.reversalAt.assign(plan.route.parts.size(), -1.0);
+    if (input.network == nullptr || plan.projection.size() != plan.route.parts.size())
+        return;
+    const std::vector<TrackSection> &sections = input.network->sections();
+    // Open Rails' timetable mode: the train comes onto its part where its
+    // last reversal diverged; the walk back stops there.
+    long previousDiverge = -1;
+    // The train's front stands this far past where its rear comes onto the
+    // shared track or past the signal (Open Rails' AI brakes for the
+    // reversal there).
+    constexpr double Beyond = 1.0;
+    for (size_t k = 0; k + 1 < plan.projection.size(); ++k) {
+        const std::vector<ProjectedSection> &last = plan.projection[k].sections;
+        const std::vector<ProjectedSection> &first = plan.projection[k + 1].sections;
+        const double partLength = plan.route.parts[k].length();
+        // The section they share nearest the end of this part, run the other
+        // way back (a track the other way; a junction or crossing always).
+        long lastCommon = -1, firstCommon = -1;
+        for (long i = long(last.size()) - 1; i >= 0 && lastCommon < 0; --i)
+            for (size_t j = 0; j < first.size(); ++j)
+                if (first[j].section == last[size_t(i)].section) {
+                    lastCommon = i;
+                    firstCommon = long(j);
+                    break;
+                }
+        const bool valid = lastCommon >= 0
+                && (sections[size_t(last[size_t(lastCommon)].section)].kind != TrackSection::Track
+                    || last[size_t(lastCommon)].forward != first[size_t(firstCommon)].forward);
+        long lastDiverge = -1, firstDiverge = -1;
+        if (valid) {
+            const long end = previousDiverge > 0 && previousDiverge < lastCommon ? previousDiverge : 0;
+            long i = lastCommon, j = firstCommon;
+            while (i >= end && j < long(first.size()) && last[size_t(i)].section == first[size_t(j)].section) {
+                lastDiverge = i;
+                firstDiverge = j;
+                --i;
+                ++j;
+            }
+            if (j >= long(first.size()))
+                lastDiverge = end;
+        }
+        const bool divergePoint = lastDiverge >= 0
+                && ((lastDiverge > 0 && firstDiverge < long(first.size()) - 1)
+                    || (last.size() == 1 && firstDiverge < long(first.size()) - 1));
+        previousDiverge = valid && divergePoint ? firstDiverge : -1;
+        if (!divergePoint)
+            continue;
+        // The signal facing the way back nearest the diverging junction on
+        // the shared track: at the far end of a section of the way back (its
+        // block begins at the next section).
+        long lastSignal = -1;
+        for (long j = firstDiverge; j >= 0 && lastSignal < 0 && !force; --j) {
+            bool signal = false;
+            for (const ProjectedSignal &stop : plan.projection[k + 1].stopSignals)
+                signal = signal || long(stop.section) == j + 1;
+            if (!signal)
+                continue;
+            for (long i = lastDiverge; i < long(last.size()); ++i)
+                if (last[size_t(i)].section == first[size_t(j)].section) {
+                    lastSignal = i;
+                    break;
+                }
+            break;
+        }
+        const bool signalUsed = lastSignal > 0 && double(plan.length) < partLength - last[size_t(lastSignal)].enter;
+        const long rearIn = signalUsed ? lastSignal : lastDiverge;
+        double at = last[size_t(rearIn)].enter + double(plan.length) + Beyond;
+        for (const StopPlan &stop : plan.stops)
+            if (stop.part == int(k))
+                at = std::max(at, stop.front);
+        if (at < partLength - Beyond)
+            plan.reversalAt[k] = at;
+    }
+}
+
 // Where train `a`'s route, from route distance `at` on its part `part` on,
 // joins train `b`'s again after running apart (Open Rails'
 // TTTrain.ProcessWaitRequest for `$follow`): the first section of each
@@ -1763,6 +1880,13 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
         TrainPlan::Activation when = TrainPlan::Activation::Start;
         QString station;
     };
+    // `$connect` (phase 9): at its stop `stop`, with that train.
+    struct Connect {
+        int stop = -1;
+        QString train;
+        int maxDelay = -1;
+        int hold = 0;
+    };
     struct Made {
         int plan = -1;
         const OrTimetable *timetable = nullptr;
@@ -1772,6 +1896,37 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
         QString ahead;
         std::vector<Follow> follows;
         std::vector<Activate> activates;
+        std::vector<Connect> connects;
+        // Phase 9: `$detach /forms` (each detach's, empty: static),
+        // `$attach`, `$pickup` (empty: `/static` or none).
+        std::vector<QString> detachForms;
+        QString attach;
+        QString pickup;
+        // `$transfer`'s train (empty: `/static`).
+        QString transfer;
+    };
+    // A `$detach` command: its portion and where its cars go (`/forms` or
+    // `/static`); false without both (Open Rails: invalid).
+    const auto detachOf = [](const OrTimetable::Command &command, TrainPlan::Detach &detach, QString &forms) {
+        using Portion = TrainPlan::Detach::Portion;
+        static const std::pair<const char *, Portion> portions[] = {
+            {"power", Portion::Power}, {"leadingpower", Portion::LeadingPower},
+            {"allleadingpower", Portion::AllLeadingPower}, {"trailingpower", Portion::TrailingPower},
+            {"alltrailingpower", Portion::AllTrailingPower}, {"nonpower", Portion::NonPower}};
+        bool portion = false;
+        for (const auto &[name, kind] : portions)
+            if (!portion && command.has(name)) {
+                detach.portion = kind;
+                portion = true;
+            }
+        if (!portion && !command.qualifier("units").isEmpty()) {
+            bool ok = false;
+            detach.units = command.qualifier("units").first().toInt(&ok);
+            detach.portion = Portion::Units;
+            portion = ok && detach.units != 0;
+        }
+        forms = command.qualifier("forms").isEmpty() ? QString() : command.qualifier("forms").first();
+        return portion && (!forms.isEmpty() || command.has("static"));
     };
     // A `$follow` or `$wait` command's qualifiers (minutes in the
     // timetable): /maxdelay, /owndelay, /notstarted.
@@ -1908,8 +2063,83 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                             ? command.values.first() : QString();
                 } else if (command.name == "activate" && !command.values.isEmpty()) {
                     one.activates.push_back(Activate{command.values.first(), TrainPlan::Activation::End, QString()});
+                } else if (command.name == "detach") {
+                    // Phase 9: at its path's end, before it forms or goes
+                    // static.
+                    TrainPlan::Detach detach;
+                    QString forms;
+                    if (detachOf(command, detach, forms)) {
+                        plan.detaches.push_back(detach);
+                        one.detachForms.push_back(forms);
+                    } else {
+                        input.warnings << QString("%1: $detach needs a portion and /forms or /static").arg(plan.service);
+                    }
+                } else if (command.name == "attach" && !command.values.isEmpty()) {
+                    one.attach = command.values.first();
+                } else if (command.name == "transfer") {
+                    // Phase 9 (Open Rails' TransferInfo): a kind and a
+                    // portion; a train named, or `/static`.
+                    using Kind = TrainPlan::Transfer::Kind;
+                    using Portion = TrainPlan::Detach::Portion;
+                    TrainPlan::Transfer transfer;
+                    bool kind = false, portion = false;
+                    static const std::pair<const char *, Kind> kinds[] = {
+                        {"give", Kind::Give}, {"take", Kind::Take}, {"keep", Kind::Keep}, {"leave", Kind::Leave}};
+                    for (const auto &[name, value] : kinds)
+                        if (!kind && command.has(name)) {
+                            transfer.kind = value;
+                            kind = true;
+                        }
+                    static const std::pair<const char *, Portion> portions[] = {
+                        {"onepower", Portion::LeadingPower}, {"allpower", Portion::AllLeadingPower},
+                        {"nonpower", Portion::NonPower}};
+                    for (const auto &[name, value] : portions)
+                        if (!portion && command.has(name)) {
+                            transfer.portion = value;
+                            portion = true;
+                        }
+                    if (!portion && !command.qualifier("units").isEmpty()) {
+                        transfer.units = command.qualifier("units").first().toInt();
+                        transfer.portion = Portion::Units;
+                        portion = transfer.units > 0;
+                    }
+                    const bool named = !command.values.isEmpty();
+                    if (kind && portion && (named || command.has("static"))) {
+                        plan.transfers = true;
+                        plan.transfer = transfer;
+                        one.transfer = named ? command.values.first() : QString();
+                    } else {
+                        input.warnings << QString("%1: $transfer needs a train (or /static), /give, /take, /keep or "
+                                                  "/leave, and a portion").arg(plan.service);
+                    }
+                } else if (command.name == "pickup") {
+                    // A name makes it a named pickup (Open Rails reads
+                    // /static only without one).
+                    if (!command.values.isEmpty())
+                        one.pickup = command.values.first();
+                    else
+                        plan.pickupStatic = command.has("static");
                 }
             }
+            // Open Rails carries out its path's end's detaches only where the
+            // train forms another or goes static there.
+            if (!plan.staysAtEnd && one.triggers.isEmpty() && !plan.detaches.empty()) {
+                input.warnings << QString("%1: $detach in #dispose without $forms, $triggers or $static is not "
+                                          "carried out (as Open Rails)").arg(plan.service);
+                plan.detaches.clear();
+                one.detachForms.clear();
+            }
+            // `$detach` in #note: as it starts (phase 9).
+            for (const OrTimetable::Command &command : train.notes)
+                if (command.name == "detach") {
+                    TrainPlan::Detach detach;
+                    QString forms;
+                    detach.where = TrainPlan::Detach::Where::Start;
+                    if (detachOf(command, detach, forms)) {
+                        plan.detaches.push_back(detach);
+                        one.detachForms.push_back(forms);
+                    }
+                }
             // #start's `$activated` (started by another's `$activate`) and
             // `$create /ahead=` (put on its track ahead of that train).
             one.activated = commandIn(train.startCommands, "activated") != nullptr;
@@ -2049,6 +2279,63 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             }
             for (size_t k = 0; k < plan.stops.size(); ++k)
                 plan.stops[k].entry = int(k);
+            // `$detach` in a station's cell (phase 9): on arriving at its stop
+            // there; in a cell without a time, as it starts.
+            {
+                std::vector<bool> taken(plan.stops.size(), false);
+                for (const OrTimetable::Stop &cell : train.stops) {
+                    const OrTimetable::Command *command = commandIn(cell.commands, "detach");
+                    if (command == nullptr)
+                        continue;
+                    TrainPlan::Detach detach;
+                    QString forms;
+                    if (!detachOf(*command, detach, forms))
+                        continue;
+                    const bool timed = cell.timing.arrival >= 0 || cell.timing.departure >= 0;
+                    const QString &name = timetable->stations[cell.station].name;
+                    int stop = -1;
+                    for (size_t k = 0; k < plan.stops.size() && stop < 0 && timed; ++k)
+                        if (!taken[k] && plan.stops[k].platform == name)
+                            stop = int(k);
+                    if (stop >= 0) {
+                        taken[size_t(stop)] = true;
+                        detach.where = TrainPlan::Detach::Where::Stop;
+                        detach.stop = stop;
+                    } else {
+                        detach.where = TrainPlan::Detach::Where::Start;
+                    }
+                    plan.detaches.push_back(detach);
+                    one.detachForms.push_back(forms);
+                }
+            }
+            // `$connect` in a station's cell (phase 9): at its stop there
+            // (/maxdelay and /hold in minutes, as Open Rails reads them).
+            {
+                std::vector<bool> taken(plan.stops.size(), false);
+                for (const OrTimetable::Stop &cell : train.stops) {
+                    const OrTimetable::Command *connect = commandIn(cell.commands, "connect");
+                    if (connect == nullptr)
+                        continue;
+                    const QString &name = timetable->stations[cell.station].name;
+                    int stop = -1;
+                    for (size_t k = 0; k < plan.stops.size() && stop < 0; ++k)
+                        if (!taken[k] && plan.stops[k].platform == name)
+                            stop = int(k);
+                    if (stop < 0) {
+                        input.warnings << QString("%1: $connect at %2, no stop there").arg(plan.service, name);
+                        continue;
+                    }
+                    taken[size_t(stop)] = true;
+                    const auto minutes = [&](const QString &qualifier, int none) {
+                        bool ok = false;
+                        const QStringList values = connect->qualifier(qualifier);
+                        const int value = values.isEmpty() ? 0 : values.first().toInt(&ok);
+                        return ok ? value * 60 : none;
+                    };
+                    for (const QString &other : connect->values)
+                        one.connects.push_back(Connect{stop, other, minutes("maxdelay", -1), minutes("hold", 0)});
+                }
+            }
             // `$follow` and `$wait` in a station's cell: from where its path
             // passes the station's platform (its path's start where it does
             // not); `$activate` there when it arrives (`/depart`: leaves).
@@ -2085,6 +2372,9 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
             finishTrain(input, tdb, plan, path);
             placeStops(input, plan);
             standAtStart(plan);
+            // Where it reverses (phase 9; `$forcereversal`: at the diverging
+            // junction, not beyond a signal there).
+            TimetableReversals(input, plan, commandIn(train.notes, "forcereversal") != nullptr);
             one.plan = plan.id;
             made.push_back(one);
             input.trains.push_back(std::move(plan));
@@ -2129,6 +2419,62 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
                 plan.follows.push_back(point);
             }
         }
+        // Phase 9: `$detach /forms` (that train placed with the cars cut
+        // off, not at its own start), `$attach` (that train waits for it),
+        // `$pickup`.
+        for (size_t d = 0; d < one.detachForms.size() && d < plan.detaches.size(); ++d) {
+            if (one.detachForms[d].isEmpty())
+                continue;
+            const int other = named(one, one.detachForms[d]);
+            if (other < 0 || other == plan.id) {
+                input.warnings << QString("%1: $detach /forms=%2 forms no train").arg(plan.service, one.detachForms[d]);
+                continue;
+            }
+            plan.detaches[d].forms = other;
+            input.trains[size_t(other)].detachedFrom = plan.id;
+        }
+        if (!one.attach.isEmpty()) {
+            const int other = named(one, one.attach);
+            if (other >= 0 && other != plan.id) {
+                plan.attachTo = other;
+                ++input.trains[size_t(other)].attachesAwaited;
+            } else {
+                input.warnings << QString("%1: $attach=%2 names no train").arg(plan.service, one.attach);
+            }
+        }
+        if (plan.transfers && !one.transfer.isEmpty()) {
+            const int other = named(one, one.transfer);
+            if (other >= 0 && other != plan.id) {
+                plan.transferTo = other;
+            } else {
+                plan.transfers = false;
+                input.warnings << QString("%1: $transfer=%2 names no train").arg(plan.service, one.transfer);
+            }
+        }
+        if (!one.pickup.isEmpty()) {
+            const int other = named(one, one.pickup);
+            if (other >= 0 && other != plan.id)
+                plan.pickup = other;
+            else
+                input.warnings << QString("%1: $pickup=%2 names no train").arg(plan.service, one.pickup);
+        }
+        // `$connect`: that train's stop at the same station (Open Rails'
+        // platform name: the station's).
+        for (const Connect &connect : one.connects) {
+            const int other = named(one, connect.train);
+            StopPlan &stop = plan.stops[size_t(connect.stop)];
+            int theirs = -1;
+            if (other >= 0 && other != plan.id)
+                for (size_t k = 0; k < input.trains[size_t(other)].stops.size() && theirs < 0; ++k)
+                    if (input.trains[size_t(other)].stops[k].platform == stop.platform)
+                        theirs = int(k);
+            if (theirs < 0) {
+                input.warnings << QString("%1: $connect=%2 at %3, that train does not stop there")
+                                      .arg(plan.service, connect.train, stop.platform);
+                continue;
+            }
+            stop.connections.push_back(StopPlan::Connection{other, theirs, connect.maxDelay, connect.hold});
+        }
         // `$activate`: that train, `$activated`, starts when this one
         // starts, arrives at or leaves that stop, or ends.
         for (const Activate &activate : one.activates) {
@@ -2167,6 +2513,31 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
         std::sort(plan.follows.begin(), plan.follows.end(), [](const FollowPlan &a, const FollowPlan &b) {
             return a.part != b.part ? a.part < b.part : a.at < b.at;
         });
+    }
+    // Phase 9: one attaching or picking up reaches the end of the track
+    // section its path ends in (Open Rails' route holds whole sections).
+    for (const Made &one : made) {
+        TrainPlan &plan = input.trains[size_t(one.plan)];
+        if (plan.attachTo < 0 && plan.pickup < 0 && !plan.pickupStatic && !plan.transfers)
+            continue;
+        if (input.network == nullptr || plan.route.parts.empty() || plan.projection.size() != plan.route.parts.size()
+                || plan.limits.size() != plan.route.parts.size())
+            continue;
+        RouteTrack &part = plan.route.parts.back();
+        const Projection &way = plan.projection.back();
+        if (way.sections.empty() || part.intervals().empty())
+            continue;
+        const TrackSection &section = input.network->sections()[size_t(way.sections.back().section)];
+        const RouteInterval end = part.intervals().back();
+        if (section.kind != TrackSection::Track || section.node != end.node)
+            continue;
+        const float beyond = end.forward() ? section.to : section.from;
+        if ((end.forward() ? beyond - end.to : end.to - beyond) < 1.0f)
+            continue;
+        const double pathEnd = part.length();
+        part.append(end.node, end.to, beyond);
+        FinishPart(input, plan, part, plan.projection.back(), plan.limits.back());
+        plan.endAt = pathEnd;
     }
     // `$activated` and nothing activates it: it starts at its time (Open
     // Rails, with a message).

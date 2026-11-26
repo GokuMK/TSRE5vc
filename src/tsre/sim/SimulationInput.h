@@ -166,6 +166,20 @@ struct StopPlan {
     int passengers = 0;
     int alighting = 0;
     int platformKey = -1;
+    // Task 08, phase 9 (`$connect`, Open Rails' TTTrain.ProcessConnections):
+    // the trains it connects with here, each by its own stop at this
+    // station (its index in that train's stops). It leaves no earlier than
+    // `hold` seconds after such a train arrived there (when it was itself
+    // on the track by then); while one runs towards this station, it
+    // waits: with `maxDelay` (s, -1 none) only while that train is no later
+    // than that, or expected before it leaves.
+    struct Connection {
+        int train = -1;
+        int stop = -1;
+        int maxDelay = -1;
+        int hold = 0;
+    };
+    std::vector<Connection> connections;
 };
 
 // Where a train's route joins another's again after running apart (task
@@ -284,6 +298,54 @@ struct TrainPlan {
     // `activationStop`, or its run ends), -1 none.
     bool formedOfVehicles = false;
     int createAhead = -1;
+    // Task 08, phase 9: Open Rails' timetable shunting (TTTrain). `$detach`:
+    // cars cut off at its path's end (`#dispose`, before it forms or goes
+    // static; Open Rails runs those last to first), on arriving at a stop,
+    // or as it starts (`#note`); a portion chosen by Open Rails' rules on
+    // its cars from the front (power: engines and tenders; a unit: a car),
+    // standing there (`/static`) or forming train `forms` (`/forms`).
+    struct Detach {
+        enum class Where : unsigned char { End, Stop, Start };
+        enum class Portion : unsigned char { Power, LeadingPower, AllLeadingPower, TrailingPower, AllTrailingPower,
+                                             NonPower, Units };
+        Where where = Where::End;
+        int stop = -1;
+        Portion portion = Portion::Power;
+        // `/units=n`: n cars from the front, -n from the rear.
+        int units = 0;
+        int forms = -1;
+    };
+    std::vector<Detach> detaches;
+    // Placed with the cars that train cuts off (`$detach /forms` naming
+    // it), -1 none: not by its own start.
+    int detachedFrom = -1;
+    // `$attach` (`#dispose`): at its path's end it couples to that train,
+    // standing there (put on its track and not started), and is gone; that
+    // train starts only once all attaching to it have (`attachesAwaited`).
+    int attachTo = -1;
+    int attachesAwaited = 0;
+    // `$pickup` (`#dispose`, before its path's end): it takes that train's
+    // cars (one standing at its path's end, `$static`), or with `/static`
+    // the first standing cars it meets on its last part, and goes on.
+    int pickup = -1;
+    bool pickupStatic = false;
+    // `$transfer` (`#dispose`): at its path's end, coupled to that train
+    // (`transferTo`; -1 with `/static`: the first standing cars or train
+    // left static it meets on its last part), it gives (`/give`; `/keep`:
+    // all but the portion) or takes (`/take`; `/leave`: all but the portion)
+    // a portion of the giving train's units, chosen as `$detach`'s from the
+    // end coupled (`/onepower`, `/allpower`, `/nonpower`, `/units`); its run
+    // ends there. That train, standing in the section its path ends in,
+    // starts only once it has (Open Rails' NeedTrainTransfer).
+    struct Transfer {
+        enum class Kind : unsigned char { Give, Take, Keep, Leave };
+        Kind kind = Kind::Give;
+        Detach::Portion portion = Detach::Portion::NonPower;
+        int units = 0;
+    };
+    bool transfers = false;
+    Transfer transfer;
+    int transferTo = -1;
     enum class Activation : unsigned char { Start, Arrival, Departure, End };
     int activatedBy = -1;
     Activation activation = Activation::Start;
@@ -303,6 +365,17 @@ struct TrainPlan {
     std::vector<WaitPlan> waits;
     // Each route part's way through the track network.
     std::vector<Projection> projection;
+    // An Open Rails timetable's train (task 08, phase 9): on each part but
+    // the last, the route distance its front stands at to reverse, short of
+    // the path's reversal point (where its way back leaves the way it came:
+    // TimetableReversals); -1 or none: the part's end.
+    std::vector<double> reversalAt;
+    // Phase 9: a timetable's train that attaches or picks up has its last
+    // part go on to the end of the track section its path ends in (Open
+    // Rails' route holds whole sections), to reach the train it couples to
+    // there; its run ends here, its path's end, when none is (-1: the part's
+    // end).
+    double endAt = -1.0;
     // Each route part's speed limits from speed posts facing it (for its
     // kind of train) and the activity's speed zones, in order, apart.
     std::vector<std::vector<SpeedLimit>> limits;
