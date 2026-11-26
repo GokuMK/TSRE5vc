@@ -1,4 +1,5 @@
 #include <tsre/tests/ActivityCheckTestSuite.h>
+#include <tsre/tests/RouteDatabase.h>
 
 #include <QDebug>
 #include <QDir>
@@ -473,12 +474,13 @@ int TsreTests::runActivityCheckRouteSuite(bool verbose) {
     if (english.load(":/i18n/tsre_en.qm"))
         QCoreApplication::installTranslator(&english);
     const QDir sourceRoute(Game::root + "/ROUTES/" + Game::route);
-    const auto databases = sourceRoute.entryInfoList({"*.tdb"}, QDir::Files);
-    if (databases.size() != 1) {
-        qWarning() << "activity-check-route requires a route with one TDB (--game-root, --route)";
+    // Its only TDB, else the one its TRK names.
+    const QString databaseName = TsreTestRoute::databaseName();
+    if (databaseName.isEmpty()) {
+        qWarning() << "activity-check-route requires a route with one TDB or the one its TRK names (--game-root, --route)";
         return 1;
     }
-    const QScopedValueRollback<QString> routeName(Game::routeName, databases.first().completeBaseName());
+    const QScopedValueRollback<QString> routeName(Game::routeName, databaseName);
     TSectionDAT sections(false, false);
     if (QFileInfo::exists(sourceRoute.filePath("tsection.dat")))
         sections.loadRoute(false);

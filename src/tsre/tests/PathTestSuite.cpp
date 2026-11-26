@@ -1,4 +1,5 @@
 #include <tsre/tests/PathTestSuite.h>
+#include <tsre/tests/RouteDatabase.h>
 
 #include <QDebug>
 #include <QDir>
@@ -620,14 +621,15 @@ int TsreTests::runPathEditSuite(bool verbose) {
 
 int TsreTests::runPathRoundTripSuite(const QString &outputDirectory, bool verbose) {
     const QDir sourceRoute(Game::root + "/ROUTES/" + Game::route);
-    const auto databases = sourceRoute.entryInfoList({"*.tdb"}, QDir::Files);
-    if (databases.size() != 1) {
-        qWarning() << "path-roundtrip requires a route with one TDB (--game-root, --route)";
+    // Its only TDB, else the one its TRK names.
+    const QString databaseName = TsreTestRoute::databaseName();
+    if (databaseName.isEmpty()) {
+        qWarning() << "path-roundtrip requires a route with one TDB or the one its TRK names (--game-root, --route)";
         return 1;
     }
     const QString originalName = Game::routeName;
     TDB *originalTrackDB = Game::trackDB;
-    Game::routeName = databases.first().completeBaseName();
+    Game::routeName = databaseName;
     TSectionDAT sections(false, false);
     if (QFileInfo::exists(sourceRoute.filePath("tsection.dat")))
         sections.loadRoute(false);
