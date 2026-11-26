@@ -13,6 +13,7 @@
 #include <tsre/sim/SteamHeating.h>
 #include <tsre/sim/TrainPhysics.h>
 #include <tsre/sim/VehicleModel.h>
+#include <tsre/sim/WorkPlanner.h>
 #include <tsre/trains/CabControls.h>
 #include <tsre/trains/CarExhaust.h>
 #include <tsre/trains/VehicleDefinition.h>
@@ -449,6 +450,10 @@ void SimulationCore::leave(int train) {
     if (rt.drivenState) {
         s.front = rt.drivenState->physics.cars.front().front;
         s.speed = float(std::max(0.0, rt.drivenState->physics.cars.front().speed));
+        // Task 10: a shunting path ended first, back on its own route where
+        // it is on it (else the AI runs the path's rest).
+        if (rt.ownRoute)
+            endShunting(train);
         rt.drivenState.reset();
         // The AI drives on from here: its stops and waiting points behind
         // it are passed (advance skips them).
@@ -461,6 +466,12 @@ void SimulationCore::leave(int train) {
 void SimulationCore::command(int train, int vehicle, const Message &message) {
     if (train < 0 || size_t(train) >= runtime.size())
         return;
+    // Task 10: the player's shunting path, the core's own.
+    if (message.name == QLatin1String("shunting")) {
+        if (runtime[size_t(train)].drivenState)
+            shuntingCommand(train, message);
+        return;
+    }
     // To be driven, not yet taken over: kept for then.
     if (isDriven(train) && !runtime[size_t(train)].drivenState) {
         drivenPending[train].push_back({vehicle, message});
@@ -472,6 +483,203 @@ void SimulationCore::command(int train, int vehicle, const Message &message) {
     const int to = vehicle >= 0 ? vehicle : d.cab;
     if (to >= 0 && size_t(to) < d.models.size())
         d.models[size_t(to)]->command(message);
+}
+
+void SimulationCore::shuntingCommand(int train, const Message &message) {
+    Driven &d = *runtime[size_t(train)].drivenState;
+    const QStringList words = message.text().split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    const auto answer = [&](const QString &text) {
+        d.messages.push_back({d.cab, Message{QStringLiteral("shunting"), text}});
+    };
+    if (words.size() == 3 && words[0] == QLatin1String("to")) {
+        bool nodeOk = false, distanceOk = false;
+        const int node = words[1].toInt(&nodeOk);
+        const double distance = words[2].toDouble(&distanceOk);
+        QString why;
+        double metres = 0.0;
+        int reversals = 0;
+        if (!nodeOk || !distanceOk)
+            answer(QStringLiteral("none place"));
+        else if (startShunting(train, node, distance, why, metres, reversals))
+            answer(QString("planned %1 %2").arg(qRound(metres)).arg(reversals));
+        else
+            answer(QStringLiteral("none ") + why);
+        return;
+    }
+    if (words.size() == 1 && (words[0] == QLatin1String("end") || words[0] == QLatin1String("cancel"))) {
+        if (!runtime[size_t(train)].ownRoute)
+            answer(QStringLiteral("ended"));
+        else
+            answer(endShunting(train) ? QStringLiteral("ended") : QStringLiteral("off"));
+    }
+}
+
+bool SimulationCore::startShunting(int train, int node, double distance, QString &why, double &metres,
+                                   int &reversals) {
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    Driven &d = *rt.drivenState;
+    if (in->network == nullptr || size_t(s.part) >= rt.parts.size()) {
+        why = QStringLiteral("network");
+        return false;
+    }
+    if (std::fabs(s.speed) > TrainPhysics::Standing) {
+        why = QStringLiteral("moving");
+        return false;
+    }
+    // The train's track, its rear to its front; the standing cars' and the
+    // other trains' in the way.
+    YardTrain moving;
+    moving.vehicles = rt.vehicles;
+    moving.track = slice(rt.parts[size_t(s.part)], std::max(0.0, s.front - rt.length), s.front);
+    std::vector<YardTrain> standingCars;
+    for (const Standing &cars : standing)
+        if (!cars.gone && !cars.track.empty()) {
+            YardTrain cut;
+            cut.track = cars.track;
+            standingCars.push_back(cut);
+        }
+    for (size_t other = 0; other < states.size(); ++other) {
+        const TrainState &o = states[other];
+        const Runtime &r = runtime[other];
+        if (int(other) == train || o.status == TrainStatus::Waiting || o.status == TrainStatus::Finished
+                || size_t(o.part) >= r.parts.size())
+            continue;
+        YardTrain cut;
+        cut.track = slice(r.parts[size_t(o.part)], std::max(0.0, o.front - r.length), o.front);
+        if (!cut.track.empty())
+            standingCars.push_back(cut);
+    }
+    const ShuntPlan plan = PlanShunt(*in, moving, standingCars, node, distance);
+    if (plan.parts.empty()) {
+        why = QStringLiteral("way");
+        return false;
+    }
+    metres = plan.metres;
+    reversals = plan.reversals;
+    // Its own route kept (once: a second path keeps the first's).
+    if (!rt.ownRoute) {
+        auto own = std::make_shared<Runtime::OwnRoute>();
+        own->parts = rt.parts;
+        own->reversalAt = rt.reversalAt;
+        own->endAt = rt.endAt;
+        own->shunting = rt.shunting;
+        own->ways = rt.ways;
+        own->limits = rt.limits;
+        own->stops = rt.stops;
+        own->waits = rt.waits;
+        own->passing = rt.passing;
+        own->sides = rt.sides;
+        own->passingSections = rt.passingSections;
+        own->spots = rt.spots;
+        own->arrivedAt = rt.arrivedAt;
+        own->nextFollow = rt.nextFollow;
+        own->part = s.part;
+        rt.ownRoute = own;
+    }
+    releaseAll(train);
+    const TrainPlan &own = in->trains[size_t(train)];
+    rt.parts = plan.parts;
+    rt.ways.assign(rt.parts.size(), Projection());
+    rt.limits.assign(rt.parts.size(), {});
+    for (size_t p = 0; p < rt.parts.size(); ++p)
+        FinishPart(*in, own, rt.parts[p], rt.ways[p], rt.limits[p]);
+    rt.reversalAt.assign(rt.parts.size(), -1.0);
+    rt.endAt = -1.0;
+    rt.shunting.clear();
+    for (size_t p = 0; p < rt.parts.size(); ++p)
+        rt.shunting.push_back(TrainPlan::ShuntRange{int(p), 0.0, -1.0});
+    rt.stops.clear();
+    rt.waits.clear();
+    rt.passing.clear();
+    rt.sides.clear();
+    rt.passingSections.clear();
+    rt.spots.clear();
+    rt.arrivedAt.clear();
+    findExits(train);
+    s.nextStop = 0;
+    s.nextWait = 0;
+    s.atStation = -1;
+    d.arrivedAt = -1;
+    // On its first part from where it stands, its rear leading when the
+    // path starts the other way.
+    s.part = 0;
+    if (plan.turned) {
+        s.reversed = !s.reversed;
+        turnRound(d);
+    }
+    // Its first part starts with the track it stands on.
+    s.front = std::min(moving.length(), rt.parts[0].length());
+    occupy(train);
+    d.physics.placeFrom(s.front);
+    d.endReported = false;
+    if (plan.turned)
+        record(now, train, TrainEvent::Reversed);
+    return true;
+}
+
+bool SimulationCore::endShunting(int train) {
+    TrainState &s = states[size_t(train)];
+    Runtime &rt = runtime[size_t(train)];
+    if (!rt.ownRoute || size_t(s.part) >= rt.parts.size())
+        return false;
+    const Runtime::OwnRoute own = *rt.ownRoute;
+    // Where it is on its own route: its front its way there, or its rear
+    // the other way (turned then), the whole train on that part.
+    const RoutePoint front = rt.parts[size_t(s.part)].locate(s.front);
+    const RoutePoint rear = rt.parts[size_t(s.part)].locate(std::max(0.0, s.front - rt.length));
+    int part = -1;
+    double at = 0.0;
+    bool turn = false;
+    for (size_t p = size_t(std::max(0, own.part)); p < own.parts.size() && part < 0; ++p) {
+        double a = 0.0;
+        if (own.parts[p].find(front.node, front.distance, a) && own.parts[p].locate(a).forward == front.forward
+                && a >= rt.length - 1.0) {
+            part = int(p);
+            at = a;
+        } else if (own.parts[p].find(rear.node, rear.distance, a) && own.parts[p].locate(a).forward != rear.forward
+                   && a >= rt.length - 1.0) {
+            part = int(p);
+            at = a;
+            turn = true;
+        }
+    }
+    if (part < 0)
+        return false;
+    Driven *d = rt.drivenState.get();
+    releaseAll(train);
+    rt.parts = own.parts;
+    rt.reversalAt = own.reversalAt;
+    rt.endAt = own.endAt;
+    rt.shunting = own.shunting;
+    rt.ways = own.ways;
+    rt.limits = own.limits;
+    rt.stops = own.stops;
+    rt.waits = own.waits;
+    rt.passing = own.passing;
+    rt.sides = own.sides;
+    rt.passingSections = own.passingSections;
+    rt.spots = own.spots;
+    rt.arrivedAt = own.arrivedAt;
+    rt.nextFollow = own.nextFollow;
+    rt.ownRoute.reset();
+    findExits(train);
+    if (turn) {
+        s.reversed = !s.reversed;
+        if (d != nullptr)
+            turnRound(*d);
+    }
+    placeAt(train, part, at);
+    s.atStation = -1;
+    occupy(train);
+    if (d != nullptr) {
+        d->arrivedAt = -1;
+        d->physics.placeFrom(s.front);
+        d->endReported = false;
+    }
+    if (turn)
+        record(now, train, TrainEvent::Reversed);
+    return true;
 }
 
 const VehicleOutputs *SimulationCore::outputsOf(int train, int vehicle) const {

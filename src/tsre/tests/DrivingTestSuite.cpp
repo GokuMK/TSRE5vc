@@ -608,6 +608,101 @@ int TsreTests::runDrivingSuite(bool verbose) {
                            && core.trains()[0].front >= route.parts[0].length() - 0.01,
                    QString("at its path's end it stops, told: %1 of %2 m").arg(core.trains()[0].front).arg(route.parts[0].length()));
     }
+    // Task 10: the player's shunting path. A trailing siding: track end 5,
+    // track 20 (500 m) to junction 6's main output, its input track 21 (500
+    // m) to track end 7, its other output track 22 (200 m) to track end 8;
+    // the driven train's own path from track 20 on to track 21.
+    {
+        TestTrack::Layout yard;
+        yard.end(5, 20);
+        yard.track(20, 5, 6, 50);
+        yard.junction(6, 21, 20, 22);
+        yard.track(21, 6, 7, 50);
+        yard.end(7, 21);
+        yard.track(22, 6, 8, 20);
+        yard.end(8, 22);
+        const QScopedValueRollback<TDB *> live(Game::trackDB, &yard.db);
+        const auto yardGeometry = std::make_shared<const Sim::TrackGeometry>(&yard.db);
+        const auto yardNetwork = std::make_shared<const Sim::TrackNetwork>(&yard.db, *yardGeometry, nullptr, false);
+        PathTrack::Result path = PathTrack::startAt(&yard.db, {20, 100.0f});
+        path = PathTrack::endAt(&yard.db, path.nodes, {21, 400.0f});
+        const Sim::TrainRoute own = Sim::BuildRoute(&yard.db, path.nodes, PathTrack::legs(&yard.db, path.nodes), 31.0);
+        auto made = std::make_shared<Sim::SimulationInput>();
+        made->startTime = t0;
+        made->geometry = yardGeometry;
+        made->network = yardNetwork;
+        made->step = 0.1;
+        made->driven = 0;
+        Sim::TrainPlan p = planOf();
+        p.route = own;
+        p.startFront = own.pathStart + p.length + 1.0;
+        for (const Sim::RouteTrack &part : own.parts) {
+            p.projection.push_back(yardNetwork->project(part));
+            p.limits.push_back(Sim::SpeedLimits(p.projection.back(), *yardNetwork, p.passenger, {}, 0.0f, part.length()));
+        }
+        made->trains.push_back(p);
+        Sim::SimulationCore core(made);
+        std::vector<Sim::TrainEvent> all;
+        core.step(0.05);
+        const auto answer = [&]() {
+            QString text;
+            for (const auto &[vehicle, message] : core.takeMessages(0))
+                if (message.name == "shunting")
+                    text = message.text();
+            return text;
+        };
+        // Ahead on its own path: planned, no reversal; ended at once, back
+        // on its own route where it stands.
+        const double before = core.trains()[0].front;
+        core.command(0, -1, {"shunting", QString("to 21 200")});
+        const QString ahead = answer();
+        const bool aheadShunting = core.shunting(0);
+        core.command(0, -1, {"shunting", QString("end")});
+        const QString aheadEnd = answer();
+        const bool backWhereItWas = !core.shunting(0) && core.trains()[0].part == 0
+                && std::fabs(core.trains()[0].front - before) < 0.5;
+        // Into the siding (trailing): one reversal. Driven to its first
+        // part's end (on track 21 past the junction) and ended there: on its
+        // own route, which runs there.
+        core.command(0, -1, {"shunting", QString("to 22 100")});
+        const QString siding = answer();
+        const int sidingParts = core.shunting(0) ? 2 : 0;
+        core.command(0, -1, {"throttle", 0.5});
+        all.clear();
+        for (int i = 0; i < 6000 && !has(all, Sim::TrainEvent::EndOfPath); ++i) {
+            core.step(0.1);
+            eventsOf(core, all);
+        }
+        core.command(0, -1, {"throttle", 0.0});
+        core.command(0, -1, {"trainBrake", 1.0});
+        for (int i = 0; i < 600 && core.trains()[0].speed != 0.0f; ++i)
+            core.step(0.1);
+        const Sim::RoutePoint reached = Sim::RoutePoint();
+        (void)reached;
+        core.command(0, -1, {"shunting", QString("end")});
+        const QString sidingEnd = answer();
+        double ownAt = -1.0;
+        const bool onOwn = !core.shunting(0) && core.trains()[0].part == 0
+                && own.parts[0].locate(core.trains()[0].front).node == 21;
+        own.parts[0].find(21, 0.0f, ownAt);
+        // Behind it: turned; ended at once, turned back on its own route.
+        const bool reversedBefore = core.trains()[0].reversed;
+        core.command(0, -1, {"shunting", QString("to 20 300")});
+        const QString behind = answer();
+        const bool turned = core.trains()[0].reversed != reversedBefore;
+        core.command(0, -1, {"shunting", QString("end")});
+        const QString behindEnd = answer();
+        const bool turnedBack = !core.shunting(0) && core.trains()[0].reversed == reversedBefore;
+        test.check(ahead.startsWith("planned") && ahead.endsWith(" 0") && aheadShunting && aheadEnd == "ended"
+                           && backWhereItWas && siding.startsWith("planned") && siding.endsWith(" 1")
+                           && sidingParts == 2 && has(all, Sim::TrainEvent::EndOfPath) && sidingEnd == "ended"
+                           && onOwn && behind.startsWith("planned") && turned && behindEnd == "ended" && turnedBack,
+                   QString("the player's shunting path (task 10): ahead \"%1\", ended \"%2\" where it stood %3; into "
+                           "the siding \"%4\", driven to its first part's end, ended \"%5\" on its own route %6; "
+                           "behind \"%7\" turned %8, ended \"%9\" turned back %10")
+                           .arg(ahead, aheadEnd).arg(backWhereItWas).arg(siding, sidingEnd).arg(onOwn)
+                           .arg(behind).arg(turned).arg(behindEnd).arg(turnedBack));
+    }
     // A command before the train is taken over (the run not yet stepped):
     // given to it then.
     {

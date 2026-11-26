@@ -2,6 +2,7 @@
 #include <tsre/sim/TrainLines.h>
 #include <tsre/maszyna/MaszynaVehicle.h>
 #include <tsre/sim/WorkPlanner.h>
+#include <tsre/trains/WaitingPoint.h>
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -384,6 +385,12 @@ void addTrain(Digest &d, const TrainPlan &t) {
     }
     d.addAll(t.workFrom);
     d.addAll(t.workTo);
+    d.add(t.shunting.size());
+    for (const TrainPlan::ShuntRange &range : t.shunting) {
+        d.add(range.part);
+        d.add(range.from);
+        d.add(range.to);
+    }
 }
 
 void addEvent(Digest &d, const EventPlan &e) {
@@ -2539,12 +2546,63 @@ void TimetableTrains(SimulationInput &input, Activity *set, TDB *tdb) {
         FinishPart(input, plan, part, plan.projection.back(), plan.limits.back());
         plan.endAt = pathEnd;
     }
+    // Task 10: their shunting moves, from their commands.
+    for (const Made &one : made)
+        ShuntingRanges(input.trains[size_t(one.plan)]);
     // `$activated` and nothing activates it: it starts at its time (Open
     // Rails, with a message).
     for (const Made &one : made)
         if (one.activated && input.trains[size_t(one.plan)].activatedBy < 0)
             input.warnings << QString("%1: $activated, but no train activates it: it starts at its time")
                                   .arg(input.trains[size_t(one.plan)].service);
+}
+
+void ShuntingRanges(TrainPlan &plan) {
+    plan.shunting.clear();
+    const int parts = int(plan.route.parts.size());
+    if (parts == 0 || plan.player)
+        return;
+    const auto range = [&](int part, double from, double to) {
+        plan.shunting.push_back(TrainPlan::ShuntRange{part, from, to});
+    };
+    const auto whole = [&](int from, int to) {
+        for (int p = from; p < to; ++p)
+            range(p, 0.0, -1.0);
+    };
+    if (plan.timetableTrain) {
+        // Its run to the train or cars it couples to, from its last stop.
+        if (plan.attachTo >= 0 || plan.pickup >= 0 || plan.pickupStatic || plan.transfers) {
+            if (plan.stops.empty()) {
+                whole(0, parts);
+            } else {
+                const StopPlan &last = plan.stops.back();
+                range(last.part, last.front, -1.0);
+                whole(last.part + 1, parts);
+            }
+        }
+        // Cars cut off from a train, moved up to their first stop.
+        if (plan.detachedFrom >= 0) {
+            if (plan.stops.empty()) {
+                whole(0, parts);
+            } else {
+                const StopPlan &first = plan.stops.front();
+                whole(0, first.part);
+                range(first.part, 0.0, first.front);
+            }
+        }
+        return;
+    }
+    for (const WaitPlan &wait : plan.waits) {
+        const WaitingPoint::Kind kind = WaitingPoint::decode(wait.value).kind;
+        if (kind != WaitingPoint::Attach && kind != WaitingPoint::Permission && kind != WaitingPoint::KeepFirst
+                && kind != WaitingPoint::KeepLast)
+            continue;
+        double from = 0.0;
+        for (const StopPlan &stop : plan.stops)
+            if (stop.part == wait.part && stop.front <= wait.front)
+                from = std::max(from, stop.front);
+        range(wait.part, from, -1.0);
+    }
 }
 
 std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float routeSpeedLimit,
@@ -2693,6 +2751,7 @@ std::shared_ptr<SimulationInput> MakeInput(Activity *activity, TDB *tdb, float r
         }
         finishTrain(*input, tdb, plan, path);
         standAtStart(plan);
+        ShuntingRanges(plan);
         input->trains.push_back(std::move(plan));
     }
     input->staticConsists = StaticConsists(activity, tdb);

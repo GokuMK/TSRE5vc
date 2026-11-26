@@ -21,10 +21,14 @@ namespace Sim {
 // written to `state` or `draw_state` keeps its integer part.
 
 // The functions a script may call. Open Rails' additions are read and
-// reported (the script is then not used): OpenRails.
+// reported (the script is then not used): OpenRails; run (task 10): Open
+// Rails' approach control (APPROACH_CONTROL_POSITION, _FORCED,
+// APPROACH_CONTROL_SPEED). TSRE's own (task 10): SHUNTING_PATH() (Open Rails,
+// not knowing it, logs it and takes it as 0).
 enum class ScriptFunction : unsigned char {
     BlockState, RouteSet, NextSigLr, NextSigMr, ThisSigLr, ThisSigMr, OppSigLr, OppSigMr, NextNsigLr,
-    DistMultiSigMr, SigFeature, DefDrawState, DebugHeader, DebugOut, OpenRails
+    DistMultiSigMr, SigFeature, DefDrawState, DebugHeader, DebugOut, ShuntingPath, ApproachPosition,
+    ApproachPositionForced, ApproachSpeed, OpenRails
 };
 
 // The head's externals: written by the script (state, draw_state), or
@@ -105,6 +109,20 @@ public:
     virtual int distantMulti(int function1, int function2) = 0;
     virtual int feature(int feature) = 0;
     virtual int drawStateOf(int aspect) = 0;
+    // Task 10: 1 while the signal is cleared for a train on a shunting move.
+    virtual int shuntingPath() { return 0; }
+    // Task 10, Open Rails' approach control (SignalObject.
+    // ApproachControlPosition, ApproachControlSpeed): 1 when the signal is
+    // cleared for a train that is within `metres` of it (Open Rails' whole
+    // metres) and, unless `forced`, has it as its next signal; with a speed
+    // (m/s, -1 none) also slower than that (0: standing); once 1, 1 until
+    // the signal is cleared again.
+    virtual int approachControl(int metres, int speed, bool forced) {
+        (void)metres;
+        (void)speed;
+        (void)forced;
+        return 0;
+    }
 };
 
 // Runs a usable script: `state` and `drawState` in and out (a head keeps

@@ -19,6 +19,10 @@ const QHash<QString, ScriptFunction> &functions() {
         {"next_nsig_lr", ScriptFunction::NextNsigLr}, {"dist_multi_sig_mr", ScriptFunction::DistMultiSigMr},
         {"sig_feature", ScriptFunction::SigFeature}, {"def_draw_state", ScriptFunction::DefDrawState},
         {"debug_header", ScriptFunction::DebugHeader}, {"debug_out", ScriptFunction::DebugOut},
+        {"shunting_path", ScriptFunction::ShuntingPath},
+        {"approach_control_position", ScriptFunction::ApproachPosition},
+        {"approach_control_position_forced", ScriptFunction::ApproachPositionForced},
+        {"approach_control_speed", ScriptFunction::ApproachSpeed},
     };
     return names;
 }
@@ -27,8 +31,7 @@ const QHash<QString, ScriptFunction> &functions() {
 const QStringList &openRailsNames() {
     static const QStringList names = {
         "dist_multi_sig_mr_of_lr", "next_sig_id", "next_nsig_id", "opp_sig_id", "opp_sig_id_trainpath",
-        "id_sig_enabled", "id_sig_lr", "allow_clear_to_partial_route", "approach_control_position",
-        "approach_control_position_forced", "approach_control_speed", "approach_control_lock_claim",
+        "id_sig_enabled", "id_sig_lr", "allow_clear_to_partial_route", "approach_control_lock_claim",
         "approach_control_next_stop", "activate_timing_trigger", "check_timing_trigger", "trainhascallon",
         "trainhascallon_restricted", "trainhascallon_advanced", "trainhascallon_restricted_advanced",
         "train_requires_next_signal", "find_req_normal_signal", "route_cleared_to_signal",
@@ -70,8 +73,9 @@ const QHash<QString, ScriptVariable> &variables() {
 int arity(ScriptFunction function) {
     switch (function) {
     case ScriptFunction::BlockState: case ScriptFunction::RouteSet: case ScriptFunction::DebugHeader:
+    case ScriptFunction::ShuntingPath:
         return 0;
-    case ScriptFunction::NextNsigLr: case ScriptFunction::DistMultiSigMr:
+    case ScriptFunction::NextNsigLr: case ScriptFunction::DistMultiSigMr: case ScriptFunction::ApproachSpeed:
         return 2;
     case ScriptFunction::DebugOut: case ScriptFunction::OpenRails:
         return -1;
@@ -840,6 +844,10 @@ private:
         case ScriptFunction::DistMultiSigMr: return h.distantMulti(whole(n, 0), whole(n, 1));
         case ScriptFunction::SigFeature: return h.feature(whole(n, 0));
         case ScriptFunction::DefDrawState: return h.drawStateOf(whole(n, 0));
+        case ScriptFunction::ShuntingPath: return h.shuntingPath();
+        case ScriptFunction::ApproachPosition: return h.approachControl(whole(n, 0), -1, false);
+        case ScriptFunction::ApproachPositionForced: return h.approachControl(whole(n, 0), -1, true);
+        case ScriptFunction::ApproachSpeed: return h.approachControl(whole(n, 0), whole(n, 1), false);
         case ScriptFunction::DebugOut:
             for (int i = 0; i < n.count; ++i)
                 argument(n, i);

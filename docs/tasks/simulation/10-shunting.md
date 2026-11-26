@@ -1,6 +1,7 @@
 # Task 10 - Shunting: Shunting Signals and the Player's Shunting Paths
 
-Status: design (2026-11-26), questions answered, not started; no go yet.
+Status: in progress (the user's go 2026-11-26, "Ok, proceed then."), branch
+`feature/simulation`.
 
 The user's brief (2026-11-26): many railways have shunting signals that
 show a shunting path; in Poland the shunting disc (tarcza manewrowa)
@@ -201,7 +202,111 @@ Questions 1 to 6 (2026-11-26) are answered above; 7 and 8 too:
    stays RESTRICTING: dark (the user: the white was the only light lit,
    so all dark is what to expect).
 
-No go to build yet: the design waits for one.
+The user's go: 2026-11-26.
+
+## Phases
+
+1. **Shunting moves and `SHUNTING_PATH()`.** Each train plan's shunting
+   ranges (route distances on its parts), made from its commands: an Open
+   Rails timetable's train whose run ends coupling (`$attach`, `$pickup`,
+   `$transfer`) from its last stop on, a train formed of cars cut off
+   (`$detach /forms`) up to its first stop; an activity's AI train on the
+   part with an extended AI shunting waiting point (60001, 60002, 4NNSS,
+   5NNSS) from its last stop there on; the autopilot's work (`workFrom` /
+   `workTo`). The script function, true while the signal is cleared for a
+   train and lies in one of its shunting ranges. Fixtures; the routes'
+   runs unchanged (no content calls it yet).
+2. **Open Rails' approach control functions** run: `APPROACH_CONTROL_POSITION`,
+   `_FORCED`, `APPROACH_CONTROL_SPEED` give Open Rails' answers (cleared
+   for a train, its next signal unless forced, within the distance and
+   speed; held true once true until cleared again), the heads that asked
+   run again as the train comes up. Not as Open Rails: the route is not
+   held back (TSRE's trains clear a signal by its block being free, not by
+   its aspect). Fixture.
+3. **Shunting routes** as long as possible: a shunting range's signals
+   cleared to its end as far as their blocks are free (not only the
+   type's count ahead), into an occupied block where the move couples.
+4. **The player's shunting path**: the planner's way from the standing
+   driven train to a clicked track place (reversals, the train clear of
+   switches where it reverses), the core taking it as the train's next
+   move (a shunting range) and dropping it ("Cancel shunting") or ending
+   it ("End shunting": on along its own path from where it is on it); the
+   route editor's map view's context menu while the player drives.
+5. **The testers' scripts**: CMK_E30's discs and main signals with a white
+   light, lights only, staged in `~/simulation-content`; both simulators
+   run with them.
+
+## Progress
+
+- **Phase 1** (2026-11-26): `TrainPlan::shunting` (`ShuntRange`: part,
+  from, to), made by `ShuntingRanges` (timetable trains after phase 9's
+  commands are resolved; activities' AI trains from their waiting
+  points) and by `ApplyWork` (the work's ranges); `Runtime::shunting`;
+  `SimulationCore::shuntingPath` / `shuntingAt`; `SHUNTING_PATH()` run by
+  `SignalScript` (`ScriptFunction::ShuntingPath`, `SignalScriptHost::
+  shuntingPath`). The route suite lists the trains with shunting moves
+  (`--test-verbose`). From the commands: E30 55 of 238 trains (45 of its
+  96 shunting-named ones), CMK 52 of 521 (42 of 61); the others named so
+  run without coupling commands (empty stock forming a service, `$forms`,
+  or stabled, `$static`). No content calls it yet: the routes' runs
+  unchanged. Checks: `simulation-core` (the script function),
+  `timetable-commands-more` (the ranges from the commands),
+  `simulation-coupling` (60001), `simulation-work` (the work's ranges).
+- **Phase 2** (2026-11-26): approach control run (`SimulationCore::
+  approachControl`: Open Rails' answers, held per signal until it is
+  cleared again, `approachWatch` runs the asking heads again each step);
+  `APPROACH_CONTROL_LOCK_CLAIM`, `_NEXT_STOP` and the `_REQ_` values stay
+  reported, not run. No local content uses approach control. Check:
+  `simulation-core`.
+- **Phase 3** (2026-11-26): `extendAuthority` clears on through a shunting
+  range once its window reaches into it. E30 179 of 238 finish, 26
+  stuck (as before), 37 waits (33); CMK and PRUDNIK unchanged; USA2's
+  whitpull (the player's work) succeeds at 09:40:36 (09:41:57), its
+  traffic train 03 then waiting some 17 minutes behind the work's longer
+  route (it did not before); EUROPE1 and JAPAN1 the same event by event.
+  Check: `simulation-core`.
+- **Phase 4** (2026-11-26): `PlanShunt` (`WorkPlanner`: `Planner::route`
+  to the place either way it is come to, the cheaper; a place on standing
+  cars at their nearer end; a part each way it runs); the core's
+  `shunting` message (`command`): "to <node> <distance>" with the driven
+  train standing (`startShunting`: its own route kept in
+  `Runtime::OwnRoute`, the path's parts put in with their projections and
+  limits, one shunting range each, the train turned when it starts rear
+  first), "end"/"cancel" (`endShunting`: back on its own route where its
+  front, or its rear turned, is on it, else it stays: "off"), answered
+  by a message `shunting` ("planned <m> <reversals>", "none <why>",
+  "ended", "off"); `$follow` waits and the work's ranges not read while
+  it runs one; given back to the AI, ended first. `SimulationController::
+  shuntTo` / `endShunting` / `drivenShunting`, the answers shown on the
+  map as the activity's messages are. The route editor's map view: its
+  context menu's "Shunting Path to Here" (the driven train standing; the
+  track within 12 pixels, 25 m at least, of the pointer) and "End
+  Shunting"; the map takes the driven train's messages too. Checks:
+  `simulation-work` (the planner: ahead, behind turned, into a trailing
+  siding, to cars there), `driving` (the core: planned, ended where it
+  stood; into the siding, driven, ended on its own route; behind, turned
+  and back), `simulation-ui` (through the controller).
+- **Phase 5** (2026-11-26): `~/simulation-content/
+  CMK_E30-shunting-lights-20261126.zip` (and `-backup.zip`, notes, made by
+  `make_shunting_lights.py` there): 22 types per route changed (3 discs,
+  19 main signals whose Ms2 is their white light; a draw state
+  `TSRE_dark` added to the main types), 11 left (their "Ms2" lights red,
+  green or nothing, or no script). In TSRE: all 82 scripts read without
+  problems; E30 179 of 238 trains finish (43 waits, 37), CMK unchanged;
+  E30's discs cleared for other trains blue (5 changes; white before),
+  for shunting trains white (3). In Open Rails (E30 04:45 to 06:00):
+  read and run, one warning per changed script ("Unknown function call :
+  SHUNTING_PATH ()"), 136 trains seen, no errors.
+
+## Left
+
+- The planned path drawn on the map (no route overlay exists yet).
+- The trains marked shunting from their commands are about half of
+  those named so (E30 45 of 96, CMK 42 of 61): the rest run without
+  coupling commands (empty stock forming a service, stabled). Marking
+  them is the user's to decide (a timetable row, say `#tsre.shunting`).
+- Sending an AI train shunting (a dispatcher's order): not asked.
+- The map menu is checked through the controller, not by clicking.
 
 ## Not in this task
 

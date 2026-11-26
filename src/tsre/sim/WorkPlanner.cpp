@@ -217,6 +217,9 @@ public:
         : in(input), net(*input.network), progress(progress) {}
 
     WorkPlan plan();
+    // Task 10 (PlanShunt): the cheaper way to `x` on `node` (either way it
+    // is come to), the train's track at each move's start filled in.
+    Move shunt(const YardTrain &moving, const std::vector<YardTrain> &standing, int node, double x);
 
 private:
     const SimulationInput &in;
@@ -653,6 +656,42 @@ Move Planner::route(const Target &target) const {
     move.part = foundPart;
     move.at = foundAt;
     return move;
+}
+
+Move Planner::shunt(const YardTrain &moving, const std::vector<YardTrain> &standing, int node, double x) {
+    train = moving;
+    cuts = standing;
+    lastLeadB = true;
+    searchWithin = 0.0;
+    Move best;
+    double bestCost = 0.0;
+    for (const bool forward : {true, false}) {
+        // On standing cars: their end come to first that way.
+        double at = x;
+        for (const YardTrain &cut : cuts)
+            for (const RouteInterval &interval : cut.track) {
+                const double lo = std::min(interval.from, interval.to), hi = std::max(interval.from, interval.to);
+                if (interval.node == node && x > lo - Eps && x < hi + Eps)
+                    at = forward ? lo - Eps : hi + Eps;
+            }
+        Target target;
+        target.kind = Target::Point;
+        target.node = node;
+        target.x = at;
+        target.forward = forward;
+        const Move move = route(target);
+        if (!move.found)
+            continue;
+        int reversals = int(move.legs.size()) - 1 + (move.legs.front().leadB ? 0 : 1);
+        const double cost = move.metres + ReversalCost * reversals;
+        if (!best.found || cost < bestCost) {
+            best = move;
+            bestCost = cost;
+        }
+    }
+    if (best.found)
+        moveBy(best);
+    return best;
 }
 
 void Planner::pathFrom(const TrainPlan &player, double departure) {
@@ -2186,6 +2225,30 @@ WorkPlan Planner::plan() {
 
 }
 
+ShuntPlan PlanShunt(const SimulationInput &input, const YardTrain &train, const std::vector<YardTrain> &standing,
+                    int node, double distance) {
+    ShuntPlan plan;
+    if (input.network == nullptr || train.track.empty())
+        return plan;
+    Planner planner(input);
+    const Move move = planner.shunt(train, standing, node, distance);
+    if (!move.found || move.legs.empty())
+        return plan;
+    plan.turned = !move.legs.front().leadB;
+    plan.metres = move.metres;
+    // A part each way it runs: the train's track then, its way on.
+    for (const WorkLeg &leg : move.legs) {
+        std::vector<RouteInterval> track = leg.body;
+        appendAll(track, leg.way);
+        RouteTrack part;
+        for (const RouteInterval &interval : track)
+            part.append(interval.node, interval.from, interval.to);
+        plan.parts.push_back(part);
+    }
+    plan.reversals = int(plan.parts.size()) - 1 + (plan.turned ? 1 : 0);
+    return plan;
+}
+
 double YardTrain::length() const {
     return lengthOf(track);
 }
@@ -2412,6 +2475,11 @@ bool ApplyWork(SimulationInput &input, const WorkProgress *progress) {
     player->passing = passing;
     player->workFrom = workFrom;
     player->workTo = workTo;
+    // Task 10: the work's moves are shunting moves.
+    player->shunting.clear();
+    for (size_t p = 0; p < workFrom.size(); ++p)
+        if (workFrom[p] >= 0.0)
+            player->shunting.push_back(TrainPlan::ShuntRange{int(p), workFrom[p], p < workTo.size() ? workTo[p] : -1.0});
     player->projection.assign(parts.size(), Projection());
     player->limits.assign(parts.size(), {});
     for (size_t p = 0; p < parts.size(); ++p)

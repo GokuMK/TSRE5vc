@@ -5803,7 +5803,52 @@ void RouteEditorGLWidget::showMapContextMenu(const QPoint &position) {
         if (menu.actions().constLast() == separator)
             menu.removeAction(separator);
     }
-    if (menu.exec(mapToGlobal(position)) != measure)
+    // Task 10: the player's shunting path, while a simulation runs and a
+    // train is driven: to the track at the pointer, the train standing;
+    // ended while it runs one.
+    Sim::SimulationController *simulation = Sim::SimulationController::instance();
+    QAction *shuntHere = nullptr;
+    QAction *shuntEnd = nullptr;
+    const int drivenTrain = simulation->exists() ? simulation->driven() : -1;
+    if (drivenTrain >= 0) {
+        const std::shared_ptr<const Sim::SimulationFrame> frame = simulation->frame();
+        const bool standing = frame != nullptr && size_t(drivenTrain) < frame->trains.size()
+                && std::fabs(frame->trains[size_t(drivenTrain)].state.speed) < 0.1f;
+        menu.addSeparator();
+        shuntHere = menu.addAction(
+            //% "Shunting Path to Here"
+            qtTrId("route.editor.map.shunting.to.here"));
+        shuntHere->setEnabled(standing);
+        if (simulation->drivenShunting())
+            shuntEnd = menu.addAction(
+                //% "End Shunting"
+                qtTrId("route.editor.map.shunting.end"));
+    }
+    QAction *chosen = menu.exec(mapToGlobal(position));
+    if (chosen != nullptr && chosen == shuntEnd) {
+        simulation->endShunting();
+        return;
+    }
+    if (chosen != nullptr && chosen == shuntHere) {
+        // The track nearest the pointer, within a few pixels' reach (and 25
+        // m at least).
+        int x = tileX(), z = tileZ();
+        float place[3] = {aktPointerPos[0], aktPointerPos[1], aktPointerPos[2]};
+        Game::check_coords(x, z, place);
+        float tile[2] = {float(x), float(z)};
+        float track[3] = {-1.0f, 0.0f, 0.0f};
+        const float reach = std::max(25.0f, 12.0f * cameraMap->view.metresPerPixel);
+        const float away = Game::trackDB != NULL ? Game::trackDB->findNearestPositionOnTDB(tile, place, NULL, track, false)
+                                                 : -1.0f;
+        if (away >= 0.0f && away <= reach && track[0] >= 0.0f)
+            simulation->shuntTo(int(track[0]), double(track[1]));
+        else
+            QMessageBox::information(this, qtTrId("route.editor.map.shunting.to.here"),
+                                     //% "No track at the pointer: right-click on a track."
+                                     qtTrId("route.editor.map.shunting.no.track"));
+        return;
+    }
+    if (chosen != measure)
         return;
     if (measure->isChecked()) {
         toolBeforeMeasure = toolEnabled;
@@ -5913,6 +5958,11 @@ void RouteEditorGLWidget::paintMap() {
         paintMapSelection(width, height);
         return;
     }
+    // The driven train's messages taken here too (the 3D view takes them
+    // each tick): the simulation's answers to a shunting path asked for on
+    // the map (task 10) show on it.
+    if (Sim::SimulationController::instance()->exists())
+        Sim::SimulationController::instance()->takeDrivenMessages();
     if (mapPaletteSetting != Game::mapPalette) {
         mapPalette = MapPalette::named(Game::mapPalette);
         mapPaletteSetting = Game::mapPalette;

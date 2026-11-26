@@ -428,6 +428,18 @@ int TsreTests::runSimulationCouplingSuite(bool verbose) {
         double at = -1.0;
         joining.route.parts[0].find(10, 60.0f, at);
         joining.waits = {Sim::WaitPlan{0, at, 60001}};
+        // Task 10: its shunting move, from the 60001 waiting point's part:
+        // that part from its start (no stop before the point there); none
+        // for a train with only a waiting point of seconds.
+        Sim::TrainPlan probe = joining;
+        Sim::ShuntingRanges(probe);
+        Sim::TrainPlan waiter = joining;
+        waiter.waits = {Sim::WaitPlan{0, at, 120}};
+        Sim::ShuntingRanges(waiter);
+        check(probe.shunting.size() == 1 && probe.shunting[0].part == 0 && probe.shunting[0].from == 0.0
+                  && probe.shunting[0].to < 0.0 && waiter.shunting.empty(),
+              "an extended AI shunting waiting point (60001) makes its part a shunting move (task 10), a waiting point "
+              "of seconds does not");
         Sim::SimulationCore core(inputOf({goods({Sim::WaitPlan{11, 150.0, 300}, Sim::WaitPlan{13, 60.0, 40305}}, 50.0f), joining}, {}));
         const Run run = runFor(core, 1500.0);
         const TrainEvent *joined = eventOf(run.events, 1, TrainEvent::JoinedTrain);

@@ -474,8 +474,18 @@ public:
     // The trains driven, in train order.
     const std::vector<int> &drivenTrains() const { return driven; }
     bool isDriven(int train) const;
-    // A message for a driven train's vehicle (-1: its cab's).
+    // A message for a driven train's vehicle (-1: its cab's). Task 10: the
+    // message `shunting` is the core's own: "to <node> <distance>" plans
+    // the player's shunting path there and runs it as the train's moves
+    // (it standing), "end" (or "cancel") ends it, the train going on along
+    // its own route from where it is on it. Answered by a message
+    // `shunting` from its cab: "planned <metres> <reversals>", "none <why>",
+    // "ended", "off" (ended off its own route: it stays where it is).
     void command(int train, int vehicle, const Message &message);
+    // Task 10: it runs a shunting path (its own route kept).
+    bool shunting(int train) const {
+        return train >= 0 && size_t(train) < runtime.size() && runtime[size_t(train)].ownRoute != nullptr;
+    }
     // A driven or heard train's vehicle's last outputs (-1: its cab's), null
     // for none; its cab (consist order), -1 none.
     const VehicleOutputs *outputsOf(int train, int vehicle) const;
@@ -550,6 +560,13 @@ private:
     // Rails' BLOCK_OCCUPIED).
     std::vector<int> clearedFor;
     std::vector<char> occupiedBlock;
+    // Task 10, Open Rails' approach control: the train a signal's approach
+    // control let go for (held until the signal is cleared again; NoHolder
+    // none), and the signals whose scripts asked and were told no while
+    // cleared: run again each step as their trains come up.
+    std::vector<int> approachClearedFor;
+    std::vector<int> approachWatch;
+    int approachControl(int signal, int metres, int speed, bool forced);
     // Per head; evaluated again after a step that changed reservations or
     // switches.
     std::vector<int> headAspect;
@@ -661,6 +678,9 @@ private:
         // Where its run ends on its last part (the plan's endAt, moved with
         // a passing path); -1 the part's end.
         double endAt = -1.0;
+        // Task 10: where its moves are shunting moves (the plan's, then the
+        // player's shunting paths).
+        std::vector<TrainPlan::ShuntRange> shunting;
         std::vector<Projection> ways;
         std::vector<std::vector<SpeedLimit>> limits;
         std::vector<StopPlan> stops;
@@ -793,6 +813,26 @@ private:
             double at = 0.0;
         };
         std::vector<Spot> spots;
+        // Task 10: its own route, kept while it runs the player's shunting
+        // path (null: not shunting): its parts and what hangs on them.
+        struct OwnRoute {
+            std::vector<RouteTrack> parts;
+            std::vector<double> reversalAt;
+            double endAt = -1.0;
+            std::vector<TrainPlan::ShuntRange> shunting;
+            std::vector<Projection> ways;
+            std::vector<std::vector<SpeedLimit>> limits;
+            std::vector<StopPlan> stops;
+            std::vector<WaitPlan> waits;
+            std::vector<PassingPlan> passing;
+            std::vector<Side> sides;
+            std::vector<std::vector<int>> passingSections;
+            std::vector<Spot> spots;
+            std::vector<double> arrivedAt;
+            size_t nextFollow = 0;
+            int part = 0;
+        };
+        std::shared_ptr<OwnRoute> ownRoute;
         struct Covered {
             int part = 0;
             double from = 0.0;
@@ -867,6 +907,13 @@ private:
     void advanceDriven(int train, double from, double to);
     void drivenStops(int train, double t);
     void drivenReversal(int train, double t);
+    // Task 10: the player's shunting path (command's `shunting`): planned
+    // from where the driven train stands and put in as its moves, its own
+    // route kept; ended, back on its own route where it is on it (false:
+    // it is not, the train staying on the shunting path's end).
+    void shuntingCommand(int train, const Message &message);
+    bool startShunting(int train, int node, double distance, QString &why, double &metres, int &reversals);
+    bool endShunting(int train);
     void drivenContact(int train, double t);
     bool drivenEnds(int train, std::vector<TrackPose> &fronts, std::vector<TrackPose> &rears) const;
     // Trains another one's `$activate` starts (task 08, phase 8).
@@ -1108,6 +1155,11 @@ private:
     // which Open Rails runs on past the reversal point; a signal not
     // cleared) the next along the switches.
     bool nextOnClearedRoute(int signal, int next) const;
+    // Task 10 (the signal scripts' SHUNTING_PATH()): the signal is cleared
+    // for a train and stands in one of that train's shunting ranges on its
+    // present part.
+    bool shuntingPath(int signal) const;
+    bool shuntingAt(int train, int part, double at) const;
     void switchChanged(int junction);
     // The stretches of each pair of trains; those of two trains' parts.
     void findStretches();

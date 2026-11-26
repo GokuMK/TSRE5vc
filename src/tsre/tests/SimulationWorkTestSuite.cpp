@@ -307,12 +307,26 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
         std::vector<unsigned int> cars;
         std::vector<Sim::TrainEvent> events;
         int parts = 0;
+        // Task 10: its work's moves are its shunting moves.
+        bool shuntingAsWork = false;
     };
     const auto runWork = [&](std::shared_ptr<const Sim::SimulationInput> made, int event) {
         auto input = std::const_pointer_cast<Sim::SimulationInput>(made);
         Sim::ApplyWork(*input);
         Ran ran;
         ran.parts = int(input->trains[0].route.parts.size());
+        const Sim::TrainPlan &player = input->trains[0];
+        int works = 0;
+        bool matched = true;
+        for (size_t p = 0; p < player.workFrom.size(); ++p)
+            if (player.workFrom[p] >= 0.0) {
+                ++works;
+                bool found = false;
+                for (const Sim::TrainPlan::ShuntRange &range : player.shunting)
+                    found = found || (range.part == int(p) && range.from == player.workFrom[p]);
+                matched = matched && found;
+            }
+        ran.shuntingAsWork = works > 0 && matched && int(player.shunting.size()) == works;
         Sim::SimulationCore core(input);
         for (int k = 0; k < 36000 && !ran.ended; ++k) {
             core.step(Sim::SimulationCore::MaxStep);
@@ -336,6 +350,42 @@ int TsreTests::runSimulationWorkSuite(bool verbose) {
         const Ran ran = runWork(inputOf(east, {car(20.0f, true, e1), car(10.0f, false, w2)}, {looseOn(12, 100.0f, {a, b})},
                                         {wagonEvent(Sim::EventPlan::PickUpWagons, {a, b})}), 0);
         check(ran.fired && ran.ended && ran.cars.size() == 4, "run: the pickup in the siding fires, the train at its path's end with the cars: " + told(ran));
+        check(ran.shuntingAsWork, "the work's moves are the train's shunting moves (task 10)");
+    }
+    // Task 10: the player's shunting path (PlanShunt). A train standing on
+    // track 20 heading for junction 6: on to track 21 (one move), back along
+    // track 20 (one move, turned), into siding 22 (trailing for it: on to
+    // track 21 and back), and to cars standing in it (their near end).
+    {
+        const auto made = inputOf(eastTrailing, {car(20.0f, true, e1), car(10.0f, false, w2)}, {}, {});
+        Sim::YardTrain moving;
+        moving.vehicles = {car(20.0f, true, e1), car(10.0f, false, w2)};
+        moving.track = {Sim::RouteInterval{20, 420.0f, 450.0f, 0.0}};
+        const Sim::ShuntPlan ahead = Sim::PlanShunt(*made, moving, {}, 21, 200.0);
+        const Sim::ShuntPlan behind = Sim::PlanShunt(*made, moving, {}, 20, 100.0);
+        const Sim::ShuntPlan siding = Sim::PlanShunt(*made, moving, {}, 22, 100.0);
+        Sim::YardTrain cars;
+        cars.track = {Sim::RouteInterval{22, 80.0f, 120.0f, 0.0}};
+        const Sim::ShuntPlan toCars = Sim::PlanShunt(*made, moving, {cars}, 22, 100.0);
+        const auto endsAt = [](const Sim::ShuntPlan &plan, int node, float at) {
+            return !plan.parts.empty() && !plan.parts.back().intervals().empty()
+                    && plan.parts.back().intervals().back().node == node
+                    && std::fabs(plan.parts.back().intervals().back().to - at) < 1.0f;
+        };
+        const auto startsWith = [&](const Sim::ShuntPlan &plan) {
+            return !plan.parts.empty() && !plan.parts.front().intervals().empty()
+                    && plan.parts.front().intervals().front().node == 20
+                    && std::fabs(plan.parts.front().intervals().front().from - (plan.turned ? 450.0f : 420.0f)) < 1.0f;
+        };
+        check(ahead.parts.size() == 1 && !ahead.turned && ahead.reversals == 0 && endsAt(ahead, 21, 200.0f)
+                  && startsWith(ahead) && behind.parts.size() == 1 && behind.turned && behind.reversals == 1
+                  && endsAt(behind, 20, 100.0f) && startsWith(behind) && siding.parts.size() == 2 && !siding.turned
+                  && siding.reversals == 1 && endsAt(siding, 22, 100.0f) && toCars.parts.size() == 2
+                  && endsAt(toCars, 22, 80.0f),
+              QString("the player's shunting path (task 10): ahead %1 parts, behind %2 (turned %3), into the "
+                      "trailing siding %4 (%5 reversal), to the cars there %6 parts")
+                  .arg(ahead.parts.size()).arg(behind.parts.size()).arg(behind.turned).arg(siding.parts.size())
+                  .arg(siding.reversals).arg(toCars.parts.size()));
     }
     {
         const Ran ran = runWork(inputOf(eastTrailing, {car(20.0f, true, e1), car(10.0f, false, w2), car(10.0f, false, x)}, {},

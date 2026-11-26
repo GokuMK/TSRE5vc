@@ -119,4 +119,20 @@ WorkPlan PlanWork(const SimulationInput &input, const WorkProgress *progress = n
 // it was.
 bool ApplyWork(SimulationInput &input, const WorkProgress *progress = nullptr);
 
+// Task 10: the player's shunting path, as the work's moves are searched:
+// from a train standing on `train`'s track (its rear, end A, to its front,
+// end B, leading) to a place on a vector node, clear of `standing` (the
+// cars and trains standing: their track); a place on standing cars is come
+// to at their nearer end. Its route parts (one each way it runs, a reversal
+// between two; the first starting with the train's own track), `turned`
+// when it starts with its rear leading; none when there is no way.
+struct ShuntPlan {
+    std::vector<RouteTrack> parts;
+    bool turned = false;
+    double metres = 0.0;
+    int reversals = 0;
+};
+ShuntPlan PlanShunt(const SimulationInput &input, const YardTrain &train, const std::vector<YardTrain> &standing,
+                    int node, double distance);
+
 }

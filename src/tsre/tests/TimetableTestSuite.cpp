@@ -1839,6 +1839,23 @@ void checkTimetableShunting(const std::function<void(bool, const QString &)> &ch
               && t["TK"]->transfer.units == 1 && t["R"]->attachesAwaited == 0,
           "shunting: the commands read (D's detach forming DL, A attaching to X, A2 to X2, P picking up /static, G "
           "giving R its non-power units, TK taking a unit /static); warnings: " + input->warnings.join("; "));
+    // Task 10: their shunting moves from their commands (the signal
+    // scripts' SHUNTING_PATH()): the runs ending coupling (A, A2 attaching,
+    // P picking up, G and TK transferring) to their path's end, the
+    // engine cut off (DL) up to its first stop; none for the others.
+    const auto toEnd = [&](const Sim::TrainPlan *plan) {
+        return !plan->shunting.empty() && plan->shunting.back().to < 0.0
+                && plan->shunting.back().part + 1 == int(plan->route.parts.size());
+    };
+    QStringList shuntingNames;
+    for (auto it = t.cbegin(); it != t.cend(); ++it)
+        if (!it.value()->shunting.empty())
+            shuntingNames << it.key();
+    check(toEnd(t["A"]) && toEnd(t["A2"]) && toEnd(t["P"]) && toEnd(t["G"]) && toEnd(t["TK"]) && !t["DL"]->shunting.empty()
+              && t["D"]->shunting.empty() && t["X"]->shunting.empty() && t["SD"]->shunting.empty()
+              && t["R"]->shunting.empty(),
+          "shunting moves from the commands (task 10): the runs ending coupling or transferring and the engine cut off "
+          "(trains with shunting ranges: " + shuntingNames.join(", ") + ")");
     Sim::SimulationCore core(input);
     std::map<std::pair<int, int>, double> first;
     while (core.time() < 9 * 3600 && !core.settled()) {

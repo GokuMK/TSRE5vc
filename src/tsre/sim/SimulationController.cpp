@@ -262,6 +262,7 @@ void SimulationController::letGo() {
     ++messageChanges;
     chosenTrain = -1;
     askedTrain = -1;
+    shuntingNow = false;
     if (drivenTrain != -1) {
         keys->releaseKeys();
         drivenTrain = -1;
@@ -398,6 +399,49 @@ void SimulationController::command(const QString &name, const MessageValue &valu
         link->command(train, vehicle, Sim::Message{name, value});
 }
 
+void SimulationController::shuntTo(int node, double distance) {
+    command(QStringLiteral("shunting"), QString("to %1 %2").arg(node).arg(distance, 0, 'f', 2));
+}
+
+void SimulationController::endShunting() {
+    command(QStringLiteral("shunting"), QStringLiteral("end"));
+}
+
+void SimulationController::shuntingAnswer(int train, const QString &answer) {
+    const QStringList words = answer.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    if (words.isEmpty())
+        return;
+    QString text;
+    if (words[0] == QLatin1String("planned") && words.size() >= 3) {
+        shuntingNow = true;
+        //% "Shunting path: %1 m, %n reversal(s)"
+        text = qtTrId("simulation.shunting.planned", words[2].toInt()).arg(words[1]);
+    } else if (words[0] == QLatin1String("none")) {
+        text = words.size() >= 2 && words[1] == QLatin1String("moving")
+                //% "Shunting path: stop the train first"
+                ? qtTrId("simulation.shunting.moving")
+                //% "No shunting path there"
+                : qtTrId("simulation.shunting.none");
+    } else if (words[0] == QLatin1String("ended")) {
+        shuntingNow = false;
+        //% "Shunting ended"
+        text = qtTrId("simulation.shunting.ended");
+    } else if (words[0] == QLatin1String("off")) {
+        shuntingNow = true;
+        //% "Shunting not ended: the train is off its path; give it a shunting path back onto it"
+        text = qtTrId("simulation.shunting.off");
+    }
+    if (text.isEmpty())
+        return;
+    if (!messageClock.isValid())
+        messageClock.start();
+    messages.erase(std::remove_if(messages.begin(), messages.end(),
+                                  [train](const Message &m) { return m.train == train; }),
+                   messages.end());
+    messages.push_back({train, text, messageClock.elapsed()});
+    ++messageChanges;
+}
+
 std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessages() {
     if (!exists())
         return {};
@@ -406,6 +450,12 @@ std::vector<std::pair<int, Sim::Message>> SimulationController::takeDrivenMessag
     const int train = driven();
     std::vector<std::pair<int, Sim::Message>> taken;
     for (TrainMessage &m : link->takeMessages()) {
+        // Task 10: the simulation's answer to a shunting path asked for.
+        if (m.message.name == QLatin1String("shunting")) {
+            if (m.train == train)
+                shuntingAnswer(train, m.message.text());
+            continue;
+        }
         if (m.message.name == QLatin1String("sound"))
             if (Consist *consist = consistOf(m.train)) {
                 // A name (MaSzyna's sounds, task maszyna 05), else Open
@@ -658,6 +708,7 @@ void SimulationController::poll() {
         emit stateChanged();
     if (link->drivenHere(*latest) != drivenTrain) {
         drivenTrain = link->drivenHere(*latest);
+        shuntingNow = false;
         giveKeys(drivenTrain);
         // Any Drive follows the train driven, the camera going into its cab
         // (task driving 07, the user's); given back, it stays followed.

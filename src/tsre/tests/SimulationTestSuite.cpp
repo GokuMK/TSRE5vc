@@ -257,8 +257,8 @@ SCRIPT Third
 	draw_state = 0;
 	while (1) draw_state++;			// stopped
 SCRIPT Broken
-	extern float approach_control_speed ();
-	state = approach_control_speed (100, 200) + nothing_known + mystery (1);
+	extern float approach_control_lock_claim ();
+	state = approach_control_lock_claim () + nothing_known + mystery (1);
 	goto done;
 	break;
 	enabled = 1;
@@ -279,7 +279,7 @@ SCRIPT Broken
                   && first->locals == 2,
               "signal scripts read: sections, REM SCRIPT skipped, comments, declarations");
         const QString brokenText = broken != nullptr ? broken->problems.join(" | ") : QString();
-        check(broken && !broken->usable() && broken->openRails == QStringList{"approach_control_speed"}
+        check(broken && !broken->usable() && broken->openRails == QStringList{"approach_control_lock_claim"}
                   && brokenText.contains("unknown name nothing_known") && brokenText.contains("unknown function mystery")
                   && brokenText.contains("goto is not in the language") && brokenText.contains("break outside a loop")
                   && brokenText.contains("enabled cannot be set")
@@ -1604,6 +1604,102 @@ Engine ( Test
                               "branch's at %2); ending inside a track section that ends at a signal, that one is still "
                               "the next: the signal at 500 m CLEAR_2 (%3) before the one at 1000 m (%4)")
                           .arg(lastAspect).arg(branchAspect).arg(firstAspect).arg(secondAspect));
+                // Task 10: SHUNTING_PATH(), true while a signal is cleared for
+                // a train on a shunting move (its shunting ranges): the same
+                // line, a script showing APPROACH_1 then (a white light),
+                // CLEAR_2 for other trains.
+                const QString shuntScript = R"(SCRIPT Home
+	extern float shunting_path (), def_draw_state ();
+	extern float state, draw_state, enabled;
+	if (!enabled)
+		state = SIGASP_STOP;
+	else if (shunting_path ())
+		state = SIGASP_APPROACH_1;
+	else
+		state = SIGASP_CLEAR_2;
+	draw_state = def_draw_state (state);
+)";
+                const QString shuntFolder = scripted.path() + "/shunt";
+                QDir().mkpath(shuntFolder);
+                writeUtf16(shuntFolder + "/sigcfg.dat", config);
+                writeText(shuntFolder + "/sigscr.dat", shuntScript);
+                const SigCfg shuntConfig(shuntFolder + "/sigcfg.dat");
+                auto shuntNetwork = std::make_shared<const Sim::TrackNetwork>(&fork.db, *forkGeometry, &shuntConfig, false);
+                const auto shuntAspect = [&](const Sim::SimulationCore &c, int item) {
+                    return c.aspects()[size_t(shuntNetwork->headOfItem(item))];
+                };
+                const int signal1000 = shuntNetwork->heads()[size_t(shuntNetwork->headOfItem(982))].signal;
+                // Its shunting range: from just short of the signal at 1000 m
+                // to its part's end; the signal at 500 m before it.
+                Sim::TrainPlan shunter = trainOn(toFork, *shuntNetwork, t0);
+                double at1000 = -1.0;
+                for (const Sim::ProjectedSignal &on : shunter.projection[0].stopSignals)
+                    if (on.signal == signal1000)
+                        at1000 = on.at;
+                shunter.shunting.push_back(Sim::TrainPlan::ShuntRange{0, at1000 - 1.0, -1.0});
+                Sim::SimulationCore shunting(inputOf(forkGeometry, shuntNetwork, {shunter}));
+                shunting.step(0.1);
+                const bool bothCleared = shunting.cleared()[size_t(signal1000)] == 0
+                        && shunting.cleared()[size_t(shuntNetwork->heads()[size_t(shuntNetwork->headOfItem(981))].signal)]
+                                == 0;
+                const int outside = shuntAspect(shunting, 981), inside = shuntAspect(shunting, 982);
+                Sim::SimulationCore plain(inputOf(forkGeometry, shuntNetwork, {trainOn(toFork, *shuntNetwork, t0)}));
+                plain.step(0.1);
+                const int plainInside = shuntAspect(plain, 982);
+                // Its shunting route as long as it can be (phase 3): the
+                // signal at 1500 m, beyond the type's two ahead, cleared too.
+                const int signal1500 = shuntNetwork->heads()[size_t(shuntNetwork->headOfItem(983))].signal;
+                const bool longRoute = shunting.cleared()[size_t(signal1500)] == 0
+                        && plain.cleared()[size_t(signal1500)] < 0;
+                bool usable = false;
+                for (const Sim::SignalKind &kind : shuntNetwork->kinds())
+                    usable = usable || (kind.name == "home" && kind.rule == Sim::SignalKind::Rule::Script);
+                check(usable && at1000 > 0.0 && bothCleared && outside == SignalType::CLEAR_2
+                          && inside == SignalType::APPROACH_1 && plainInside == SignalType::CLEAR_2 && longRoute,
+                      QString("SHUNTING_PATH() (task 10): a script calling it is run; true for the signal cleared in "
+                              "the train's shunting range (APPROACH_1, %1), not for the one before the range "
+                              "(CLEAR_2, %2) nor for a train without one (CLEAR_2, %3); its shunting route cleared "
+                              "on past the type's two ahead (to 1500 m: %4)")
+                          .arg(inside).arg(outside).arg(plainInside).arg(longRoute ? "yes" : "no"));
+            }
+            // Task 10: Open Rails' approach control run: true once the
+            // train, its next signal this one, is within 300 m of it (here
+            // CLEAR_2, APPROACH_1 before: TSRE does not hold the route back).
+            {
+                const QString approachScript = R"(SCRIPT Home
+	extern float approach_control_position (), def_draw_state ();
+	extern float state, draw_state, enabled;
+	if (!enabled)
+		state = SIGASP_STOP;
+	else if (approach_control_position (300))
+		state = SIGASP_CLEAR_2;
+	else
+		state = SIGASP_APPROACH_1;
+	draw_state = def_draw_state (state);
+)";
+                auto approach = networkWith(approachScript + distScript, scripted.path() + "/approach");
+                Sim::SimulationCore approachCore(run(approach));
+                approachCore.step(0.1);
+                const int far500 = aspectIn(approachCore, *approach, 971), far1000 = aspectIn(approachCore, *approach, 972);
+                const auto stepUntil = [&](double place) {
+                    for (int i = 0; i < 8000 && approachCore.trains()[0].front + 69.0 < place; ++i)
+                        approachCore.step(0.1);
+                };
+                stepUntil(500.0 - 290.0);
+                const int near500 = aspectIn(approachCore, *approach, 971), notNext1000 = aspectIn(approachCore, *approach, 972);
+                stepUntil(1000.0 - 320.0);
+                const int far1000Next = aspectIn(approachCore, *approach, 972);
+                stepUntil(1000.0 - 290.0);
+                const int near1000 = aspectIn(approachCore, *approach, 972);
+                bool usable = false;
+                for (const Sim::SignalKind &kind : approach->kinds())
+                    usable = usable || (kind.name == "home" && kind.rule == Sim::SignalKind::Rule::Script);
+                check(usable && far500 == SignalType::APPROACH_1 && far1000 == SignalType::APPROACH_1
+                          && near500 == SignalType::CLEAR_2 && notNext1000 == SignalType::APPROACH_1
+                          && far1000Next == SignalType::APPROACH_1 && near1000 == SignalType::CLEAR_2,
+                      QString("Open Rails' approach control (task 10): true within 300 m of the train's next signal: "
+                              "500 m far %1, near %2; 1000 m far %3, near but not next %4, next but far %5, near %6")
+                          .arg(far500).arg(near500).arg(far1000).arg(notNext1000).arg(far1000Next).arg(near1000));
             }
             Sim::SimulationCore basicCore(run(homeOnly));
             basicCore.step(0.1);
@@ -2945,6 +3041,15 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                     : qEnvironmentVariable("TSRE_SIM_EVENT_STOPS") == "platforms" ? Sim::SimulationInput::EventStops::Platforms
                     : Sim::SimulationInput::EventStops::None;
         inputMs += timer.elapsed();
+        // Task 10: the trains with shunting moves (from their commands).
+        if (verbose) {
+            QStringList shunting;
+            for (const Sim::TrainPlan &plan : input->trains)
+                if (!plan.shunting.empty())
+                    shunting << plan.service;
+            qInfo().noquote() << "[tests:simulation-route] shunting moves:" << activity->name << shunting.size()
+                              << "trains of" << input->trains.size() << (shunting.isEmpty() ? QString() : "| " + shunting.join(", "));
+        }
         // Each route part projected onto the network, end to end.
         for (const Sim::TrainPlan &plan : input->trains)
             for (size_t part = 0; part < plan.projection.size(); ++part) {
