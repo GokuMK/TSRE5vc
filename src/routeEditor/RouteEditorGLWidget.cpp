@@ -181,6 +181,7 @@ viewRole(role) {
     mistQuality = Settings::variant("core.rendering.mist", SettingType::Enum).toInt();
     exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
     warmth = float(Settings::floating("core.rendering.warmth"));
+    walkMouseSensitivity = float(Settings::floating("core.explore.mouseSensitivity"));
     // Undo replaces activity data: a selected loose consist, speed zone or
     // failed signal is gone.
     connect(ActivityNotifier::instance(), &ActivityNotifier::restoring, this, [this] {
@@ -234,6 +235,8 @@ viewRole(role) {
                 exhaustQuality = Settings::variant("core.rendering.exhaust", SettingType::Enum).toInt();
             if (key == "core.rendering.warmth")
                 warmth = float(Settings::floating("core.rendering.warmth"));
+            if (key == "core.explore.mouseSensitivity")
+                walkMouseSensitivity = float(Settings::floating("core.explore.mouseSensitivity"));
             // The frame-rate limit applies at once.
             if (key == "core.system.fpsLimit" && timer.isActive())
                 startViewTick();
@@ -5074,7 +5077,7 @@ void RouteEditorGLWidget::mouseMoveEvent(QMouseEvent *event) {
                 return;
             }
             if (by.x() != 0.0 || by.y() != 0.0) {
-                const float scale = Game::mouseSpeed / 30.0f * (camera->fov / 45.0f);
+                const float scale = walkMouseSensitivity / 30.0f * (camera->fov / 45.0f);
                 camera->patrzX(-float(by.x()) * scale);
                 camera->patrzY(-float(by.y()) * scale);
                 QCursor::setPos(mapToGlobal(middle));

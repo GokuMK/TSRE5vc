@@ -187,6 +187,11 @@ Later, not designed yet:
 - **Options** in RmlUi: pages made from the settings registry (names,
   descriptions, choices are there already, translated), not written by
   hand for each setting.
+- **A Controls tab in the settings:** until it exists,
+  `core.explore.mouseSensitivity` (the walking person's mouse look, in
+  explore mode and in the editor; the user, 2026-11-26) sits in System →
+  Explore mode, as a temporary place. The editor's other mouse moves keep
+  `core.camera.mouseSensitivity`.
 - **Multiplayer:** a server's address and login, then joining a run's
   train (server tasks 06 and 07).
 - **`--explore` with an activity or timetable file** (the user: later); it
