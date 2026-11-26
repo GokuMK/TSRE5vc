@@ -14,6 +14,7 @@
 #include <QRandomGenerator>
 #include <QScopedValueRollback>
 #include <algorithm>
+#include <array>
 #include <map>
 #include <cmath>
 #include <tsre/Game.h>
@@ -28,6 +29,7 @@
 #include <tsre/sim/TrainRoute.h>
 #include <tsre/sim/WorkPlanner.h>
 #include <tsre/tdb/TDB.h>
+#include <tsre/trains/Service.h>
 #include <tsre/tdb/TRnode.h>
 #include <tsre/tdb/TRitem.h>
 #include <tsre/tdb/TSection.h>
@@ -2206,9 +2208,22 @@ Engine ( Test
 
 int TsreTests::runSimulationRouteSuite(bool verbose) {
     const QDir sourceRoute(Game::root + "/ROUTES/" + Game::route);
+    // The route's TDB: its only one, else the one its TRK names (the app's
+    // choice; E30-Podkarpacie keeps a second "&" copy beside it).
+    QString databaseName;
     const auto databases = sourceRoute.entryInfoList({"*.tdb"}, QDir::Files);
-    if (databases.size() != 1) {
-        qWarning() << "simulation-route requires a route with one TDB (--game-root, --route)";
+    if (databases.size() == 1) {
+        databaseName = databases.first().completeBaseName();
+    } else if (databases.size() > 1) {
+        Trk trk;
+        if (Game::checkRoute(Game::route))
+            trk.load();
+        for (const QFileInfo &file : databases)
+            if (file.completeBaseName() == trk.routeName)
+                databaseName = trk.routeName;
+    }
+    if (databaseName.isEmpty()) {
+        qWarning() << "simulation-route requires a route with one TDB or the one its TRK names (--game-root, --route)";
         return 1;
     }
     int passed = 0, failed = 0;
@@ -2216,7 +2231,7 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         if (value) { ++passed; if (verbose) qInfo().noquote() << "[tests:simulation-route] PASS" << name; }
         else { ++failed; qWarning().noquote() << "[tests:simulation-route] FAIL" << name; }
     };
-    const QScopedValueRollback<QString> routeName(Game::routeName, databases.first().completeBaseName());
+    const QScopedValueRollback<QString> routeName(Game::routeName, databaseName);
     TSectionDAT sections(false, false);
     if (QFileInfo::exists(sourceRoute.filePath("tsection.dat")))
         sections.loadRoute(false);
@@ -2311,7 +2326,12 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                     }
                     return false;
                 };
-                linkedAhead += within(head.forward) ? 1 : 0;
+                const bool ahead = within(head.forward);
+                linkedAhead += ahead ? 1 : 0;
+                if (!ahead && verbose)
+                    qInfo().noquote() << QString("[tests:simulation-route] signal item %1 (node %2 at %3 m) is linked to "
+                                                 "junction %4, not within three junctions ahead")
+                                             .arg(head.item).arg(head.node).arg(head.distance, 0, 'f', 1).arg(head.junction);
                 linkedBehind += network->endSection(head.node, head.forward ? 0 : 1) == junction ? 1 : 0;
             }
         }
@@ -2573,6 +2593,30 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         runs << ActLib::Act.value(id);
     for (int id : content->timetableSetId)
         runs << ActLib::TimetableSets.value(id);
+    // TSRE_SIM_EXPLORE=<path>:<consist>[:hh:mm]: also a run as explore mode
+    // makes one (explore/ExploreRun.cpp, prepareActivity): an activity in
+    // memory, "tsre-explore", its player's service that path with that
+    // consist, no stops and no traffic (users' reports from explore mode;
+    // TSRE_SIM_DRIVE=tsre-explore:<commands> drives it). Never saved.
+    const QStringList explore = qEnvironmentVariable("TSRE_SIM_EXPLORE").split(':');
+    if (explore.size() >= 2) {
+        const QString routePath = Game::root + "/ROUTES/" + Game::route;
+        const QTime start = explore.size() >= 4 ? QTime(explore[2].toInt(), explore[3].toInt()) : QTime(12, 0);
+        Service *service = ActLib::Services.value(ActLib::AddService(routePath + "/SERVICES", "tsre-explore.srv", true));
+        Activity *made = ActLib::Act.value(ActLib::AddAct(routePath + "/ACTIVITIES", "tsre-explore.act", true));
+        if (service != nullptr && made != nullptr) {
+            service->setDisplayName("tsre-explore");
+            service->setTrainConfig(explore[1]);
+            service->setNewPath(explore[0]);
+            service->stationStop.clear();
+            made->init(content->trk != nullptr ? content->trk->idName : Game::route, "Explore");
+            made->header->startTime[0] = start.hour();
+            made->header->startTime[1] = start.minute();
+            made->header->startTime[2] = 0;
+            made->createNewPlayerService(service->nameId, start.msecsSinceStartOfDay() / 1000);
+            runs << made;
+        }
+    }
     for (Activity *activity : runs) {
         if (activity == nullptr || activity->loaded != 1)
             continue;
@@ -2839,6 +2883,33 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         if (verbose)
             for (const QString &warning : input->warnings)
                 qInfo().noquote() << "[tests:simulation-route]" << activity->name << warning;
+        // TSRE_SIM_HEADS=<item>,<item>...: the listed TDB signal items'
+        // aspects, draw states and the train their signal is cleared for,
+        // printed when any changes (signal investigations).
+        std::vector<std::pair<int, int>> tracedHeads;
+        for (const QString &item : qEnvironmentVariable("TSRE_SIM_HEADS").split(',', Qt::SkipEmptyParts))
+            if (input->network != nullptr) {
+                const int h = input->network->headOfItem(item.trimmed().toInt());
+                if (h >= 0)
+                    tracedHeads.push_back({item.trimmed().toInt(), h});
+            }
+        std::vector<std::array<int, 3>> tracedWere(tracedHeads.size(), {-9, -9, -9});
+        const auto traceHeads = [&](const Sim::SimulationCore &core) {
+            for (size_t i = 0; i < tracedHeads.size(); ++i) {
+                const int h = tracedHeads[i].second;
+                const int signal = input->network->heads()[size_t(h)].signal;
+                const std::array<int, 3> now{core.aspects()[size_t(h)], core.drawStates()[size_t(h)],
+                                             signal >= 0 ? core.cleared()[size_t(signal)] : -1};
+                if (now == tracedWere[i])
+                    continue;
+                tracedWere[i] = now;
+                const QString train = now[2] >= 0 && size_t(now[2]) < input->trains.size()
+                        ? input->trains[size_t(now[2])].service : QString::number(now[2]);
+                qInfo().noquote() << QString("[heads] %1 item %2 aspect %3 draw %4 cleared for %5")
+                                         .arg(core.time(), 0, 'f', 1).arg(tracedHeads[i].first).arg(now[0])
+                                         .arg(now[1]).arg(train);
+            }
+        };
         // TSRE_SIM_DRIVE=<activity file>:<commands file> (task driving 02,
         // step 5, against Open Rails): that activity only, its player's train
         // driven from its start by TSRE's loco scripts; the commands ("seconds
@@ -2907,6 +2978,8 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                                       .arg(value("auxiliaryReservoir")).arg(value("controlReservoir"))
                                       .arg(value("mainPipe")).arg(value("engineRpm")).arg(trainForce).toUtf8());
                 driven.step(0.5);
+                if (!tracedHeads.empty())
+                    traceHeads(driven);
             }
             for (const Sim::TrainEvent &event : driven.takeEvents())
                 if (event.train == player)
@@ -2955,6 +3028,8 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
         // a deadlock or held by a standing consist), as Simulate runs.
         for (int s = 0; s < 24 * 3600 && !core.settled(); ++s) {
             core.step(1.0);
+            if (!tracedHeads.empty())
+                traceHeads(core);
             // Every 10 s each running train's next signal and its aspect
             // (scripts/orts-compare-aspects.py).
             if (eventLog != nullptr && s % 10 == 0)
@@ -2966,8 +3041,13 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
                             ? core.nextSignalAhead(int(t), &aspect, &ahead) : -1;
                     if (signal < 0)
                         continue;
+                    // Its first NORMAL head's TDB item (per-signal breakdowns).
+                    int item = -1;
+                    for (int head : input->network->signalGroups()[size_t(signal)].heads)
+                        if (item < 0 && input->network->isNormal(input->network->heads()[size_t(head)]))
+                            item = input->network->heads()[size_t(head)].item;
                     logEvent(core.time(), int(t), "signal", QJsonObject{{"aspect", aspect}, {"ahead", ahead},
-                             {"signal", signal}, {"cleared", core.cleared()[size_t(signal)] == int(t)},
+                             {"signal", signal}, {"item", item}, {"cleared", core.cleared()[size_t(signal)] == int(t)},
                              {"authority", state.authority - state.front}, {"blockedBy", state.blockedBy}});
                 }
             // A wait ends when the train moves again.
@@ -3290,6 +3370,12 @@ int TsreTests::runSimulationRouteSuite(bool verbose) {
             Sim::TrainPlan plan = own->trains[i % own->trains.size()];
             plan.id = int(hundred->trains.size());
             plan.startTime = own->startTime;
+            // Each on its own: what names other trains (an Open Rails
+            // timetable's `$follow`, `$forms`, `$activate`, `/ahead`) would
+            // name the copies' indices.
+            plan.follows.clear();
+            plan.formedBy = plan.createAhead = plan.activatedBy = -1;
+            plan.createTime = -1;
             hundred->trains.push_back(plan);
         }
         Sim::SimulationCore many(hundred);

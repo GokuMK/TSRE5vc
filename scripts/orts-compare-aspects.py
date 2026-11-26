@@ -38,7 +38,8 @@ def ours(path):
             activity = event
         elif event["kind"] == "signal":
             trains[(event["player"], event["traffic"])].append(
-                (event["time"], event["travelled"] + event["ahead"], NAMES.get(event["aspect"], "?")))
+                (event["time"], event["travelled"] + event["ahead"], NAMES.get(event["aspect"], "?"),
+                 event.get("item", -1)))
     return activity, trains
 
 
@@ -74,6 +75,7 @@ def main(events_path, samples_path):
         by_number["0" if player else str(loose + 1 + traffic)] = records
     pairs, same = collections.Counter(), collections.Counter()
     differ = collections.Counter()
+    by_item = collections.Counter()
     for number, samples in theirs(samples_path).items():
         records = by_number.get(number)
         if not records:
@@ -92,12 +94,18 @@ def main(events_path, samples_path):
                 same[who] += 1
             else:
                 differ[(who, aspect, best[2])] += 1
+                by_item[(best[3], aspect, best[2])] += 1
     total, equal = sum(pairs.values()), sum(same.values())
     print("%s: %d samples paired, the same aspect in %d (%.0f %%); AI trains %d of %d, the player's %d of %d"
           % (activity["name"] if activity else events_path, total, equal, 100.0 * equal / max(total, 1),
              same["AI"], pairs["AI"], same["player"], pairs["player"]))
     for (who, theirs_aspect, mine_aspect), count in differ.most_common(8):
         print("  %s: Open Rails %s, TSRE %s: %d" % (who, theirs_aspect, mine_aspect, count))
+    if os.environ.get("ORTS_ASPECTS_BY_SIGNAL"):
+        # The signals (TSRE's next signal's first NORMAL head, its TDB item)
+        # that differ most.
+        for (item, theirs_aspect, mine_aspect), count in by_item.most_common(int(os.environ["ORTS_ASPECTS_BY_SIGNAL"])):
+            print("  item %s: Open Rails %s, TSRE %s: %d" % (item, theirs_aspect, mine_aspect, count))
 
 
 if __name__ == "__main__":

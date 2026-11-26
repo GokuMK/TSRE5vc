@@ -740,17 +740,15 @@ unsigned long long SimulationController::stateSerial() const {
     return latest != nullptr ? (static_cast<unsigned long long>(latest->runId) << 32) ^ latest->drawSerial : 0;
 }
 
-QString SimulationController::drawStateOf(int item) const {
+int SimulationController::drawStateOf(int item) const {
     if (latest == nullptr || in == nullptr || in->network == nullptr)
-        return QString();
+        return -1;
     const TrackNetwork &network = *in->network;
     const int head = network.headOfItem(item);
-    if (head < 0 || latest->drawStates == nullptr || size_t(head) >= latest->drawStates->size())
-        return QString();
-    const int kind = network.heads()[size_t(head)].kind;
-    if (kind < 0)
-        return QString();
-    return network.kinds()[size_t(kind)].drawStateNames.value((*latest->drawStates)[size_t(head)]);
+    if (head < 0 || latest->drawStates == nullptr || size_t(head) >= latest->drawStates->size()
+            || network.heads()[size_t(head)].kind < 0)
+        return -1;
+    return (*latest->drawStates)[size_t(head)];
 }
 
 unsigned long long SimulationController::crossingSerial() const {

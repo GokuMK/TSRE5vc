@@ -105,6 +105,9 @@ public:
     const Light *light(int index) const;
     // The first draw state of that name, as MSTS finds it.
     const DrawState *drawState(const QString &name) const;
+    // The draw state numbered `index` (SignalDrawState's number, the value a
+    // script sets draw_state to); null for none.
+    const DrawState *drawStateAt(int index) const;
     // The draw state of the most restrictive aspect; without aspects the
     // draw state with the lowest index. Null when there is none.
     const DrawState *defaultDrawState() const;
