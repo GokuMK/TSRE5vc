@@ -161,6 +161,27 @@ panel. Riding, doors, seats and cabs are task 03.
   there standing (made when none). Drawn and among the station people's
   agents walking or left (`Route`, `StationPeople`: the run's first).
 
+### Fixed later: a station that is one large shape (2026-11-26)
+The user's report from a hardware test: at CMK's Krakow Glowny (game root
+CMK_E30) the walking character started on the ground and the station had
+no collisions. Its platforms are one shape (`CMK-krg-p1.s`, about 420 m
+long) whose origin lies past their south end, in the next tile.
+`RouteCollision` looked only in the tiles within `Ahead` (96 m) of the
+character, and took an object's reach as half its bounds' diagonal about
+its origin. Under the middle of the platforms neither found the shape, so
+there was only terrain, and Explore's walking start (which probes the
+same collision world) stood the character on it. Now:
+- objects are also looked for in the tiles within `Ahead + LargestReach`
+  (1024 m). Those tiles and their objects are not waited for, and only
+  shapes already loaded count there, since their size is not known before;
+- an object reaches as far as its bounds' farthest corner from its origin
+  (`RouteCollision::reachOf`, 10 m at least).
+
+Platform II's middle, north end and south end now stand on the platform's
+floor (0.65 m over the rail; the middle was on the terrain, 1 m lower).
+The walk areas keep their own rule (the box's tiles, half the diagonal);
+it finds this platform shape.
+
 ## Left
 - The head's motion as a player setting (comfort): smoothed only, for
   now.
@@ -193,7 +214,8 @@ panel. Riding, doors, seats and cabs are task 03.
   camera's look, Fly's place 3 m behind the eyes along the look, one
   left keeps its way (not the camera's) and its keys let go of, resting
   500 m from the camera and not 3 m, a new run's character letting the
-  old go, cleared.
+  old go, cleared; a shape's reach from its origin (centred, its origin at
+  one end of 420 m, not loaded).
   With `TSRE_COLLISION_SHAPES` (a SHAPES folder; 400 shapes at most,
   `TSRE_COLLISION_LIMIT`): every shape's collision read in three modes,
   Default as Solid without vegetation, Box boxes, None nothing:

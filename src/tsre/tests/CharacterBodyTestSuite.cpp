@@ -23,6 +23,7 @@
 #include <tsre/characters/Character.h>
 #include <tsre/characters/CharacterBody.h>
 #include <tsre/characters/CollisionWorld.h>
+#include <tsre/characters/RouteCollision.h>
 #include <tsre/characters/ShapeCollision.h>
 #include <QDir>
 #include <QElapsedTimer>
@@ -443,6 +444,22 @@ int runCharacterBodySuite(bool verbose) {
                    QString("under a 1.5 m ceiling: standing stopped at it (%1), crouching (1.25 m) under it (%2); standing "
                            "does not fit there, out from under it does")
                        .arg(at(standing), at(low)));
+    }
+    {
+        // How far a shape reaches from its origin (the route's objects
+        // placed by it): a box about its origin to its corner; a long one
+        // with its origin at its end (CMK's Krakow Glowny's platforms, the
+        // user's report 2026-11-26: none under their middle) all its length;
+        // one not loaded (no bounds) 10 m.
+        const float centred[6] = {10.0f, -10.0f, 4.0f, -1.0f, 20.0f, -20.0f};
+        const float atItsEnd[6] = {40.0f, -40.0f, 12.0f, 0.0f, 0.0f, -420.0f};
+        const float none[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        const float a = Characters::RouteCollision::reachOf(centred);
+        const float b = Characters::RouteCollision::reachOf(atItsEnd);
+        const float c = Characters::RouteCollision::reachOf(none);
+        test.check(std::fabs(a - std::sqrt(516.0f)) < 0.01f && b >= 420.0f && b < 425.0f && c == 10.0f,
+                   QString("a shape's reach from its origin: centred %1 m, origin at the end of 420 m %2 m, not loaded %3 m")
+                       .arg(double(a), 0, 'f', 1).arg(double(b), 0, 'f', 1).arg(double(c), 0, 'f', 1));
     }
     const QString folder = qEnvironmentVariable("TSRE_COLLISION_SHAPES");
     if (!folder.isEmpty()) {

@@ -70,6 +70,13 @@ float segmentDistance(float px, float pz, const float *s) {
 
 }
 
+float RouteCollision::reachOf(const float *bound) {
+    const float x = std::max(std::fabs(bound[0]), std::fabs(bound[1]));
+    const float y = std::max(std::fabs(bound[2]), std::fabs(bound[3]));
+    const float z = std::max(std::fabs(bound[4]), std::fabs(bound[5]));
+    return std::max(std::sqrt(x * x + y * y + z * z), 10.0f);
+}
+
 RouteCollision::RouteCollision() = default;
 
 RouteCollision::~RouteCollision() = default;
@@ -228,15 +235,25 @@ void RouteCollision::gather(const float *position) {
         return;
     const double gx = double(base[0]) * 2048.0 + position[0], gz = double(base[1]) * 2048.0 + position[2];
     float unused = 0.0f;
+    // The tiles within Ahead, waited for (counted while they or their
+    // objects are not loaded); and those about them, for a large shape whose
+    // origin lies there but which reaches this far (Krakow Glowny's
+    // platforms, their origin in the next tile: none under the middle of
+    // them, the user's report 2026-11-26): only their loaded shapes, not
+    // waited for.
     const int tx0 = tileOf(gx - double(Ahead), unused), tx1 = tileOf(gx + double(Ahead), unused);
     const int tz0 = tileOf(gz - double(Ahead), unused), tz1 = tileOf(gz + double(Ahead), unused);
-    for (int tx = tx0; tx <= tx1; ++tx)
-        for (int tz = tz0; tz <= tz1; ++tz) {
+    const double around = double(Ahead + LargestReach);
+    const int ax0 = tileOf(gx - around, unused), ax1 = tileOf(gx + around, unused);
+    const int az0 = tileOf(gz - around, unused), az1 = tileOf(gz + around, unused);
+    for (int tx = ax0; tx <= ax1; ++tx)
+        for (int tz = az0; tz <= az1; ++tz) {
+            const bool within = tx >= tx0 && tx <= tx1 && tz >= tz0 && tz <= tz1;
             Tile *tile = route->tile.value(tx * 10000 + tz, nullptr);
             // Not made yet or not loaded (the first view of a run, the
             // camera just come): gathered again later. A tile the route
             // lacks is counted too: a gather a second near its edge.
-            if (tile == nullptr || tile->loaded != 1)
+            if (within && (tile == nullptr || tile->loaded != 1))
                 ++figures.unready;
             if (tile == nullptr || tile->loaded != 1)
                 continue;
@@ -245,21 +262,27 @@ void RouteCollision::gather(const float *position) {
                 if (object == nullptr || !collides(object->typeID))
                     continue;
                 if (!object->loaded || object->shape < 0) {
-                    ++figures.unready;
+                    if (within)
+                        ++figures.unready;
                     continue;
                 }
+                const float ox = float(double(object->x - base[0]) * 2048.0) + object->position[0];
+                const float oz = float(double(object->y - base[1]) * 2048.0) + object->position[2];
+                const float centre = std::hypot(ox - position[0], oz - position[2]);
+                if (!within && centre > Ahead + LargestReach)
+                    continue;
                 const Collision mode = collisionOfObject(object->tsreCollision);
                 if (mode == Collision::None)
                     continue;
                 const auto shape = Game::currentShapeLib->shape.find(object->shape);
                 if (shape == Game::currentShapeLib->shape.end() || shape->second == nullptr) {
-                    ++figures.unready;
+                    if (within)
+                        ++figures.unready;
                     continue;
                 }
-                const float ox = float(double(object->x - base[0]) * 2048.0) + object->position[0];
-                const float oz = float(double(object->y - base[1]) * 2048.0) + object->position[2];
-                const float radius = std::max(shape->second->getSize() * 0.5f, 10.0f);
-                const float away = std::hypot(ox - position[0], oz - position[2]) - radius;
+                if (!within && !shape->second->isLoaded())
+                    continue;
+                const float away = centre - reachOf(shape->second->getBound());
                 if (away > Ahead)
                     continue;
                 ++figures.objects;
