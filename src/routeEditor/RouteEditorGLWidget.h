@@ -855,6 +855,9 @@ private:
     // look (Esc lets it go, a click takes it again).
     Characters::Character *walker() const;
     bool pointerCaptured = false;
+    // core.explore.mouseSensitivity, the look's mouse speed, kept as
+    // lampsByDay (the editor's other mouse moves use Game::mouseSpeed).
+    float walkMouseSensitivity = 1.0f;
     // Captures: the characters held as they are (no time passes for them).
     bool characterHeld = false;
     void stepCharacter(double seconds);

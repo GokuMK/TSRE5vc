@@ -86,7 +86,7 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
           {"explore",
            //% "Explore mode"
            QT_TRID_NOOP("settings.group.system.subgroup.explore.name"),
-           //% "The game window: its size and full screen."
+           //% "Explore mode: its window and controls."
            QT_TRID_NOOP("settings.group.system.subgroup.explore.description"), 40},
           {"legacy",
            //% "Legacy or inactive"
@@ -439,6 +439,16 @@ bool registerCoreDefinitions(SettingsRegistry &registry, QString *error) {
                 //% "A window without borders over the whole screen, the taskbar too. The screen's own resolution is used."
                 QT_TRID_NOOP("settings.core.explore.fill.screen.description")).inGroup("system").inSubgroup("explore"),
         "", "", "Explore::Window", false, "hot-cache");
+    // The walking character's head turned by the mouse, in explore mode and
+    // in the editor; the editor's other mouse moves keep
+    // core.camera.mouseSensitivity. Here until a controls tab exists.
+    ADD(SettingsDefinition::floating("core.explore.mouseSensitivity", 1.0)
+            .withNameId(
+                //% "Mouse sensitivity"
+                QT_TRID_NOOP("settings.core.explore.mouse.sensitivity.name")).withDescriptionId(
+                //% "How fast the mouse turns the walking person's head, in explore mode and in the Route Editor. 1: the default."
+                QT_TRID_NOOP("settings.core.explore.mouse.sensitivity.description")).withRange(0.01, 10, 0.05).inGroup("system").inSubgroup("explore"),
+        "", "", "RouteEditorGLWidget", false, "hot-cache");
 
     order = 0;
     ADD(SettingsDefinition::string("core.paths.gameRoot", "", SettingType::Directory)

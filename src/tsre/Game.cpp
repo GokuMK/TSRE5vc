@@ -297,6 +297,8 @@ void Game::applyRuntimeSettings(const QStringList &changedKeys) {
     // explore 01).
     claim("core.explore.resolution", SettingType::Enum);
     claim("core.explore.fillScreen", SettingType::Bool);
+    // RouteEditorGLWidget keeps it for the walking character's mouse look.
+    claim("core.explore.mouseSensitivity", SettingType::Float);
     string("core.interface.routeEditor.mapPalette", mapPalette);
     integer("core.system.fpsLimit", fpsLimit);
     boolean("core.system.soundEnabled", soundEnabled);
