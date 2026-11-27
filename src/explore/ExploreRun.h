@@ -21,6 +21,10 @@
 class Activity;
 class RouteEditorGLWidget;
 
+namespace Explore {
+class Wait;
+}
+
 namespace Ui {
 class Screen;
 }
@@ -32,7 +36,8 @@ namespace Explore {
 // player's train, or a new one in memory for exploring), the day, season
 // and weather, and the player's train driven from its start, the camera in
 // its cab (SimulationController::playDriving). Esc in it shows the game
-// menu (appdata/<version>/ui/explore-game.rml): Resume, Main menu, Exit.
+// menu (appdata/<version>/ui/explore-game.rml): Resume, Wait (walking, task
+// explore 06), Main menu, Exit. T while walking opens the wait (Wait).
 class Run : public QObject {
 public:
     enum class State { None, Loading, Running };
@@ -62,6 +67,12 @@ public:
     bool gameMenuShown() const;
     // An element of the game menu clicked (the checks).
     bool click(const QString &id);
+    // The wait (task explore 06): while walking (the player's character on
+    // foot or in a car, no train driven), its dialog opened; false when it
+    // cannot be. The wait itself, null before the documents loaded.
+    bool canWait() const;
+    bool openWait();
+    Wait *wait() const;
 
 private:
     struct Data;

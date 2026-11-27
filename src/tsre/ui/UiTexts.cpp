@@ -275,5 +275,22 @@ namespace {
     QT_TRID_NOOP("ui.explore.resume"),
     //% "Main menu"
     QT_TRID_NOOP("ui.explore.main.menu"),
+    // The wait (explore-wait.rml and the game menu's Wait, task explore 06).
+    //% "Wait"
+    QT_TRID_NOOP("ui.explore.wait"),
+    //% "Waiting"
+    QT_TRID_NOOP("ui.explore.wait.title"),
+    //% "Wait for"
+    QT_TRID_NOOP("ui.explore.wait.for"),
+    //% "Next train"
+    QT_TRID_NOOP("ui.explore.wait.next.train"),
+    //% "Next stop"
+    QT_TRID_NOOP("ui.explore.wait.next.stop"),
+    //% "Cancel"
+    QT_TRID_NOOP("ui.explore.wait.cancel"),
+    //% "Stop"
+    QT_TRID_NOOP("ui.explore.wait.stop"),
+    //% "Skip"
+    QT_TRID_NOOP("ui.explore.wait.skip"),
 };
 }

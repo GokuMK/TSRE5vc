@@ -156,6 +156,16 @@ public:
     // The view's shapes as the route's (a collision read outside its
     // paint).
     void exploreUseShapes() const;
+    // Explore mode's wait (task explore 06): T while walking (the view's
+    // keys, not at a driver's place) calls `handler`; true when it opened
+    // the dialog (the pointer let go).
+    void setExploreWaitKey(std::function<bool()> handler) { exploreWaitKey = std::move(handler); }
+    // The player's walking character, null when none walks or it sits at a
+    // driver's place.
+    Characters::Character *exploreWalker() const;
+    // The world not drawn, the UI alone over black (a wait skipped).
+    void setExploreWorldHidden(bool hidden);
+    bool exploreWorldHidden() const { return worldHidden; }
     // What the camera rides (a train's consist), null for none; whether a
     // route is shown.
     GameObj *riddenObject() const;
@@ -973,6 +983,8 @@ private:
     void paintEmpty();
     Role viewRole = Role::Editor;
     std::function<void(Ui::Screen &)> uiFrame;
+    std::function<bool()> exploreWaitKey;
+    bool worldHidden = false;
     // The editor's map layers or explore mode's fewer (task explore 01).
     void setExploreMapLayers();
     std::unique_ptr<TrackItemMapLayer> trackItemMap;

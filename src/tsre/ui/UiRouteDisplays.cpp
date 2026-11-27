@@ -56,17 +56,26 @@ QString clockText(int seconds) {
     return QString("%1:%2").arg(seconds / 3600, 2, 10, QLatin1Char('0')).arg(seconds / 60 % 60, 2, 10, QLatin1Char('0'));
 }
 
-// Where a train is on its plan, by its state (none: not known): the stop
-// it stands at or runs to (-1 none), standing there, and how late it is
-// now (minutes: leaving late where it stands, past its next stop's
-// arrival, past its start).
-struct Progress {
+// RouteDisplays::progress with its delay in whole minutes, as the boards
+// show it.
+struct BoardProgress {
     int at = -1;
     bool standing = false;
     int late = 0;
 };
 
-Progress progressOf(const Sim::TrainPlan &plan, const Sim::TrainState *state, double now) {
+BoardProgress progressOf(const Sim::TrainPlan &plan, const Sim::TrainState *state, double now) {
+    const RouteDisplays::Progress exact = RouteDisplays::progress(plan, state, now);
+    BoardProgress p;
+    p.at = exact.at;
+    p.standing = exact.standing;
+    p.late = int(exact.late / 60.0);
+    return p;
+}
+
+}
+
+RouteDisplays::Progress RouteDisplays::progress(const Sim::TrainPlan &plan, const Sim::TrainState *state, double now) {
     Progress p;
     if (state == nullptr)
         return p;
@@ -83,10 +92,8 @@ Progress progressOf(const Sim::TrainPlan &plan, const Sim::TrainState *state, do
         late = now - stops[size_t(p.at)].arrival;
     if (late < 0.0 || late > 12 * 3600.0)
         late = 0.0;
-    p.late = int(late / 60.0);
+    p.late = late;
     return p;
-}
-
 }
 
 PlacedDisplays::PlacedDisplays() = default;
@@ -491,7 +498,7 @@ DisplayDocument::Data RouteDisplays::data(::ShapeDisplays::Display::Input input,
         if (state != nullptr && (state->status == Sim::TrainStatus::Finished || state->joinedTo >= 0))
             continue;
         // The stop it stands at or runs to.
-        const Progress progress = progressOf(plan, state, now);
+        const BoardProgress progress = progressOf(plan, state, now);
         const bool standing = progress.standing;
         const int at = progress.at;
         const int minutes = progress.late;
@@ -596,7 +603,7 @@ DisplayDocument::Data RouteDisplays::trainData(int train, const TDB &tdb, const 
         shows.fields[TrainFields::Origin] = first->stationName.trimmed();
     if (shows.fields[TrainFields::Destination].isEmpty() && last != nullptr)
         shows.fields[TrainFields::Destination] = last->stationName.trimmed();
-    const Progress progress = progressOf(plan, state, now);
+    const BoardProgress progress = progressOf(plan, state, now);
     auto stationAt = [&](int k) {
         const TRitem *found = k >= 0 && size_t(k) < stops.size() ? item(stops[size_t(k)].platformItem) : nullptr;
         return found != nullptr ? found->stationName.trimmed() : QString();

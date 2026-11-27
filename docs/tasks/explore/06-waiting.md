@@ -1,8 +1,8 @@
 # Explore task 06 - Waiting: a clock, a time to wait, the next train, the next stop
 
-Status 2026-11-27: design, not built. The questions at the end answered
-the same day (the design below follows them); building waits for the
-user's go. Part of the
+Status 2026-11-27: built on `feature/explore` the same day (the user's go:
+"ok, proceed"), not merged; the questions at the end answered the same
+day; see "As built" at the end. Part of the
 [explore set](00-task-roadmap.md); builds on walking runs
 ([04](04-walking-runs.md)) and the characters set's player in trains.
 
@@ -243,3 +243,88 @@ Answers (the user, 2026-11-27):
 4. **The key and the game menu:** "ok": **T while walking, and Wait in
    Esc's game menu.**
 5. **In a train:** "anywhere in a car": **sitting or standing.**
+
+## As built (2026-11-27)
+- **The dialog** (`appdata/0.7/ui/explore-wait.rml`, its rules in
+  `explore.rcss`, its data model "wait"): as designed; the clock as the
+  PRUDNIK platform clock's (240 dp, its hands turned by transforms), the
+  time and the day ("Sunday 21 June", the UI's language), Wait for
+  `[-] 0:30 [+]` until 06:04 (Left and Right 5 minutes, Shift an hour, 5
+  minutes to 12 hours, kept for the run), Wait, Next train, Next stop,
+  Cancel; waiting: "Waiting for R 46403 to Opole Gl", "6:46 left", Stop
+  and Skip. Its title "Waiting", the game menu's item "Wait".
+- **When:** T (or the game menu's Wait, shown only then) while the run's
+  character walks (on the ground or in a car, not at a driver's place)
+  and no train is driven (a driven train would stand while the run went
+  fast).
+- **Waiting fast:** `SimulationController::runToSeconds` in steps; at the
+  end, or on Stop (Esc, T), `play` at the run's speed. The world's clock
+  follows the fast run (`SimulationController::setWorldFollowsFastRuns`,
+  on only during a wait: the sun and the light move, the clouds are told
+  no speed, as simulation task 01 decided for them). The sound fades out
+  and back over 0.3 s (`SoundEngine::setVolume`: nothing else sets it).
+  Skip: an RmlUi fade to black, then the view draws its UI alone (as the
+  main menu over black) until the wait ends.
+- **The train's end, found live:** a train heading for its stop brakes
+  into it, so its last `d` metres at `v` take about 2d/v: the wait ends
+  when 2d/v is 30 s (or within 30 m). The first rule (within 500 m, the
+  displays' approach, or 30 s at its speed) ended 50 s early at Raszowa
+  (894 m at 99 km/h). Checked: PRUDNIK's two waits end at 2d/v 24 to 30 s,
+  EUROPE1's at 24 s.
+- **Steps, found by the checks:** a step must not pass the end however
+  the train runs: it may speed up and arrive early, but it does not
+  leave a stop early. A step goes as far as the largest of these bounds
+  (`WaitGoals::safeStep`): from where the train is to 2d/v = 30 s at its
+  top speed (its plan's, else 160 km/h); its booked departure from the
+  stop before plus that run at its top speed; its start. The first rule
+  (two minutes short of a guess) let 0518_R46403 arrive inside one step:
+  it left Kędzierzyn-Koźle at 5 m/s and sped up. Then 5 s steps at the
+  end; the goal read again after each (Raszowa: 9 steps, Zdzieszowice
+  8, EUROPE1's Scotby 25).
+- **What a train is:** `RouteDisplays::progress` (made public from the
+  boards' own: its stop, standing, how late in seconds; the boards still
+  show whole minutes) and the plans' booked times; named as the platform
+  screens name it, else by its timetable's comment (read on a worker as
+  a run starts: PSK's "R 46403"), else its service's name.
+- **At a platform:** the platform lines (`StationPlatforms`, sampled every
+  2 m, read once per track database) within 10 m flat of the character's
+  feet, from 2 m under to 6 m over the rail; Raszowa: 2 lines (an island).
+- **A server's run:** the wait at its pace, the dialog open counting down,
+  no Skip, the sound left as it is; checked with `Wait::setServerPace` (no
+  explore multiplayer yet).
+- **Speed here** (Release, llvmpipe, Xvfb 1280x720, Raszowa): Next train
+  from 05:34 in 7 s; an hour in time-lapse in 2 s; skipped, 1.4 s. People
+  at the far platform after the hour stood waiting as usual; nothing odd
+  seen in the frames taken (a time-lapse this short shows little).
+- **Seen on EUROPE1:** the walking copy of Local Service is booked at
+  Scotby at 08:00 but runs at 09:00, so its row reads "08:00 +60" (the
+  platform screens would show the same); not this task's.
+- **The code:** `Explore::Wait` and `Explore::WaitGoals`
+  (`src/explore/ExploreWait.h/.cpp`); `Explore::Run` (the wait's model and
+  document, T, the game menu's Wait, the comments' worker, the wait reset
+  when the run is left); the view (`setExploreWaitKey`, `exploreWalker`,
+  `setExploreWorldHidden`); `RouteDisplays::progress`;
+  `SimulationController::setWorldFollowsFastRuns`. `TSRE_WAIT_LOG`: each
+  step in the log (the train's next stop, path part, metres, speed).
+- **Texts:** 14 new (English and Polish).
+- **Checks:** `explore-wait` (new): PRUDNIK 61 (T, the clock at the run's
+  time, the day, at a platform, Next train "R 46403", Esc, the game
+  menu's Wait, T again; Next train fast, for 0518_R46403, the world's time
+  following, ended 2d/v within 20 to 30 s of Raszowa, the run on at 1x;
+  the train boarded (the character in one of its cars), Next stop
+  Zdzieszowice ended the same, the character still in its car; Right,
+  Left, Shift: 0:35, 1:30; Enter on Wait, the run 30 minutes on to the
+  second; twelve hours stopped by Esc; an hour skipped, the world not
+  drawn until the end; a server's pace, the dialog open, no Skip, T; at
+  Prudnik exploring with no trains: "No train today"), EUROPE1 14
+  (lclsrvce on foot at Scotby: Next train, 15 minutes); `displays` 35,
+  `explore-window` 70, `rmlui` 43, `explore-lists` 29 / 29,
+  `explore-start` 73 / 40; `all` built, ctest 11/11, 129 of the 157 app
+  suites (the 28 others need content, arguments or Vulkan, as before).
+- **Live, Xvfb 1280x720, Fill screen, PRUDNIK by keys:** the route page,
+  the timetable page, Start; on foot at Raszowa at 05:34; T, Down, Enter:
+  Next train; T, six Rights, Enter: an hour; at 4:3 (960x720) the dialog
+  (760 dp in the 1440 dp view, as at 16:9). Screens in the session's
+  scratchpad (live6/), not kept.
+- **Left:** Skip not seen live (the waits here end before a key
+  could press it); the alarm for a server's run (answer 1) later.

@@ -900,6 +900,246 @@ scrollbarvertical sliderbar
     background-color: #ffffff14;
 }
 
+/* The wait (task explore 06): a dialog in the middle, over the run; the
+   run's clock (as the PRUDNIK platform clock, 240 dp across), the time to
+   wait, its buttons. Skipped, the view dims behind it. */
+#wait-dim
+{
+    position: absolute;
+    left: 0dp;
+    right: 0dp;
+    top: 0dp;
+    bottom: 0dp;
+    background-color: #000000;
+    opacity: 0;
+    transition: opacity 0.3s linear-in-out;
+}
+
+#wait-dim.on
+{
+    opacity: 1;
+}
+
+#wait-dialog
+{
+    position: absolute;
+    left: 50%;
+    top: 18%;
+    width: 760dp;
+    margin-left: -380dp;
+    padding: 24dp 34dp 26dp 34dp;
+    background-color: #0b0d10ee;
+    border: 1dp #c4a48066;
+    pointer-events: auto;
+    font-size: 22dp;
+    color: #c8c8c8;
+}
+
+#wait-dialog h2
+{
+    font-size: 28dp;
+    font-weight: normal;
+    color: #ffffff;
+    margin-bottom: 18dp;
+}
+
+#wait-top
+{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 22dp;
+}
+
+#wait-clock
+{
+    position: relative;
+    flex: 0 0 auto;
+    width: 240dp;
+    height: 240dp;
+    border-radius: 120dp;
+    background-color: #ece9e2;
+}
+
+.wait-tick
+{
+    position: absolute;
+    left: 118dp;
+    top: 0dp;
+    width: 4dp;
+    height: 240dp;
+}
+
+.wait-tick div
+{
+    height: 22dp;
+    background-color: #1a1a1a;
+}
+
+.wait-tick.h1 { transform: rotate(30deg); }
+.wait-tick.h2 { transform: rotate(60deg); }
+.wait-tick.h3 { transform: rotate(90deg); }
+.wait-tick.h4 { transform: rotate(120deg); }
+.wait-tick.h5 { transform: rotate(150deg); }
+.wait-tick.h6 { transform: rotate(180deg); }
+.wait-tick.h7 { transform: rotate(210deg); }
+.wait-tick.h8 { transform: rotate(240deg); }
+.wait-tick.h9 { transform: rotate(270deg); }
+.wait-tick.h10 { transform: rotate(300deg); }
+.wait-tick.h11 { transform: rotate(330deg); }
+
+.wait-hand
+{
+    position: absolute;
+    transform-origin: 50% 100%;
+    background-color: #1a1a1a;
+}
+
+#wait-hour
+{
+    left: 115dp;
+    top: 58dp;
+    width: 10dp;
+    height: 62dp;
+}
+
+#wait-minute
+{
+    left: 117dp;
+    top: 24dp;
+    width: 6dp;
+    height: 96dp;
+}
+
+#wait-second
+{
+    left: 119dp;
+    top: 16dp;
+    width: 2dp;
+    height: 104dp;
+    background-color: #c01818;
+}
+
+#wait-pin
+{
+    position: absolute;
+    left: 113dp;
+    top: 113dp;
+    width: 14dp;
+    height: 14dp;
+    border-radius: 7dp;
+    background-color: #1a1a1a;
+}
+
+#wait-info
+{
+    flex: 1 1 auto;
+    margin-left: 40dp;
+}
+
+#wait-time
+{
+    font-size: 56dp;
+    color: #ffffff;
+}
+
+#wait-day
+{
+    margin-bottom: 22dp;
+    color: #a8a8a8;
+}
+
+#wait-set
+{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
+#wait-set > *
+{
+    flex: 0 0 auto;
+}
+
+.wait-label
+{
+    margin-right: 14dp;
+}
+
+#wait-less, #wait-more
+{
+    width: 40dp;
+    padding: 2dp 0dp;
+    text-align: center;
+    color: #c8c8c8;
+    border: 1dp #ffffff33;
+}
+
+#wait-less:focus, #wait-less:hover, #wait-more:focus, #wait-more:hover
+{
+    color: #ffffff;
+    border-color: #c4a480;
+}
+
+#wait-length
+{
+    min-width: 80dp;
+    text-align: center;
+    font-size: 30dp;
+    color: #ffffff;
+}
+
+#wait-until, #wait-left
+{
+    margin-top: 8dp;
+    color: #a8a8a8;
+}
+
+#wait-status
+{
+    color: #ffffff;
+}
+
+.wait-buttons button
+{
+    display: block;
+    font-size: 26dp;
+    padding: 6dp 0dp 6dp 20dp;
+    color: #c8c8c8;
+    border-left: 4dp transparent;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.wait-buttons button:focus, .wait-buttons button:hover
+{
+    color: #ffffff;
+    border-left-color: #c4a480;
+    background-color: #ffffff14;
+}
+
+.wait-buttons button.disabled
+{
+    color: #6c6c6c;
+}
+
+.wait-what
+{
+    display: inline-block;
+    width: 190dp;
+}
+
+.wait-due
+{
+    font-size: 22dp;
+    color: #a8a8a8;
+}
+
+.wait-buttons button:focus .wait-due, .wait-buttons button:hover .wait-due
+{
+    color: #e0e0e0;
+}
+
 /* The loading screen: the route's picture over the whole view, its name. */
 body.loading
 {

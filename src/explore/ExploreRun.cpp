@@ -8,7 +8,9 @@
  *  See LICENSE.md or https://www.gnu.org/licenses/gpl.html
  */
 
+#include <explore/ExploreLists.h>
 #include <explore/ExploreRun.h>
+#include <explore/ExploreWait.h>
 #include <explore/ExploreWalk.h>
 #include <routeEditor/RouteEditorGLWidget.h>
 #include <settings/SettingsManager.h>
@@ -33,9 +35,12 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QThread>
+#include <QThreadPool>
 #include <QTimer>
 #include <algorithm>
+#include <atomic>
 
 namespace Explore {
 
@@ -75,6 +80,16 @@ struct Run::Data {
     Ui::Screen *screen = nullptr;
     Rml::ElementDocument *loading = nullptr;
     Rml::ElementDocument *game = nullptr;
+    // The wait (task explore 06): its model and its dialog.
+    std::unique_ptr<Wait> wait;
+    Rml::ElementDocument *waitDocument = nullptr;
+    // A timetable's trains' comments by name (the wait names trains by
+    // them), read on a worker when a run starts.
+    struct Names {
+        std::atomic<bool> done{false};
+        QHash<QString, QString> comments;
+    };
+    std::shared_ptr<Names> names;
     bool documentsTried = false;
     std::vector<std::unique_ptr<Listener>> listeners;
     std::vector<std::pair<Rml::Element *, std::pair<Rml::EventId, Listener *>>> attached;
@@ -117,14 +132,26 @@ Run::Run(RouteEditorGLWidget &view, std::function<void(const QString &)> menu, s
 }
 
 Run::~Run() {
+    view.setExploreWaitKey(nullptr);
     for (const auto &[element, listener] : d->attached)
         element->RemoveEventListener(listener.first, listener.second);
     if (d->screen != nullptr)
         d->screen->setMenuHandler(nullptr);
+    if (d->wait != nullptr) {
+        d->wait->reset();
+        d->wait->setDocument(nullptr, nullptr);
+    }
     if (d->loading != nullptr)
         d->loading->Close();
     if (d->game != nullptr)
         d->game->Close();
+    if (d->waitDocument != nullptr)
+        d->waitDocument->Close();
+    // The documents go at the context's next update; the wait's model after
+    // them.
+    if (d->wait != nullptr && d->screen != nullptr && d->screen->context() != nullptr)
+        d->screen->context()->Update();
+    d->wait.reset();
     if (d->picture >= 0)
         TexLib::delRef(d->picture);
 }
@@ -137,10 +164,24 @@ bool Run::loadDocuments() {
     Ui::Runtime *runtime = Ui::Runtime::get();
     if (context == nullptr || runtime == nullptr)
         return false;
+    // The wait's model first: its document binds it as it loads.
+    d->wait = std::make_unique<Wait>(*context, view);
     {
         Script::State::Deadline deadline(runtime->lua());
         d->loading = context->LoadDocument((runtime->folder() + "/loading.rml").toStdString());
         d->game = context->LoadDocument((runtime->folder() + "/explore-game.rml").toStdString());
+        if (d->wait->usable())
+            d->waitDocument = context->LoadDocument((runtime->folder() + "/explore-wait.rml").toStdString());
+    }
+    if (d->waitDocument != nullptr) {
+        // Closed: the walking character's pointer again (not under the
+        // game menu).
+        d->wait->setDocument(d->waitDocument, [this] {
+            if (d->game == nullptr || !d->game->IsVisible())
+                view.exploreResumeWalking();
+        });
+    } else {
+        qWarning().noquote() << "[explore] the wait's document did not load:" << runtime->folder();
     }
     if (d->loading == nullptr || d->game == nullptr) {
         qWarning().noquote() << "[explore] the run's documents did not load:" << runtime->folder();
@@ -160,6 +201,13 @@ bool Run::loadDocuments() {
         // Walking: the pointer taken again (task explore 04).
         view.exploreResumeWalking();
     });
+    // The wait in its place (task explore 06).
+    d->listen(d->game->GetElementById("wait"), Rml::EventId::Click, [this](Rml::Event &) {
+        if (d->game->IsVisible())
+            d->game->Hide();
+        if (!openWait())
+            view.exploreResumeWalking();
+    });
     // After RmlUi's event: the route is left, or the window closed, under it.
     d->listen(d->game->GetElementById("main-menu"), Rml::EventId::Click, [this](Rml::Event &) {
         QTimer::singleShot(0, this, [this] {
@@ -174,14 +222,18 @@ bool Run::loadDocuments() {
                 exitHandler();
         });
     });
-    // Esc with the view's keys: the game menu, while a run is on.
+    // Esc with the view's keys: the game menu, while a run is on; T while
+    // walking, the wait.
     d->screen->setMenuHandler([this] { return showGameMenu(); });
+    view.setExploreWaitKey([this] { return openWait(); });
     return true;
 }
 
 void Run::frame(Ui::Screen &screen) {
     d->screen = &screen;
     loadDocuments();
+    if (d->wait != nullptr && onTrack())
+        d->wait->frame();
     if (now == State::Running && d->walking != Data::Walking::None) {
         walkFrame();
         return;
@@ -307,6 +359,19 @@ void Run::load() {
     }
     d->lastRoute = chosen.route;
     const qint64 routeMs = timer.elapsed();
+    // A timetable's trains' comments for the wait's names (task explore 06).
+    d->names = std::make_shared<Data::Names>();
+    if (chosen.kind == RunChoice::Kind::Timetable) {
+        QThreadPool::globalInstance()->start([names = d->names, root = Game::root, route = chosen.route,
+                                              file = chosen.file] {
+            for (const Lists::TrainInfo &train : Lists::timetableTrains(root, route, file))
+                if (!train.comment.trimmed().isEmpty())
+                    names->comments.insert(train.name, train.comment.trimmed());
+            names->done = true;
+        });
+    } else {
+        d->names->done = true;
+    }
     QString why;
     Activity *activity = prepareActivity(why);
     if (activity == nullptr) {
@@ -547,6 +612,8 @@ void Run::walkFrame() {
 void Run::leave() {
     if (now == State::None)
         return;
+    if (d->wait != nullptr)
+        d->wait->reset();
     d->waitingForTrain = false;
     d->walking = Data::Walking::None;
     d->probe.reset();
@@ -568,6 +635,13 @@ bool Run::showGameMenu() {
     if (now != State::Running || d->screen == nullptr || d->game == nullptr)
         return false;
     d->hoverArmed = false;
+    // Wait only while walking (task explore 06).
+    if (Rml::Element *wait = d->game->GetElementById("wait")) {
+        if (canWait())
+            wait->RemoveProperty("display");
+        else
+            wait->SetProperty("display", "none");
+    }
     d->screen->showMenu(d->game);
     // Resume first, whatever the pointer rests over.
     if (Rml::Element *resume = d->game->GetElementById("resume"))
@@ -587,6 +661,27 @@ bool Run::click(const QString &id) {
         return false;
     element->Click();
     return true;
+}
+
+bool Run::canWait() const {
+    return onTrack() && d->wait != nullptr && d->waitDocument != nullptr && view.exploreWalker() != nullptr
+            && Sim::SimulationController::instance()->driven() < 0;
+}
+
+bool Run::openWait() {
+    if (!canWait() || d->screen == nullptr)
+        return false;
+    if (d->wait->shown())
+        return true;
+    std::shared_ptr<Data::Names> names = d->names;
+    d->wait->setRun(running, [names](const QString &service) {
+        return names != nullptr && names->done ? names->comments.value(service) : QString();
+    });
+    return d->wait->open(*d->screen);
+}
+
+Wait *Run::wait() const {
+    return d->wait.get();
 }
 
 }

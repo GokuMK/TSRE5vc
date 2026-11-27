@@ -1098,6 +1098,17 @@ void RouteEditorGLWidget::exploreUseShapes() const {
     Game::currentShapeLib = currentShapeLib;
 }
 
+Characters::Character *RouteEditorGLWidget::exploreWalker() const {
+    return cabDriver() == nullptr ? walker() : nullptr;
+}
+
+void RouteEditorGLWidget::setExploreWorldHidden(bool hidden) {
+    if (worldHidden == hidden)
+        return;
+    worldHidden = hidden;
+    update();
+}
+
 Characters::Character *RouteEditorGLWidget::walker() const {
     return Characters::Cast::instance().player();
 }
@@ -1494,9 +1505,9 @@ void RouteEditorGLWidget::surfacePaint(){
     painting = true;
     const auto paintEnds = qScopeGuard([this] { painting = false; });
     Game::currentShapeLib = currentShapeLib;
-    if (!canRenderFrame()) {
+    if (!canRenderFrame() || (exploring() && worldHidden)) {
         // Explore mode before any route: its UI over black (task explore
-        // 01).
+        // 01); a wait skipped, the world not drawn (task explore 06).
         if (exploring() && !routeChanging)
             paintEmpty();
         return;
@@ -4597,6 +4608,14 @@ void RouteEditorGLWidget::keyPressEvent(QKeyEvent * event) {
     // The UI first: a menu or a text field has the keys, or Esc and F8.
     if (uiScreen && uiScreen->keyPress(event))
         return;
+    // Explore mode's wait (task explore 06): T while walking.
+    if (exploring() && event->key() == Qt::Key_T && !event->isAutoRepeat()
+            && (event->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier && exploreWaitKey
+            && exploreWalker() != nullptr && exploreWaitKey()) {
+        capturePointer(false);
+        event->accept();
+        return;
+    }
     
     if (event->key() == Qt::Key_F10
             && (event->modifiers() & Qt::ControlModifier)
