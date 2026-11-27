@@ -148,7 +148,10 @@ the next, or far from its geometry, would have had no platform floor.
 Now an object reaches as far as its bounds' farthest corner
 (`RouteCollision::reachOf`), and the tiles about the box's (up to
 `RouteCollision::LargestReach`, 1024 m) are looked in too: there only
-shapes already loaded count, and they are not waited for.
+shapes already loaded count, and they are not waited for. A shape not
+loaded yet in the box's tiles reaches 50 m (`UnknownReach`, a stop-gap,
+2026-11-27; 10 m before); a radius kept in the world object's block would
+replace it (characters task 02, Left).
 
 ## Left
 - MaSzyna's e3d route shapes give no triangles yet (their objects are left

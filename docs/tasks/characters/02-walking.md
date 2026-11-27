@@ -175,7 +175,11 @@ same collision world) stood the character on it. Now:
   (1024 m). Those tiles and their objects are not waited for, and only
   shapes already loaded count there, since their size is not known before;
 - an object reaches as far as its bounds' farthest corner from its origin
-  (`RouteCollision::reachOf`, 10 m at least).
+  (`RouteCollision::reachOf`, 10 m at least). A shape not loaded yet (not
+  drawn, no bounds) reaches `UnknownReach`, 50 m, a stop-gap (2026-11-27;
+  10 m before). The median shape reaches 13-30 m on the stock routes, CMK
+  and PRUDNIK, and 69-95 % of objects reach past 10 m; 50 m covers 70-97 %
+  of them.
 
 Platform II's middle, north end and south end now stand on the platform's
 floor (0.65 m over the rail; the middle was on the terrain, 1 m lower).
@@ -183,6 +187,25 @@ The walk areas take their objects the same way since (task humans 04's
 "Fixed later").
 
 ## Left
+- **A radius in the world object's block** (the user, 2026-11-27): how far
+  its shape reaches from its origin, written by TSRE whenever it knows the
+  shape (placed, moved, its shape changed, its tile saved with the shape
+  loaded), as `TSREWalk` and `TSRECollision` are. It would replace the 50 m
+  `UnknownReach` for shapes not drawn yet, here and in the walk areas.
+  MSTS's own spheres were reviewed for this first (all six stock routes,
+  707 W files) and are no fit:
+  - `ViewDbSphere`s form a tree, one root per tile (about 1.2 km) and up to
+    two levels below; an object's `VDbId` points at a sphere of any level,
+    shared by most often 3-5 objects (16 % point at the tile's root): a
+    culling structure, not a bound per object. The sphere an object points
+    at has a median radius of 36-182 m.
+  - Only MSTS's Route Editor builds them. On the stock routes 87 % of static
+    objects have one, and track, forests, hazards, platforms, sidings, car
+    spawners and transfers never do. The routes made in TSRE barely have
+    them (CMK 4 %, PRUDNIK 2 % of objects): TSRE writes them back as read,
+    new objects get none, and moved ones keep their old one.
+  - 87-98 % of objects lie inside theirs (their shape's declared sphere,
+    not its geometry: stray points stick out).
 - The head's motion as a player setting (comfort): smoothed only, for
   now.
 - Moving cars behind the camera (not drawn) do not stop it.

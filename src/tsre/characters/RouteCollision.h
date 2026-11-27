@@ -57,12 +57,18 @@ public:
 
     RouteCollision();
     ~RouteCollision();
+    // How far a shape not loaded yet (not drawn: no bounds) is taken to
+    // reach: a stop-gap (the user, 2026-11-27). The median shape reaches
+    // 13-30 m on the stock routes, CMK and PRUDNIK; 50 m covers 70-97 % of
+    // their objects (10 m, before, under a third). A radius kept in the world
+    // object's block would replace it (task characters 02, Left).
+    static constexpr float UnknownReach = 50.0f;
     // How far a shape reaches from its origin (m), from its bounds (max x,
     // min x, max y, min y, max z, min z): to their farthest corner, so a
     // shape with its origin at one end counts whole (CMK's Krakow Glowny:
     // its platforms one shape, the origin past their south end); 10 m at
-    // least (a shape not loaded yet has no bounds).
-    static float reachOf(const float *bound);
+    // least. Not loaded: UnknownReach.
+    static float reachOf(const float *bound, bool loaded);
     // About a place: the editor's tile (x, z) and the place in it.
     void update(const int *tile, const float *position);
     const CollisionWorld &world() const { return collisions; }
