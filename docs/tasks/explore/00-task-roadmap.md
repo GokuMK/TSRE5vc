@@ -182,6 +182,12 @@ places outside the view; its setting goes (question 2: yes).
   explore choices as lists; one bottom bar with Drive or Walk and Start.
   Narrow and wide views (over the menu at 3:2 and narrower, at most
   1450 dp wide) built the same day.
+- [ ] 06 [Waiting](06-waiting.md) (design 2026-11-27, answered the same
+  day): T while walking (or Wait in the game menu) opens a Wait dialog (an
+  analog clock, a time to wait, Wait); the run goes as fast as it can to
+  it in time-lapse, Skip dims the view; Next train on a platform and Next
+  stop in a car end 30 s before the train arrives; a server's run waits
+  at 1x with the dialog open.
 
 Later, not designed yet:
 - **Options** in RmlUi: pages made from the settings registry (names,
