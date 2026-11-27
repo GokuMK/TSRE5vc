@@ -80,7 +80,7 @@
      // all done
      m_ready = true;
      return true;
-@@ -667,4 +670,192 @@
+@@ -667,4 +670,199 @@
      return true;
  }
  
@@ -155,6 +155,13 @@
 +    }
 +}
 +
++// the commit eu07 is built from: run.sh writes it into sound_log_commit.h
++#if __has_include("sound_log_commit.h")
++#include "sound_log_commit.h"
++#else
++#define EU07_SOUND_LOG_COMMIT "unknown"
++#endif
++
 +namespace {
 +
 +struct sound_log {
@@ -203,7 +210,7 @@
 +        soundlog.start = soundlog.lastreport = std::chrono::steady_clock::now();
 +        auto const intooutput { std::chrono::duration<double>( soundlog.start - soundlog_deviceopened ).count() };
 +        soundlog.sounds
-+            << "# MaSzyna (eu07) sound log: source commit 66a940d4 with extra/sound-compare/maszyna/sound-log.patch\n"
++            << "# MaSzyna (eu07) sound log: source commit " EU07_SOUND_LOG_COMMIT " with extra/sound-compare/maszyna/sound-log.patch\n"
 +            << "# vehicle: " << ( vehicle != nullptr ? vehicle->name() + ", " + vehicle->asBaseDir + vehicle->MoverParameters->TypeName + ".mmd, cab " + std::to_string( vehicle->MoverParameters->CabOccupied ) : std::string{ "none" } ) << "\n"
 +            << "# volumes from eu07.ini, not in 'final': sound.volume (listener gain) " << Global.AudioVolume
 +            << ", sound.volume.vehicle " << Global.VehicleVolume

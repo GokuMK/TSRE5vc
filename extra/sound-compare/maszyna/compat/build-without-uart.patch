@@ -1,0 +1,14 @@
+diff --git a/simulation/simulationtest.cpp b/simulation/simulationtest.cpp
+index 5fb80ada..52e3acb3 100644
+--- a/simulation/simulationtest.cpp
++++ b/simulation/simulationtest.cpp
+@@ -82,7 +82,9 @@ void apply_test_mode_settings()
+ 	Global.network_client.reset();
+ 	Global.InputGamepad = false;
+ 	Global.InputMouse = false;
++#ifdef WITH_UART
+ 	Global.uart_conf.enable = false;
++#endif
+ 	Global.motiontelemetry_conf.enable = false;
+ #ifdef WITH_ZMQ
+ 	Global.zmq_address.clear();

@@ -17,12 +17,15 @@ One command: builds eu07 when needed, prepares a run directory, starts Xvfb, ope
 `drive.py` and collects the outputs. A run takes about 8 minutes (about 400 s of it real time in the
 simulation), the first build about 15.
 
-Needs: the MaSzyna source checkout at commit 66a940d4 (`MASZYNA_SRC`, read only), the MaSzyna game data
+Needs: a clone of MaSzyna's repository that has the commit to build (`MASZYNA_SRC`, read only; any branch,
+pulled or not), the MaSzyna game data
 (`MASZYNA_CONTENT`, read only), cmake, ninja, a C++20 compiler, the system's glfw/OpenAL Soft/libsndfile/
-luajit/libpng/curl, Xvfb, openbox, xdotool, xset, python3, and network access for the first build.
+luajit/libpng/curl, Xvfb, openbox, xdotool, python3, and network access for the first build. Key
+auto-repeat is turned off by Xvfb's `-r` (and by `xset r off` too where xset is installed).
 bubblewrap (`bwrap`) is used when present to mount the game data read only for eu07.
 
-Environment: `WORK` (source copy, build, run directory), `MASZYNA_SRC`, `MASZYNA_CONTENT`,
+Environment: `WORK` (source copy, build, run directory), `MASZYNA_SRC`, `MASZYNA_COMMIT` (the commit built,
+default `57148761`; `66a940d4` is the build of the reports of 2026-11-15/16), `MASZYNA_CONTENT`,
 `DISPLAY_NUM` (Xvfb display, default 91), `JOBS`, `SEED` (eu07's `-seed`, default `tsre`; it picks the
 `.mmd`'s random includes, so the same seed gives the same horn and converter/compressor set),
 `RENDER` (`none`: the scene is not drawn, `gfx.skiprendering`, about 170 fps on llvmpipe; `legacy`: the
@@ -32,22 +35,34 @@ of the sound depends on drawing), `REBUILD=1`, `BUILD_ONLY=1`.
 
 ### Build
 
-- The checkout is copied to `$WORK/eu07-src` without `.git` (rsync keeps the file times, so a changed
-  patch rebuilds only what it touches). Nothing is written into the checkout.
-- The submodules the build needs and the checkout leaves empty (glfw, glm, nlohmann json, asio,
-  yaml-cpp) are downloaded from GitHub at the commits the checkout pins (`git ls-tree`).
+- `MASZYNA_COMMIT` is exported to `$WORK/eu07-src` from the clone's git objects (`git archive`), not
+  copied from its working tree. So a pull, another branch or local changes in the clone don't change what is
+  built, and nothing is written into the clone. (Until 2026-11-27 the working tree was copied: a pull of
+  the clone to a newer master changed the build under the patch.)
+- The submodules the build needs (glfw, glm, nlohmann json, asio, wamr, yaml-cpp) at the commits
+  `MASZYNA_COMMIT` pins (`git ls-tree`): from the clone's submodule when it has that commit, else downloaded
+  from GitHub into `$WORK/deps`. A submodule the commit doesn't have is skipped (66a940d4 has no wamr).
 - `sound-log.patch` is applied with `patch -p1` (by hand: `patch -d <copy> -p1 < sound-log.patch`).
-  The patch is the source of truth; run.sh rebuilds when it differs from the one last applied.
+  It applies to 66a940d4 and to 57148761. The patch is the source of truth.
+- Then each `compat/*.patch` that applies (`patch --dry-run --forward`): fixes a commit needs to build this
+  way, skipped at a commit that hasn't the code or has the fix. `build-without-uart.patch`: `WITH_UART=OFF`
+  doesn't compile from the test mode of eu07/maszyna#541 on (fixed on MaSzyna's `fix/build-without-uart`).
+- run.sh writes the commit into `sound_log_commit.h`, which the patch puts in the header of `sounds.csv`.
+- run.sh rebuilds when the commit or a patch differs from the last build (`$WORK/applied.stamp`). Another
+  commit starts from an empty build directory: the exported files carry their commit's time, so ninja
+  would not see them as changed.
 - Release (-O3), `WITH_PYTHON=OFF WITH_UART=OFF WITH_DISCORD_RPC=OFF WITH_TESTS=OFF WITH_OPENVR=OFF
   WITH_CRASHPAD=OFF ADD_VERSION_SUFFIX=OFF`. The binary is `$WORK/eu07-build/bin/eu07`.
-- The patch also fixes `scripting/PyIntStub.cpp` (a `const` missing at 66a940d4), without which
-  `WITH_PYTHON=OFF` does not build.
+- The patch also fixes `scripting/PyIntStub.cpp` (a `const` missing at 66a940d4 and still at 57148761),
+  without which `WITH_PYTHON=OFF` does not build.
 
 ### Run directory
 
 `$WORK/run` mirrors the game data: each top-level entry is a symlink, except `eu07.ini` and the
 `eu07_input-*.ini` files (copies), `scenery/` (a real directory of symlinks to each scenery file plus
-`tsre_sound_compare.scn`; eu07 writes scenery caches there) and `screenshots/`. eu07 runs with `HOME`
+`tsre_sound_compare.scn`; eu07 writes scenery caches there), `shaders/` (links to the content's shaders,
+then to the built commit's over them, as a MaSzyna build is unpacked over an install) and `screenshots/`.
+eu07 runs with `HOME`
 inside the run directory, so `~/.config/MaSzyna/eu07.ini` is not read. The settings run.sh appends to the
 copied `eu07.ini` (they override the shipped ones): 640x400 window, no vsync, no shadows, environment map,
 motion blur or smoke, multisampling off, the test scenery and vehicle, and the `RENDER` choice. Sound
