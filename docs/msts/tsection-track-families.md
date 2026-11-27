@@ -5,7 +5,9 @@ Review for [tracks task 17](../tasks/tracks/17-trprofile-complex-tracks.md)
 shapes), 2026-11-23. It describes every shape family of the global
 `tsection.dat`: who made it, track or road, what it looks like and what a
 profile needs to draw it. The user's answers to the findings below are
-task 17's decisions 13-24.
+task 17's decisions 13-24. A second round of web research (2026-11-26/27)
+added which sets routes still use ("Use today"), where their packages are,
+and pictures; its facts are in each set's entry.
 
 ## Sources and method
 
@@ -28,7 +30,8 @@ task 17's decisions 13-24.
 - Caution:
   - Only part of the shapes exist on this machine: 8,221 of Build 54's
     14,629. For 14 rail sets and most small road sets there is no local
-    shape, so their look comes from names and credits only.
+    shape, so their look comes from names and credits, and since the
+    second round from documentation and pictures.
   - Most third-party sets are 2002-2010 MSTS add-ons whose sites are gone.
     Facts taken only from names or `_INFO` lines are marked so, and
     "unconfirmed" means a source could not be found or opened.
@@ -40,6 +43,37 @@ task 17's decisions 13-24.
     (`S1t100mStrt.s`: rails and sleepers, `SCleanTrack1/2.ace`);
   - DBTracks `f` skins carry the contact wire: PRUDNIK's own
     `TrProfile_DB3f.stf` sweeps it (`mt_cwire`) at 7.19 m.
+
+Second round (2026-11-26/27): which sets routes still use, and pictures.
+The Wayback Machine (web.archive.org) could be reached this time, with rate
+limits, and was used for the authors' sites and old download hosts.
+trainsim.com's file library was browsed with a free account. It now holds
+the old UKTrainSim library under the same file ids, so a UKTS id in an old
+readme opens at `https://trainsim.com/forums/filelib/search-fileid?fid=<id>`;
+"fid N" below means that page. Nothing but pictures was downloaded. The
+TrackObjs of two Polish Open Rails routes on this machine (`~/ORTS/CMK_E30`:
+CMK and E30-Podkarpacie) were counted by file name.
+
+- Closed to this round: uktrainsim.com (no longer resolves), trensim.com
+  (offline after a security problem), the-train.de (403 to scripts), Elvas
+  Tower's search and some of its topics (closed to guests), the 3DTrains
+  forums (3dtrains.com is parked), railforums.co.uk and
+  districtdavesforum.co.uk (refused automated reads). Readmes in PDFs,
+  `.doc` files and installers were not opened.
+- Reports: `/home/arch/tsection-families-web/reports/` (`usage.md`,
+  `pictures-rail-a.md`, `pictures-rail-b.md`, `pictures-roads.md`,
+  `trainsim-com.md`). `trainsim-com.md` was written last; where it and
+  `usage.md` disagree, this document follows `trainsim-com.md`.
+- Pictures: `/home/arch/tsection-families-web/pictures/<set>/`, each folder
+  with a `SOURCES.md` (origin, archive link, certainty), and a contact sheet
+  `/home/arch/tsection-families-web/reports/pictures-sheet.jpg`. They are
+  third-party and stay outside the repository.
+- The local `/home/arch/tsdata/global/tsection55.dat` is Build 00038 despite
+  its file name (`_INFO ( Build 00038 )`), the build XTracks 3.20 shipped in
+  November 2007 (<https://www.nklj.se/xtracks/documents/versions.htm>). The
+  sets checked against it (`tj`, `WS`, Morris, Jennings, Europeanbahn,
+  `lultube`, Lartigue) already have all their Build 54 entries there; `VT`,
+  `SLW_` and `RR_` are not in it.
 
 ## Findings for task 17
 
@@ -130,6 +164,93 @@ The user's answers (2026-11-23, task 17's decisions 13-24):
 
 All findings are answered.
 
+## Use today
+
+Second round (2026-11-26/27, see "Sources and method"): does a route still
+use the set, and where can its package be had? Classes:
+
+- **widely used:** several notable routes use it, and it can be had;
+- **niche:** one region or a few routes, still downloadable or used
+  recently;
+- **abandoned:** no route and no package found. Absence of evidence is
+  weak, so this means only "not found".
+
+CMK and E30 counts are TrackObjs by file name in `~/ORTS/CMK_E30`; E30's
+are lower bounds (591 of its 1,037 world files are compressed and were
+skipped). A "fid" is a trainsim.com file; it downloads with a free account.
+
+| Set | Class | Routes that need it (examples) | Package today | For profiles |
+| --- | --- | --- | --- | --- |
+| A namespace: Kuju + XTracks and additions | widely used | 16 of Steam4me's 18 Australian route pages ("You must have Xtracks 3.xx or higher"); Nodo di Roma, Triveneto, Torino-Modane; PSK, CMK (30,615 `A1t*`, 3,952 `A2t*`), E30; Cerdagne | XTracks 3.20 (2007): [Steam4me](https://nekocoaster.github.io/steam4me/routes/xtracks.html), [fid 14093](https://trainsim.com/forums/filelib/search-fileid?fid=14093); 3.21 (2019): [fid 85024](https://trainsim.com/forums/filelib/search-fileid?fid=85024); 3.22 (2024): [fid 88844](https://trainsim.com/forums/filelib/search-fileid?fid=88844) | own profiles (task 17's groups) |
+| DBTracks skins on A and S geometry | widely used (Germany, Poland) | PRUDNIK (about 34,000), E30 (2,680 `DB2_A*`); PSK's GLOBAL, which also serves CMK, Kocmyrzówka and lines 202, 351, 353 | seven zips on the-train.de only, registration ([dbtracks.com](https://dbtracks.com/pages/DownloadDBTracks.html); host closing, see below); US3 shapes [fid 88740](https://trainsim.com/forums/filelib/search-fileid?fid=88740); OR profiles [dbtracks-stf-profiles](https://github.com/pgroenbaek/dbtracks-stf-profiles) | own profiles, skins before `A*` |
+| ScaleRail (3DTrains) | widely used (North America) | WP Feather River, LaSalle Rockford & Central, Siskiyou, Utah Belt (2026), Soo (2025), UP Gila (2025), Detroit-Toledo (2024); NS Pocahontas and Clinch Valley conversions (2026) | 3dtrains.com parked; [fid 87680](https://trainsim.com/forums/filelib/search-fileid?fid=87680) (2023, "with permission from 3DTrains"), textures fids 87686, 87687; [Elvas Tower](https://www.elvastower.com/forums/index.php?/files/category/139-scale-rail/) (2022-23); OR profiles V4.0 [fid 89793](https://trainsim.com/forums/filelib/search-fileid?fid=89793) | own profiles; the OR pack is a reference |
+| UK FineScale (Tim Booth) | widely used (UK, Ireland, Australia) | Airedale, Dorset Coast (v6, 2024), South Devon Main Line, Bristol-Birmingham, Somerset & Dorset, Plymouth-Penzance (2020), New Forest / Watersnake (2023, edited with TSRE), Scottish Capital Express | v3.1.6 (2005): [fid 11889](https://trainsim.com/forums/filelib/search-fileid?fid=11889), installer [fid 88469](https://trainsim.com/forums/filelib/search-fileid?fid=88469), texture sets fids 18021, 18023, 18025, 18029; [Steam4me](https://nekocoaster.github.io/steam4me/utilities/index.html) (installer only) | own profiles, one per texture set |
+| BR Rail Project (Joseph Pearson) | niche (one route) | Chiltern Route BETA (Open Rails, 2020, fid 39521) | BR_Project_Complete, 2009 beta: [fid 22268](https://trainsim.com/forums/filelib/search-fileid?fid=22268) | lighter |
+| MTracks (Mark Hyams) | widely used (US, Poland) | J. H. Sullivan's routes (L&N/CSX Knoxville Sub, CNO&TP 3rd District), Milwaukee Road Aberdeen Division; CMK (about 8,150 with reskins), E30 (1,000+), PRUDNIK (97) | v1.90 [fid 66117](https://trainsim.com/forums/filelib/search-fileid?fid=66117); replacement MTracks [fid 88502](https://trainsim.com/forums/filelib/search-fileid?fid=88502) (2024); [digital-rails.com](https://digital-rails.com/mtracks/index.html) | own profiles |
+| Bjorn van Steenbergen `DR_` track | abandoned | none found | none found | generic filter |
+| Europeanbahn | niche (owners of its payware) | Europeanbahn's own routes: London Brighton Express, East Coast Express, West Coast Main Line, London South Coast, Cross City, Midland Main Line, Farringdon Extension (which uses which pieces: unconfirmed) | no track package; came with the products, not sold since about 2013 ([shop 2011](https://web.archive.org/web/20110418211207/http://www.europeanbahn.co.uk/shoppingcart/sh_Main.htm)) | lighter |
+| Via Metrica / Sierra Menera | niche | Ferrovia delle Dolomiti (Italy, 2011, re-uploaded 2024), La Mure (France, 2007), Argentine Trasandino (Open Rails, 2024) | inside the Dolomiti package ([TSH](https://www.trainsimhobby.net/infusions/pro_download_panel/download.php?did=923)); trensim.com served it to Nov 2024 and is offline now; Steam4me's links answer 404 | own profiles (metre gauge) |
+| Tram track (Ralf Riemer) | niche (Poland) | PRUDNIK (488), CMK (55 `TramBB_A`); Chiltern Route BETA ships `TramB_A` | original host gone; ships in PSK's GLOBAL ([psk.trainsim.pl](https://psk.trainsim.pl/)) | own profiles |
+| Y-Tracks (Juergen Romanowski) | widely used (Poland) | E30-Podkarpacie (7,158+, its most common track), CMK (895), PRUDNIK (220); Stockholm Regional (2011) ships `Y1tHz` | [fid 61734](https://trainsim.com/forums/filelib/search-fileid?fid=61734) (2004), YTracks 02 [fid 69398](https://trainsim.com/forums/filelib/search-fileid?fid=69398) (2007); 1.81PL in PSK's GLOBAL | own profiles |
+| XTracks subterranean `S` | niche | CMK (303 `S1t*`), PRUDNIK (72, mostly DBTracks names) | in every XTracks package | own profiles (track, no tube) |
+| Italian track `It` (AlexB) | niche (the package); route use unconfirmed | the unfinished Faentina; SILA (Open Rails, 2023, fid 88325) asks for the IT-VT package | VT-Tracks e IT-Tracks v1.1 (2019): [ilDeposito](https://www.ildeposito.net/NuovePagine/xtracks.html), TSH | lighter |
+| Rack rail (Merjan / Hanel) | niche | Snowdon Mountain Railway (2013, fid 32042); Guido Ferretti's Open Rails routes ship `MT1t*` pieces: Trento-Malè-Marilleva (2023), SILA (2023), Fiemme Valley 1960 (2024) | Z-Tracks and MT-Tracks: [fid 73586](https://trainsim.com/forums/filelib/search-fileid?fid=73586) (2009), [fid 64691](https://trainsim.com/forums/filelib/search-fileid?fid=64691) (2005), Route Builders' Edition [fid 64690](https://trainsim.com/forums/filelib/search-fileid?fid=64690) | lighter |
+| XTracks narrow gauge `N` | niche | E30-Podkarpacie (144 `N1t*`), CMK (12); probably Steam4me's VR Gembrook-Cockatoo (unconfirmed) | in every XTracks package | own profiles |
+| HSR slab `V4hs` (Norbert Rieger) | niche (German HSR) | NBS Köln-Rhein/Main, SFS Nürnberg-Ingolstadt-München, SFS Hannover-Berlin V3 | only inside those routes on the-train.de (closing); OR profiles and [dbtracks-extras](https://github.com/pgroenbaek/dbtracks-extras) (2025-26) | own profiles |
+| R.E.T. Metro | abandoned | RET Metrolijn, the set's own route (V5 beta, 2009) | site gone; V5.0 and its SP1 only in the [Wayback Machine](https://web.archive.org/web/20110528032057/http://www.busfoto.nl/40jaarmetro/RMversie5-0.exe) | generic filter |
+| Chris Jennings `NRa` | abandoned | none found | none found | generic filter |
+| Jeffrey Morris | abandoned | none found | none found | generic filter |
+| UK narrow gauge `ukn` | niche (thin evidence) | Corris No. 3 scale patch (2002, "requires UK_NG track"); Reg Furniss' rework (2012) for a Talyllyn 1940s route not found released | ships in XTracks; rework [fid 28317](https://trainsim.com/forums/filelib/search-fileid?fid=28317) | lighter |
+| Metre gauge 3rd rail `tj` | niche (one route) | La ligne de Cerdagne V2 (2005) | inside the route: [funtrain.net line 27](https://api.funtrain.net/lines/27/) (`Cerdagne.exe`, 69 MB) | own profiles |
+| CYKWORKS | niche (dormant) | Chicago Elevated Railways (2003; fids 60725, 59386, 57474) | Track Pack 1 [fid 59089](https://trainsim.com/forums/filelib/search-fileid?fid=59089), 2.0 [fid 59401](https://trainsim.com/forums/filelib/search-fileid?fid=59401); ships in XTracks | lighter |
+| XTracks virtual tunnel `VT` (OBY) | widely used (Italy) | Siracusa-Modica (2009), Triveneto (2012), Nodo di Roma (2013, 2017), Italia 28 V3 (2015), Torino-Modane 1970 (2018) | VT-Tracks e IT-Tracks v1.1: [ilDeposito](https://www.ildeposito.net/Files/Vari/VT_Tracks-IT_Tracks.zip), TSH | own profiles (track only) |
+| DualTracks (William Adams) | niche | La Crosse Division (Milwaukee Road, 2003, fid 58902); MBTA (2004) and SA Adelaide, Hills & South East (2025) ship `D1tPnt*` pieces | v1.1 [fid 61072](https://trainsim.com/forums/filelib/search-fileid?fid=61072), Reference Route [fid 57842](https://trainsim.com/forums/filelib/search-fileid?fid=57842); ships in XTracks | lighter |
+| 600 mm Feldbahn `lsfb` | abandoned (no released route) | none; the Polish Podlasie project plans it for the Hajnówka forest railway | PSK's GLOBAL only | generic filter |
+| Schwebebahn `WS` (Sjoerd Ydema) | niche (its own route) | Wuppertal Schwebebahn (Ydema, 2007) | the route: [HCC!trainsim](https://trainsim.hcc.nl/downloads/microsoft-trainsimulator/routes-voor-microsoft-train-simulator/154-wuppertal-schwebebahn-v1/file), [fid 66942](https://trainsim.com/forums/filelib/search-fileid?fid=66942) | generic filter (`DISABLED`: not track) |
+| LUL tube (Richard Garniss) | abandoned | none found (Ydema's Northern Line does not use it) | none found | generic filter |
+| Steven Masters `F` | abandoned | none found | ships in XTracks 3.19 | generic filter |
+| Lartigue monorail (Andrew Gadd) | abandoned | none (a 2005 work-in-progress post only) | none found | generic filter (`DISABLED`) |
+| PSK small pieces | niche (Poland) | PRUDNIK (1), CMK (58 `Wk_brama`), E30 (2) | PSK's GLOBAL (PSK 7.3, updated 2026-11-24) | lighter |
+| `Osmannoro_OML` (Raffaele Fiore) | abandoned | none found | none found | generic filter |
+| Kuju roads + NewRoads additions | widely used | every MSTS route can use them; PRUDNIK (9,586), CMK, E30 | MSTS; NewRoads 4.0 (next row) | own profiles |
+| NewRoads local roads | widely used | Steam4me's routes (NewRoads 3.2 or 4.0 required), PRUDNIK (2,975), CMK (`Urban` 5,724) | 4.0 installer [fid 6254](https://trainsim.com/forums/filelib/search-fileid?fid=6254), [fid 69884](https://trainsim.com/forums/filelib/search-fileid?fid=69884), files only [fid 80272](https://trainsim.com/forums/filelib/search-fileid?fid=80272); Route Builders Kits on [Steam4me](https://nekocoaster.github.io/steam4me/routes/newroads.html); "Grundversion" on the-train.de | own profiles |
+| NewRoads highways and freeways | widely used | PRUDNIK (194), CMK (`fwy` 162, `hwy` 21) | as NewRoads | own profiles |
+| German Autobahn `BAB` (Norbert Rieger) | niche | CMK (284), PRUDNIK (225); non-German routes ship `bab2l1w*`: Gotland (2012), Dorset Coast v6 (2024), SRv2 Phase 3 (2020), Oro (2026); German routes not identified | in NewRoads 4.0; Rieger's variants listed on [dbtracks.com](https://dbtracks.com/pages/DL_bab.html), hosted on the-train.de (closing) | own profiles |
+| ScaleRail roads (ScaleRoad) | widely used (North America) | Utah Belt, Soo, UP Gila, Detroit-Toledo, KCOS, Monon-2, LaSalle Rockford & Central, Siskiyou | [fid 87684](https://trainsim.com/forums/filelib/search-fileid?fid=87684) (2023); textures in "Saluda Road Textures" [fid 69357](https://trainsim.com/forums/filelib/search-fileid?fid=69357); [Elvas Tower file 3208](https://www.elvastower.com/forums/index.php?/files/file/3208-scale-roads/) | own profiles |
+| J.A. Norton `SLW_` | abandoned | none found | none found | generic filter |
+| Dale Rickert `RR_` | abandoned (route withdrawn) | probably The Siskiyou Route, pulled by its author | none; the route's last installer only in the Wayback Machine | generic filter |
+| Bjorn van Steenbergen `DR_Rd_Type` | abandoned | none found | none found | generic filter |
+| R. Fiore roads | abandoned | none found | none found | generic filter |
+| Kraków-Kocmyrzów `KK_Alpl` | niche | Trasa Kocmyrzów (Linia 111; Tabore, 2012; timetables 2021), PRUDNIK (76) | inside the route: [pkor.trainsim.pl](https://pkor.trainsim.pl/trasa-krakow-kocmyrzow/) | own profiles |
+| Magnetic platforms (Graham Pitt) | widely used (UK first) | YCR, West Anglia Main Line, London-Southampton, South Devon, Manchester Metrolink, BrisCard, Dabley; 58 uploads ship the shapes, e.g. Mumbai-Amritsar, High Speed 1, New Forest V2, NSW Joppa Junction (2025) | Kits I-IV (2002): [fid 1186](https://trainsim.com/forums/filelib/search-fileid?fid=1186), [fid 1187](https://trainsim.com/forums/filelib/search-fileid?fid=1187), [fid 1210](https://trainsim.com/forums/filelib/search-fileid?fid=1210), [fid 1211](https://trainsim.com/forums/filelib/search-fileid?fid=1211) | own profiles |
+
+For profiles:
+
+- **Own profiles** (sets in routes people run): A/XTracks with the DBTracks
+  skins, ScaleRail (track and roads), UK FineScale, MTracks, Y-Tracks, `VT`,
+  V4hs, the Kuju roads and the three NewRoads families, BAB, the magnetic
+  platforms, the Riemer tram, `KK_Alpl`, `tj`, Via Metrica, `S`, `N`.
+- **Lighter** (one family or a few filters, after the first group):
+  Europeanbahn, `It`, `ukn`, CYKWORKS, the PSK pieces, BR Rail, rack rail,
+  DualTracks.
+- **One generic filter is enough** (abandoned, or not track): `DR_` track
+  and roads, RET, Jennings, Morris, LUL tube, Lartigue, Schwebebahn, `F`,
+  `lsfb`, `SLW_`, `RR_`, Fiore's roads and `Osmannoro_OML`.
+
+The round's first report (`usage.md`) had the magnetic platforms, BR Rail,
+rack rail and DualTracks as abandoned; trainsim.com's library showed their
+packages and routes. The Schwebebahn route is downloadable too, but it
+stays `DISABLED`.
+
+**Hosting risk.** the-train.de is the only host found for DBTracks, the BAB
+packages, NewRoads 4.0 "Grundversion" and the German routes with V4hs. The
+TSSF forum announced on 28 Feb 2026 that "das Forum und die dazugehörige
+Webseite" close on 31 Dec 2026
+(<https://tssf.eu/forum/thread/12644-wichtige-mitteilung-schlie%C3%9Fung-abschluss-von-forum-und-webseite-zum-31-12-2026/>).
+In a reply the same admin says the costs "für TSSF & The-Train" are no
+longer justified. So the-train.de will probably close with the forum,
+although the post does not say so in words.
+
 ## Part 1. Rail families
 
 Scope: every name prefix of `rail.txt` (260 prefixes), grouped into 28
@@ -186,10 +307,14 @@ Sources used for many sets:
 - DBTracks: <https://dbtracks.com/>, <https://dbtracks.com/pages/DBTracks10.html>,
   <https://dbtracks.com/pages/DBTracks20b.html>, and the Open Rails
   profiles <https://github.com/pgroenbaek/dbtracks-stf-profiles>.
+- Second round: the Wayback Machine and trainsim.com's file library ("fid
+  N", see "Sources and method"); reports and pictures under
+  `/home/arch/tsection-families-web/`.
 
-Most third-party sets are 2002-2010 MSTS add-ons whose sites are gone; web
-search found little beyond the pages above. Facts taken only from names or
-`_INFO` lines are marked so.
+Most third-party sets are 2002-2010 MSTS add-ons whose sites are gone. The
+first round's web search found little beyond the pages above; the second
+round added packages, routes and pictures for most sets. Facts taken only
+from names or `_INFO` lines are marked so.
 
 ### 1. Summary
 
@@ -236,10 +361,18 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 - Source. One shared name space, not one package:
   - MS/Kuju originals: shapes 0-250 (173 in this prefix) plus 7 shapes
     "initially inactive, activated by Okrasa Ghia" (allocation list).
-  - XTracks by Okrasa Ghia, last version 3.20 (November 2007), "pretty much
+  - XTracks by Okrasa Ghia, version 3.20 (November 2007), "pretty much
     the work of Steven Masters and Norbert Rieger" by then (XTracks
     versions page). Downloads and the end-user installer are on the Steam4me
-    XTracks page. High confidence.
+    XTracks page and on trainsim.com (fids 14093, 11854, 11857). High
+    confidence.
+  - 3.20 was not the last version. Robert D. Lewis "and contributers"
+    released 3.21 (2019-11-23, "Includes build #54"; fids 85024-85026) and
+    3.22 (2024-05-28; fid 88844 installer, fid 88845 shapes only). The
+    standardised tsection builds 38 to 60 are on trainsim.com too (build 60:
+    fid 88841, Derek Morton, 2024-05-26). eric's "ATracks" replacement
+    shapes (fid 88570, "SD files added April 2025") are accepted by some
+    routes in place of XTracks ("ATracks or Xtracks", fid 87134).
   - Contributors inside `A`, by the Build 54 allocation ranges (shapes):
     Steven Masters 380 (incl. 10 bridge pieces), Norbert Rieger 260
     (1.5°-3.0° turnouts, 4.7° and 7.5° additions, 300 m curves plain and
@@ -266,7 +399,9 @@ A namespace"; it is not repeated here. This entry is the set-level view.
     straights `A4t`/`A8t700mStrt` ("odcinki wielotorowe - dlugie"),
     `A2t750r*Tun`, and the buffer `A1tbuffer-PL_1`
     ("kozly oporowe"). PRUDNIK uses 374 objects on these indices (93 on
-    `A1tbuffer-PL_1`). "UZK 3.18" is not identified.
+    `A1tbuffer-PL_1`). "UZK 3.18" is ÚZK 3.18/3.20 ("Úpravy Základního
+    Kolejiva", Czech, 2008), a re-texture of XTracks geometry, not a new
+    family; its author's site is gone (second round).
 - DBTracks reskins (PRUDNIK). Norbert Rieger's DBTracks re-model the `A`
   assortment with German details: "3D sleepers/ties, switch operating
   mechanisms, ... integrated overhead wires, old, rusty track variants"
@@ -296,6 +431,18 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   About 15,100 PRUDNIK objects use an `f` skin: the overhead contact wire is
   part of the track shape. 70 `DB30*` objects (`DB/DB30_A1t100mStrt.s` ...)
   sit on S-namespace indices (subterranean track, `TunnelShape`, no tube).
+
+  DBTracks today: "Alle DBTracks-Pakete wurden in sieben ZIP-Dateien
+  zusammengefasst und sind jetzt auf the-train.de verfügbar", registration
+  required (<https://dbtracks.com/pages/DownloadDBTracks.html>). That is the
+  only host found, and it will probably close at the end of 2026 (see "Use
+  today"). The US3 shapes and textures were "rescued after the loss of
+  Norbert's website" (fids 88740, 88741, 88743, 2024). The Open Rails
+  profiles (also fid 89703) and
+  <https://github.com/pgroenbaek/dbtracks-extras> are maintained "In memory
+  of Norbert Rieger". PSK 7.3's readme: its GLOBAL holds "pakiet torów i
+  tekstur DB Tracks (© 2013 by Norbert Rieger)" and lets the Polish routes
+  CMK, Kocmyrzówka and lines 202, 351 and 353 run.
 - Shapes. 1,729 / 1,638; 1,642 of 1,967 names local (OR_PSK_NEW,
   TS_STARTER_ROUTE, tsdata; 168 in MSTS). PRUDNIK: 34,898 objects.
 - Kind and gauge: track, 1.435 m (1.5); 3 shapes 0.9 (DualTracks helpers);
@@ -329,14 +476,25 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 - Source: Marc Nelson, 3DTrains ScaleRail (`_INFO(http://www.3dtrains.com/scalerail)`;
   allocation "Marc Nelson Scale Rail/Road"; developer list). "A system of
   enhanced track shapes and textures for route-building in MSTS", public
-  beta 1.7 (Steam4me ScaleRail page). North American prototype (3DTrains
-  routes such as the WP Feather River Route, per a search snippet; not
-  opened). An Open Rails profile pack exists, "ScaleRail Track Profiles
-  V4.0", covering "wood ties, concrete ties, modern concrete ties, wood
-  bridges" (<https://www.trainsimcommunity.com/mods/c6-open-rails/i5843-scale-rail-track-profiles-v40>,
-  search snippet only; the page refused the fetch). 22 shapes are Jeffrey
-  Kraus-Yao's "ScaleRail additions". High confidence for the set, medium
-  for details.
+  beta 1.7 (Steam4me ScaleRail page); the last public beta was 1.77 (about
+  2013-15). North American prototype; the WP Feather River route and many
+  others use it (see "Use today"). An Open Rails profile pack, "ScaleRail
+  Track Profiles V4.0" (pschlik, Feb 2025, fid 89793), covers "wood ties,
+  concrete ties, modern concrete ties, wood bridges" and was tested on six
+  routes (<https://www.trainsimcommunity.com/mods/c6-open-rails/i5843-scale-rail-track-profiles-v40>).
+  Open Rails has permission to publish routes that contain ScaleRail and
+  ScaleRoad (<https://openrails.org/contribute/building-models/>). 22 shapes
+  are Jeffrey Kraus-Yao's "ScaleRail additions". High confidence for the
+  set, medium for details.
+- Packages: 3dtrains.com is a parked domain. trainsim.com has "Scalerail by
+  3DTrains" (fid 87680, 2023, "Uploaded with permission from 3DTrains"),
+  Standard and Common Textures (fids 87686, 87687), Update 177a (fid 87688),
+  texture variants and switch targets. Elvas Tower's "Scale Rail" category
+  has the track, Update 177 and textures, uploaded by Genma Saotome in
+  2022-23 (<https://www.elvastower.com/forums/index.php?/files/category/139-scale-rail/>).
+  Cajon Pass, Pacific Surfliner and Marias Pass are ScaleRail for RailWorks,
+  another product. TS_STARTER_ROUTE ships the SR shapes, but its world files
+  place none.
 - Shapes: 3,502 / 250 (2,763 track, 739 road). Local: 2,996 of 3,496 names,
   all in TS_STARTER_ROUTE (the PSK file lists 250 SR shapes that are not in
   OR_PSK_NEW). Textures are not in the GLOBAL folders: `SR_Track_c1a-c3a` in
@@ -400,6 +558,27 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   Kraus-Yao (65 shapes: two-track `_11a`/`_11b`/`_11c` pieces at Kuju
   spacing and a dummy) and Dave Babb (2).
   British prototype, BR-era turnout geometry. High confidence.
+  - The author's documentation survives in the Wayback Machine ("UKFS
+    Documentation",
+    <https://web.archive.org/web/20061031232958/http://ukfs.trainsimfiles.com:80/docs/>,
+    with pages on straights, curves, turnouts, crossings, third and fourth
+    rail; captured 2007). The site moved from
+    `www.trainsimfiles.com/products/ukfs/` (2003-2005) to
+    `ukfs.trainsimfiles.com` (2006-2007); the domain has been parked since
+    2009.
+  - v3.1.6, released on 20 March 2005, is the last version; it needs
+    tsection build 29 or later. Packages today: trainsim.com fid 11889
+    (45,929 downloads), an installer (fid 88469, 2023) and the four texture
+    sets of February 2006 (fids 18021, 18023, 18025, 18029). Steam4me's
+    mirror has the installer without textures
+    (<https://nekocoaster.github.io/steam4me1/routes/files/UKFS_v3_1_6_full.exe>);
+    the Wayback Machine has the author's downloads of 2004-2007. Community
+    fixes: UKFS-Fix v2.2 (2018), UKFS_Install (2019), UKFS-Fix3 (October
+    2025, fid 84414; seen in search text only).
+  - Pictures: `/home/arch/tsection-families-web/pictures/ukfs/` (11, from
+    the author's pages: the four texture sets, rails and chairs against
+    default track, double track at the six-foot way, turnout and crossing
+    detail, third-rail track).
 - Shapes: 1,115 / 0. None local. PRUDNIK: 0.
 - Kind and gauge: track, 1.435 m written as 1.435 (Kraus-Yao's 65 at 1.5).
   Two-track spacing by name: 3.413 m (±1.7065, the British "six-foot"
@@ -408,37 +587,93 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 - Contents: single 460, parallel 253, junction 220, diamond 76, frog piece
   22, tunnel 83, special 1. Names `ukfs[3r|4r]_<type>_...`:
   - `s` straights, `c` curves, `is`/`ic`/`ictxc`/`icac` interworking
-    straights and curves, `cl`/`cr` curves with the conductor rail left or
-    right (3r);
-  - turnouts by crossing angle (1 in 10 = 5d71, 1 in 8 = 7d13, 1 in 7 =
-    8d13, 1 in 6 = 9d46, 4d76, 4d4): `tl`/`tr`/`ty` and manual `tlm`/`trm`/
-    `tym`, short `tys`, curved `tcl`/`tcr`, three-way `t3i`, scissors `tsc`
-    and curved `tscc`, catch points `*_cat_*`, single and double slips
+    straights and curves; third-rail curves `ukfs3r_cl_`/`ukfs3r_cr_` with
+    the conductor rail on the left (inside of the curve) or right
+    (outside), multi-track ones named by the inside radius; third-rail
+    interworking curves exist only with the rail on the left (UKFS docs);
+  - check-railed curves end in `_cr`: `ukfs_c_<paths>x<radius>_<angle>_cr`,
+    "curves up to around 200m (10 chains)" (UKFS docs; 24 names in
+    Build 54);
+  - turnouts by crossing angle, 11.42° (1 in 5) to 2.86° (1 in 20) (1 in
+    10 = 5d71, 1 in 8 = 7d13, 1 in 7 = 8d13, 1 in 6 = 9d46, 4d76, 4d4; `d`
+    stands for the decimal point in angles, `m` in lengths and radii):
+    `tl`/`tr`/`ty` and manual `tlm`/`trm`/`tym` ("fitted with a realistic
+    lever"), short `tys`, curved `tcl`/`tcr`, three-way `t3i`, scissors
+    `tsc` and curved `tscc`, catch points `*_cat_*`, single and double slips
     (`xss*`, `xsd*`, `tsl*`, `tsr*`, curved `tcs*`, `xcs*`), diamonds `x`,
     `xl`/`xr` (to 90°), external slips `xes*`;
+  - slips and some junctions are built from overlapping shapes (UKFS docs):
+    slip shapes `ukfs_xs*` take drop-in switch modules `ukfs_tsls*`/`tslsm*`
+    (older `xssl2`-style slips take `tsl`/`tslm`), curved slips `tcsli*`,
+    external slips `xes*`; three-way `t3i*` and scissors `tsc*`/`tscc*` take
+    turnout switch modules `tswl*`/`tswlm*`/`tswcl*`. A UKFS slip in a
+    route is two or more shapes on top of each other;
   - "geometry" pieces `g*` (turnout ends and extensions at 6, 10, 12 ft
-    ways), turntables `tt` (42, 65, 68 ft), wagon turntable, buffers `bufr`;
-  - tunnels `stun`, `ctun`, `stuno`; 3rd rail `ukfs3r_*` (with tunnels,
-    ramps `srl`/`srt`/`srco`), 4th rail `ukfs4r_*` (London Underground
-    style); `_INFO` "2x200m radius checkrailed curves".
-- Look: not local. True gauge and a "different rail profile" (Steam4me);
-  bullhead or flat-bottom is not stated anywhere found.
+    ways), turntables `tt` (42, 65, 68 ft) with connectors `ttcon_1m`/`2m`/
+    `3m`, wagon turntable, buffers `bufr` (rail frame, sleeper beam),
+    `bufr2` (painted targets), `bufr3` (rail buffer beam);
+  - other groups (UKFS docs): `ukfs_srg` rusty, grassy track for disused
+    sidings, `ukfs_sro` rails without trackbed ("for custom bridges"),
+    `ukfs_si` inspection pits, `ukfs_stuno` a double-track tunnel with one
+    path offset to one side, `_10a` and similar multi-track pieces with
+    mixed ways (`_10`/`_12` came with V3.1.5);
+  - tunnels `stun`, `ctun`, `stuno`; 3rd rail `ukfs3r_*` with tunnels and
+    ramps `ukfs3r_sr[l|t]_<paths>x<length>_[l|r|lcr|rcl]` (`l` leading, `t`
+    trailing; `lcr` = ramp left, continuous rail right) and changeover
+    ramps `ukfs3r_srco_*_l` (left to right) and `_r`; 4th rail `ukfs4r_*`,
+    "based on London Underground 4th rail specifications for surface
+    rails" (a subterranean 4th rail "will not be developed"); `_INFO`
+    "2x200m radius checkrailed curves".
+- Look: not local; from the UKFS docs and the pictures. Rails "built to the
+  correct size", raised "as if supported by railchairs" (the chairs are 2D,
+  by transparency); a "profiled trackbed which also avoids track textures
+  clashing between overlapping shapes"; sleepers 8 ft 6 in x 10 in (12 in
+  in turnouts) at 0.762 m (30 in); turnouts and crossings with "correct
+  switch blades, checkrails, and frog/vee". One geometry, four looks chosen
+  per route by its textures (installed into each route's TEXTURES; the
+  shapes are global): 1 wood sleepers, brown ballast, jointed rail with
+  chairs ("steam era"); 2 the same on grey ballast; 3 concrete sleepers,
+  brown ballast, welded rail "with rail-clips" ("modern era"); 4 the same
+  on grey ballast. The pages do not name the rail section; chairs suggest
+  bullhead and clips flat-bottom rail (the picture search's inference).
 - Profile needs:
   - a 1.435 m family with side roles for 3.413, 4.632, 5.242 and 4.985 m
     spacing (`ukfs_*_10`, `_12`, `_11?` filters);
+  - one look per route by its texture set (1-4), not by shape name;
   - conductor rails: `ukfs3r_*` third rail (side from `cl`/`cr`, `l`/`r`),
     `ukfs4r_*` third plus centre fourth rail, with ramps;
-  - check rails on curves (`*checkrailed*` group in `_INFO`; names do not
-    show it, so a filter needs the shape list);
-  - `COMPLEX` for many slip and curved-turnout forms; catch points;
-  - tunnels: tube polylines (shape unknown); turntables `DISABLED`.
+  - check rails on curves, by the `_cr` suffix (`ukfs_c_*_cr`);
+  - `COMPLEX` for many slip and curved-turnout forms; catch points; a slip
+    and its switch modules are separate overlapping shapes that must draw
+    as one group;
+  - tunnels: tube polylines (the tube profile is probably in the archived
+    `ukfs_tunnel_diagrams.pdf`, not read:
+    <https://web.archive.org/web/20040313122516/http://www.trainsimfiles.com:80/products/ukfs/download/ukfs_tunnel_diagrams.pdf>);
+    turntables `DISABLED`.
 
 #### BR Rail Project (Joseph Pearson)
 
 - Source: "Shapes from Joseph Pearson's BR Rail Project" (`_INFO`,
   allocation "Joseph Pearson" 15000-16799). British (BR) by name and by the
-  turnout angles. No web source found; the package name is known only from
-  the `_INFO` lines. Medium confidence.
+  turnout angles. Medium confidence.
+  - Package: "BR_Project_Complete" (fid 22268, "Buckeye (Joseph Pearson)",
+    2009-10-15, 44.11 MB): "The complete beta version of the BR_Project".
+    Its 23 inner zips (2009-10-11): curves 100-7000 m, blades, buffer stops,
+    diamond crossings, IC curves, IS straights, points, three-way points,
+    point extensions, straights, double straights, textures (13.4 MB) and a
+    tsection. The parts were also uploaded alone (fids 22273 to 22383,
+    October 2009). Each part holds `BR_<part>.exe`, `BR_Rail_Project.doc`
+    and `tsection.zip`; the installers and the `.doc` were not read.
+  - The readme in "BR_Buffer_Stops" (UKTS 22267,
+    <https://web.archive.org/web/20230115172658/https://www.uktrainsim.com/filelib-info.php?form_fileid=22267>):
+    the set was meant to "complement Tim Booth's UKFS track system", with
+    "83MB of track shapes available to download"; it needs tsection 40 or
+    later.
+  - Use: the Chiltern Route BETA (David J. Forrest, Open Rails, 2020; its
+    file 02, fid 39521) ships about 170 `BR_` shapes (curves, straights,
+    double straights, interworking pieces, turnouts, buffers) dated 2009.
+  - Pictures: `/home/arch/tsection-families-web/pictures/br-rail/` (2,
+    trainsim.com's untextured renders of `BR_s_100_w01a` and `_w01b`).
 - Shapes: 1,281 / 0. None local. PRUDNIK: 0.
 - Kind and gauge: track, 1.435 m (1.435). Two-track `BR_s2_` at 3.413 m.
 - Contents: single 960 (`c` curves, `s` straights, `ic`/`is` interworking
@@ -449,7 +684,12 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 - Look: not local. Each geometry exists in several looks by suffix after
   `01` / `w01`: `a`, `b`, `g`, `bw`, `gw`, `db`, `dbw`, `w`, `ww` (e.g.
   `BR_c_7000_01_w01b`). Reading them as ballast colour (b brown, g grey) and
-  sleeper or wear variants is a guess (unconfirmed).
+  sleeper or wear variants is a guess (unconfirmed). The Chiltern route
+  ships the 100 m straight as `_w01a`, `_w01b`, `_w01g`, `_w01gw`, `_w01w`
+  and `_01a`. Their sizes differ: `w01a` and `w01gw` 79 KB, `w01b`, `w01g`
+  and `w01w` 65 KB, so `a` and `gw` carry more geometry than `b`, `g` and
+  `w`. What that geometry is was not found; the untextured renders look the
+  same.
 - Profile needs: like UK FineScale without conductor rails: one family per
   suffix look (filters `BR_*_w01b`, `BR_*_w01g`, ...), side roles at
   3.413 m, `COMPLEX` for turnouts and diamonds, a buffer mesh later (53
@@ -463,8 +703,20 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   Hyams - smother [smoother] curves". PSK: "Mtracks 1.902PL" with Polish concrete
   additions. 12 shapes by Scott Benson, 18 in Hans van Oost's range. North
   American practice by name: curves named by degree of curvature, frog
-  numbers, 14 ft track centres. High confidence for author, medium for
-  prototype.
+  numbers, 14 ft track centres. High confidence for the author; the US
+  routes below confirm the North American use.
+  - "M Tracks means Mainline Tracks" (<https://digital-rails.com/mtracks/index.html>,
+    a mirror of the Comcast site, with versions to 1.50 and `mtracks.zip`).
+    v1.90 is trainsim.com fid 66117 (2005-11-17). eric's "Replacement
+    MTracks" with Kuju/ATracks textures are fids 88502 (2024) and 88569.
+  - Use: "most routes by Jerry Sullivan" (Elvas Tower 2025,
+    <https://www.elvastower.com/forums/index.php?/topic/38752-rmd-east-12/>):
+    L&N/CSX Knoxville Sub (fids 86064, 88600: "Requires Mtracks"), Southern
+    Railway CNO&TP 3rd District (fid 87134: "Mtracks is included"); also the
+    Milwaukee Road Aberdeen Division (fid 84979). In Poland CMK (about 8,150
+    objects with reskins) and E30 (1,000+), often as reskins in route-local
+    folders (`track_b/nasypy*`, embankment variants).
+  - Pictures: `/home/arch/tsection-families-web/pictures/mtracks/` (2).
 - Shapes: 445 / 569. Local 534 of 614 (OR_PSK_NEW, tsdata). PRUDNIK: 97
   objects on M indices (63 `DB/DB2he_M2tC*_emb_z`, 24 `m2tc0007d0020r.s`).
 - Kind and gauge: track, 1.435 m (1.5).
@@ -490,8 +742,12 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 - Source: "Track/Road Sections from Bjorn van Steenbergen" (`_INFO`,
   allocation 27300-28099 "Bjorn van Steenbergen Road/Track"). The road
   names are Dutch (`Afslag` exit, `Oversteek` crossing, `Voorsorteer`
-  turning lane, `Tankstation`), so a Dutch set is likely. What `DR` stands
-  for is not stated (unconfirmed). No web source found.
+  turning lane, `Tankstation`), so a Dutch set is likely. His trainsim.com
+  uploads, as "dutchrail (Bjorn van Steenbergen)", are Dutch rolling stock
+  of the "European Corridor" (`EC_*` files; fids 11769, 17138, 17219,
+  17273, 64353; 2005-2007). So `DR` probably stands for "dutchrail" (the
+  trainsim.com round's reading; no page says so). No track package, route
+  or picture was found.
 - Shapes: 797 / 797 (703 track, 94 road `DR_Rd_Type`). None local. PRUDNIK: 0.
 - Kind and gauge: track and road; 1.435 m (1.5).
 - Contents (track): six copies of one geometry set, one per letter `t`,
@@ -513,6 +769,29 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   http://www.europeanbahn.co.uk/; Build 38 readme: "Europeanbahn (Commercial
   Add-Ons)"). The 4th-rail pieces suggest London Underground or similar
   routes (unconfirmed which product). Allocation 34000-34999.
+  - Products, from the archived site: London Brighton Express (2002; it
+    "installs tsection.dat build #19",
+    <https://www.nklj.se/xtracks/documents/routes.htm>) with an Add-pack,
+    West Coastway (2004), East Coast Express (King's Cross-Peterborough,
+    2004-2007, with ECE2 to ECE4), West Coast Main Line (Euston-Birmingham,
+    2006), London South Coast, Cross City (2008), Midland Main Line (2008)
+    and the Farringdon Extension (West Hampstead-Farringdon-Moorgate or
+    Blackfriars, 2008-09, with an underground section at Farringdon). The
+    shop sold downloads until about 2012
+    (<https://web.archive.org/web/20110418211207/http://www.europeanbahn.co.uk/shoppingcart/sh_Main.htm>);
+    its pages redirect from mid-2013, and the domain is gone. No separate
+    track package was found: the shapes came with the products.
+    trainsim.com has only route patches (fids 24558, 24553, 2010).
+  - All 437 entries are already in Build 38 (November 2007). The 293 found
+    locally have indices 34000-34490; the 140 not found (`TunF65`/`TunFW65`
+    tunnels, `_vtun`, `3r`/`4r`, `10ds` points, `EB_*WireEnd_LG` at
+    34500-34503) are one later block, 34491-34656. Being in Build 38, they
+    predate the Midland Main Line and Farringdon releases; which product
+    they were made for is still unknown.
+  - Pictures: `/home/arch/tsection-families-web/pictures/europeanbahn/`
+    (10, Europeanbahn's screenshots; which shapes they show cannot be
+    told). Picture 05 (London Brighton Express, 2004) shows a conductor
+    rail between the tracks, where the `i` pieces put it.
 - Shapes: 437 / 0. Local 293 of 433 in OR_PSK_NEW and tsdata (as `EB_*`),
   although PSK's tsection has no `eb_` entries. PRUDNIK: 0.
 - Kind and gauge: track; 1.435 m (1.5); spacing 4.985 m.
@@ -547,6 +826,24 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   tsection build 44. The name points to the Sierra Menera mining railway
   (Ojos Negros to Sagunto, Spain); that the set models it is unconfirmed.
   `VD` is "Sierra Menera 500 mm Track". One shape by Jeffrey Kraus-Yao.
+  - Steam4me calls its installer "a Qsetup installer ... written by Yuri Sos
+    with permission from designer 'Sierra'"; the zip installs
+    `GLOBAL\SHAPES` and a `GLOBAL\tsection.dat`. Its three downloads answer
+    404, and the sizes on that page are XTracks 3.20's, copied from the
+    XTracks page. trensim.com (download id 1059) still served the set in
+    November 2024 (trainsim.com thread 2314351); in November 2026 it was
+    offline after a security problem.
+  - Use: Ferrovia delle Dolomiti (Italy, 2011, re-uploaded 2024) bundles
+    it ("binari via metrica per il corretto funzionamento dello scenario";
+    <https://www.trainsimhobby.net/infusions/pro_download_panel/download.php?did=923>);
+    La Mure (France, 2007, fid 60984; thread 150708 lists a missing
+    `vm1t200mstrtrtun.s`); the Argentine Trasandino route (FCGB C14, Open
+    Rails, November 2024; thread 2314351 asks for VMTracks). A TSH moderator
+    (October 2025) names "via metrica" among the sets users download. No
+    Spanish route was confirmed. "VM tracks are not indentical too M
+    Tracks" (thread 99345).
+  - Pictures: `/home/arch/tsection-families-web/pictures/via-metrica/` (1,
+    the La Mure thumbnail, low confidence).
 - Shapes: 400 / 0 (`VM` 380, `VD` 20). None local. PRUDNIK: 0.
 - Kind and gauge: track; `VM` 1.0 m (1.0), `VD` 0.5 m (0.5).
 - Contents: single 197, parallel 76, junction 32, diamond 9, frog piece 2,
@@ -566,7 +863,12 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 
 - Source: Ralf Riemer, "Tram Track Shapes from Ralf Riemer Tram Track"
   (allocation "Ralf Riemer Tram"). German by the texture name `Bordstein`
-  (kerb). No web source found.
+  (kerb). Released in 2003 on msts-strabafanpage.de
+  (<http://web.archive.org/web/20080131101722/http://www.msts-strabafanpage.de:80/Page/include.php?path=news&catid=0&entries=65&PHPKITSID=GEqTF08bPhALi5N4q5ejA8d0qfRMZOc1>);
+  a v1.1 is mentioned on trainsim.com (search snippet only). The original
+  host is parked; the set ships in PSK's GLOBAL. Use: PRUDNIK, CMK (55
+  `TramBB_A`); the Chiltern Route BETA (fid 39521) ships `TramB_A` shapes.
+  No German route was found.
 - Shapes: 92 / 92. Local 89 of 92 (OR_PSK_NEW; 18 in tsdata). PRUDNIK: 488
   objects (`tramb_a2t12_5mstrt.s` 136, `tram_a2t12_5mstrt.s` 82, ...).
 - Kind and gauge: track laid in streets; 1.435 m (1.5).
@@ -593,11 +895,23 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 
 - Source: Juergen Romanowski (YTracks) (developer list, allocation 31300-
   31399, "Romans Y-Track Shapes"). Build 38 readme: "YTracks V1, Download
-  at: www.train-sim.com". PSK: "Ytracks 1.81PL". A readme on trensim
+  at: www.train-sim.com". "MSTS YTracks" on trainsim.com (fid 61734,
+  2004-04-04): "switches ... as German prototype aka 'Einheitsweichen'",
+  "Includes Tsection.dat V23"; "YTracks 02" (fid 69398, 2007-07-09) needs
+  tsection build 33. PSK: "Ytracks 1.81PL" (v1.81 PL, 2005, from the
+  TS-Studio site, gone:
+  <https://web.archive.org/web/20090209163017/http://ts-studio.eu07.pl:80/down-tracks.html>).
+  A readme on trensim
   describes "a set of track pieces built around 1:9 turnouts, including a
   190-1:9 family" (<https://ftp.trensim.com/foro/download/file.php?id=13718>,
   search snippet only; the file did not open). German DB turnout
-  geometry by name (radius 190 m, 1:9). Medium confidence.
+  geometry (radius 190 m, 1:9), confirmed by the package text. High
+  confidence.
+- Use: in E30-Podkarpacie Y shapes are the most common track
+  (`y1thz190-1-9lft` 826, `y1tpnt190rgt` 605, ...); the usage round notes
+  that the 1:9 turnout is the standard Polish one. Stockholm Regional (fid
+  28001, 2011) ships `Y1tHz` frogs. Pictures:
+  `/home/arch/tsection-families-web/pictures/ytracks/` (3).
 - Shapes: 66 / 86. Local 84 of 86. PRUDNIK: 220 (`y1tendpnt190-1-9` 46,
   `y1thz190-1-9rgt/lft` 45, `y1tpnt190*mnl` 30, ...).
 - Kind and gauge: track; 1.435 m (1.5).
@@ -625,6 +939,8 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   confidence.
 - Shapes: 143 / 121. Local 85 of 143. PRUDNIK: 72 on S indices; 70 of them
   carry DBTracks names (`DB/DB30_A1t100mStrt.s` ...), 2 are `S2t250mStrt.s`.
+  CMK: 303 `S1t*` objects (`S1t1mStrt` 111). Ships in every XTracks
+  package.
 - Kind and gauge: track with `TunnelShape` (120) and no tube; 1.435 m (1.5).
 - Contents: the A geometry again (straights, curves, 3°/4.7°/6° points,
   frogs, crossings) flagged as tunnel; MÁV switches and STracks curves are
@@ -640,11 +956,33 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 
 - Source: "Binari italiani con massicciata e interbinario di 2.12 m. -
   AlexB" (`_INFO`, Italian). Indices in Renzo Grassi's range (37100-37299;
-  developer list: "Renzo Grassi http://www.ildeposito.net/"), so probably
-  published through ilDeposito (unconfirmed). Italian FS practice:
-  turnouts "S60UNI/170/0.12 Vmax. 30 km/h", "S60UNI/250/0.12",
+  developer list: "Renzo Grassi http://www.ildeposito.net/"). Italian FS
+  practice: turnouts "S60UNI/170/0.12 Vmax. 30 km/h", "S60UNI/250/0.12",
   "S60UNI/400/0.094 Vmax. 60 km/h", "S60UNI/1200/0.040 Vmax. 100 km/h",
   curved turnouts `CI`/`CE` (inner/outer).
+  - ilDeposito publishes the set with the `VT` track in "VT-Tracks e
+    IT-Tracks" (<https://www.ildeposito.net/NuovePagine/xtracks.html>):
+    v1.0 of 11/12/2017, v1.1 of 5/04/2019 ("modificate piattaforme da 16 e
+    21 m"), authors "OBY, Renzo Grassi, Alessandro Baldi", 5.30 MB,
+    "Contiene la versione 52 del Tsection", "necessari per gli scenari
+    realizzati dal 2009 in poi". The zip is live
+    (<https://www.ildeposito.net/Files/Vari/VT_Tracks-IT_Tracks.zip>,
+    2025) and on TSH. AlexB is very probably Alessandro Baldi (the tsection
+    credits AlexB, the package Alessandro Baldi; the picture search's
+    inference). The package's 16 m and 21 m platforms are not among Build
+    54's `It` names.
+  - A sibling set, "BINARI ITALIAN TRACK V1.0" (August 2006; `Ca1t*` to
+    `Ca4t*`, track with built-in catenary, 114 pieces, by "Renzo428" and
+    "AlexB"; not in the global tsection), has a project page that lists the
+    turnouts S.60/250/0.12, S.60/400/0.074 and S.60/1200/0.055, the same
+    family as the `It` points (<https://www.ildeposito.net/NuovePagine/ittk/ittk.htm>).
+    Its two pictures (grey ballast, light concrete sleepers, masts and
+    wire) are in `/home/arch/tsection-families-web/pictures/italian-alexb/`;
+    no picture of the `It` shapes was found.
+  - Use: no released route was shown to place `It` shapes, and no
+    trainsim.com zip holds one. Guido Ferretti (2017): "Non sono VT ma it e
+    sono usati nella mai finita faentina"; the SILA route (Open Rails, 2023,
+    fid 88325) asks for the IT-VT package.
 - Shapes: 200 / 0. None local. PRUDNIK: 0.
 - Kind and gauge: track; 1.435 m (1.5). Spacing 3.555 m (paths ±1.7775;
   2.12 m between inner rails); "adattamento interbinario It/Default"
@@ -667,6 +1005,22 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   points to the Schneeberg rack railway in Austria (metre gauge, Abt rack:
   <https://en.wikipedia.org/wiki/Schneeberg_Railway_(cog_railway)>); that
   the set models it is unconfirmed. `Z` is German Zahnstange (rack).
+  - Packages: "Z-Tracks and MT-Tracks Standard Edition" on trainsim.com,
+    `ztracks.rar` (fid 64691, 2005-04-13) and `ztracks.zip` (fid 73586,
+    2009), and a Route Builders' Edition (fid 64690). Readme: "Clemens
+    Hanel, Vienna, 12th of April 2005"; needs "X-Tracks 3.13 or
+    tsection.dat Version 00029". An earlier `ztracks.rar` was offered on
+    hcl.li in November 2004, needing tsection 00030 (the Wayback Machine has
+    the pages, not the file:
+    <http://web.archive.org/web/20101119033939/http://www.hcl.li:80/schneeberg/downloads.html>).
+    Neither the Schneebergbahn route nor a Dampfbahn Furka project (2006-07)
+    was released (<https://www.mstsforum.info/index.php?topic=1443.0>).
+  - Use: the Snowdon Mountain Railway route (UKTS, 2013, fid 32042): "The
+    Z-Tracks add-on track system is required". Guido Ferretti's Open Rails
+    routes ship `MT1t*` tunnel pieces and `gf_` reskins: Trento-Malè-Marilleva
+    (fid 88232, 2023), SILA (fid 88325, 2023), Fiemme Valley 1960 (fid
+    88703, 2024). Not checked: the track of the Italian rack routes
+    Diakofto-Kalavrita (2011) and Rittnerbahn (2015).
 - Shapes: 199 / 199. All local (OR_PSK_NEW; the `Z*` textures are missing).
   PRUDNIK: 0.
 - Kind and gauge: track; 1.0 m (1.0).
@@ -680,7 +1034,13 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   `MT1tRT5mstrt`, `Z1t20mStrt`, `ZG1t36r1d`, `ZH1t0_5mStrt`,
   `ZI1t0_5mStrt`): bed 2.5 m wide at y 0.20; `MT` rails to 0.30; `Z*` rack
   in 3D up to 0.37 (4,288 triangles in 20 m); `ZG`/`ZH`/`ZI` differ only
-  in the bed texture.
+  in the bed texture. trainsim.com's untextured render of the package's
+  `Z1t20mStrt` (`/home/arch/tsection-families-web/pictures/rack-rail/`)
+  shows only a narrow toothed strip, which the trainsim.com round read as a
+  rack-only piece laid over `MT` track (unconfirmed). The local copy says
+  otherwise (checked 2026-11-27): a 2.5 m bed (`ZCleanTrack1`, 2
+  triangles) and 4,288 triangles of rails and rack within x ±0.51 m
+  (`ZCleanTrack2`), so a `Z` piece is complete track.
 - Profile needs: metre-gauge families; a rack rail part (a `Sweep` or
   `Repeat` of rack teeth in the centre); grass beds by filter; in rack
   points the rack follows which path is not covered by `COMPLEX`; tunnels.
@@ -693,7 +1053,11 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   between different gauges" (XTracks versions). `I1t20mStrt` is "XTracks
   invisible track". High confidence.
 - Shapes: 173 / 168 (`N` 170/165, `NA` 2/2, `I` 1/1). Local 168 of 192.
-  PRUDNIK: 0.
+  PRUDNIK: 0. E30-Podkarpacie places 144 `N1t*` pieces, probably as a
+  stand-in for the 750 mm Bieszczady forest railway (the usage round's
+  guess; not inspected); CMK 12. Steam4me's VR 2 ft 6 in Gembrook-Cockatoo
+  route needs only XTracks, so it probably uses them (unconfirmed;
+  <https://nekocoaster.github.io/steam4me/routes/vic_pb_1920.html>).
 - Kind and gauge: track; 3 ft, 0.861 m (0.9); spacing 2.991 m (XTracks
   "Track info").
 - Contents: single 80, parallel 9, junction 56 (10° points, 3° modular,
@@ -718,15 +1082,38 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   among the DBTracks variants (<https://github.com/pgroenbaek/dbtracks-stf-profiles>),
   so it belongs to the DBTracks family. German high-speed line. Medium
   confidence.
+  - The profiles' README lists a DBTracks "V4hs" set with the variants
+    `DB1`, `NP1`, `NP2`, `R2k` and `RKL`; the global tsection has only `R2k`
+    and `NP1`. The profiles "mimic the original DBTracks shapes as best as
+    possible": `NP1`/`NP2` a slab with no sleeper part and no LZB cable,
+    `R2k` a slab with sleeper tops and the LZB cable, `RKL` sleeper tops and
+    the cable, `DB1` a ballast embankment with sleepers; all with a contact
+    wire (`mt_cwire`). The README is dedicated "In memory of Norbert
+    Rieger".
+  - The shapes come with German high-speed routes on the-train.de: the
+    dbtracks-extras README (<https://github.com/pgroenbaek/dbtracks-extras>)
+    lists "The V4 shapes e.g. from the NIM, ICE-HB and Köln-Frankfurt
+    routes" as a prerequisite (the usage round names NBS Köln-Rhein/Main,
+    SFS Nürnberg-Ingolstadt-München and SFS Hannover-Berlin V3). The usage
+    round reads this as: not in the seven DBTracks zips. The zips
+    themselves could not be opened (403), so that is unchecked.
+  - Pictures: `/home/arch/tsection-families-web/pictures/v4hs/` (2, Open
+    Rails renders of the profile `TrProfile_V4hsR2k.stf`: double-track
+    slab with sleeper blocks, rails on clamps, contact wire). No picture of
+    the original shapes or the tunnels was found.
 - Shapes: 160 / 160. None local. PRUDNIK: 0.
 - Kind and gauge: track; 1.435 m (1.5); two tracks only, 4.985 m.
 - Contents: parallel 80 (`V4hs2t_R2k_*`, `V4hs2t_NP1_*`: straights and
-  curves 1000-15000 m), tunnel 80 (`TunS`, `TunR`, `_g` variants).
-- Look: not local. `R2k` likely Rheda 2000 slab track; `NP1`, `TunS`,
-  `TunR` and `_g` are not explained (unconfirmed).
-- Profile needs: a slab family (concrete slab polylines, rails on direct
-  fastenings, no ballast, no ties) with side roles; two tunnel tube
-  families. No junctions in the set.
+  curves 1000-15000 m), tunnel 80 (`TunS`, `TunR`, `_g` variants; `TunS`
+  and `TunR` each have 26 curves and 9 straights, `_g` 4 curves and the
+  10 m straight).
+- Look: not local. `R2k` is probably Rheda 2000 slab track (still a
+  guess); `NP1` has no sleepers in the profiles; `TunS`, `TunR` and `_g`
+  are not explained (unconfirmed).
+- Profile needs: slab families with side roles (`NP1` a plain slab, `R2k`
+  a slab with sleeper blocks, as the Open Rails profiles draw them; rails on
+  direct fastenings, no ballast); the contact wire (the Open Rails profiles
+  sweep one); two tunnel tube families. No junctions in the set.
 
 #### R.E.T. Metro (Roland Bal)
 
@@ -734,7 +1121,31 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   http://www.retmetro.nl/...; Build 38 readme: "RET Metro (Commercial
   Add-Ons)"). RET runs the Rotterdam Metro, third rail on most lines
   (<https://en.wikipedia.org/wiki/Rotterdam_Metro>). High confidence for the
-  set; the station abbreviations below are read from names.
+  set; the station abbreviations below match the route's own captions.
+  - Route versions (download page,
+    <https://web.archive.org/web/20070320215326/http://www.retmetro.nl:80/nl_downloads_route.htm>):
+    V2 (28 Nov 2003, 63 MB) runs from Centraal Station to Zalmplaat, "maakt
+    geen gebruik van Xtracks" and installs its own tsection; V3 Marconiplein
+    to Capelsebrug; V4 Zalmplaat to De Akkers. V5 (beta, 1 Feb 2009, "the
+    last route download for TrainSimulator") adds Capelsebrug to Binnenhof
+    (Ommoord), driven "onder de draad" (under the wire) beyond Capelsebrug
+    (news items 27 and 37). A news item on V4 says it "wordt ... niet
+    commercieel gemaakt", against "Commercial Add-Ons" in the Build 38
+    readme
+    (<https://web.archive.org/web/20060113231824/http://www.retmetro.nl:80/nl_msts_nieuwsitem24.htm>).
+  - The station and depot tokens match the V2 stations and depots named in
+    the route's screenshot captions
+    (<https://web.archive.org/web/20070223072749/http://www.retmetro.nl:80/nl_screenshots_route.htm>):
+    Slg Slinge, Zpl Zuidplein, mhv Maashaven, rhv Rijnhaven, whp
+    Wilhelminaplein, Lhv Leuvehaven, Brs Beurs, shs Stadhuis, CS Centraal
+    Station, Zpt Zalmplaat, Hvt Hoogvliet, Twr Tussenwater, Ptg Poortugaal,
+    Rho Rhoon, Hld remise Hilledijk, Whv remise Waalhaven. So the shapes are
+    those of route version 2: the North-South line (Erasmuslijn) with the
+    Hoogvliet branch (from the names; no page lists the shapes).
+  - Packages: only V5.0 (130 MB) and its SP1 survive, in the Wayback Machine
+    (<https://web.archive.org/web/20110528032057/http://www.busfoto.nl/40jaarmetro/RMversie5-0.exe>);
+    V2 to V4 were not archived, and retmetro.nl is gone. The archived
+    readmes of V2-V4 are PDFs (not read).
 - Shapes: 147 / 147. None local. PRUDNIK: 0.
 - Kind and gauge: track, viaducts, stations; 1.435 m (1.5); 4.985 m.
 - Contents: single 59, parallel 46, junction 10, tunnel 30, special 2.
@@ -742,11 +1153,20 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   `gri`, `gs`, `hld`, `lg`; switches and crossovers `Retkrswsl*`
   (kruiswissel); `Retcs*` (tunnel by flag); stations `RetStat*`
   (`Twr`, `Rho`, `Ptg`, `Zpt`, `Hvt`, `Brs`, `CS`, `Slg`, `Zpl`, `Lhv`,
-  `mhv`, `rhv`, `whp`, `shs`: names that match stations of the
-  Rotterdam North-South line and its Hoogvliet branch, unconfirmed);
-  depots and yards `RetWhv*`, `RetHld*`, `Rethldremper`, `Retuit*`.
-- Look: not local. Whether the third rail is modelled is unknown.
-- Profile needs: a metro family (with a conductor rail if confirmed);
+  `mhv`, `rhv`, `whp`, `shs`: stations of the Rotterdam North-South line
+  and its Hoogvliet branch, see Source);
+  depots and yards `RetWhv*` (Waalhaven), `RetHld*` (Hilledijk),
+  `Rethldremper`, `Retuit*`. Still unexplained: `gs`, `gt`, `gri`, `lg`,
+  `kol`, `bnl`, `Dht`, `remper`, `BDperron`.
+- Look: not local. The route's screenshots
+  (`/home/arch/tsection-families-web/pictures/ret-metro/`, 11) show a third
+  rail with an ochre cover on black brackets outside the running rails,
+  broken at the points; a smooth brown bed without visible sleepers; pale
+  grey rails; depot tracks on grey ballast; box tunnels with points inside;
+  elevated stations on viaducts. Whether the conductor rail belongs to the
+  track shapes or to separate objects is not stated.
+- Profile needs: a metro family (with a conductor rail if the shapes carry
+  it);
   viaduct families (deck and parapets as polylines); tunnel tubes;
   `RetStat*`, depot and yard buildings `DISABLED`.
 
@@ -755,6 +1175,17 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 - Source: "Track Shapes by Chris Jennings" (`_INFO`; developer list:
   cjennings1@iinet.net.au, Australia). What `NR` means is not stated
   (unconfirmed).
+  - The UKTrainSim library (archived 2006,
+    <https://web.archive.org/web/20060523165229/http://www.uktrainsim.com:80/filelib-search.php?form_author=Chris+Jennings&CUTHERE=a20039306402bfbd619b0fd5a0afb7f9>)
+    and trainsim.com show a Chris Jennings as the author of New South Wales
+    rolling stock, 2002-2005: the XPT (UKTS 1465 and 3943; fid 53885) and
+    Sydney CityRail V, M and S sets (fids 59140, 60289, 59138). Same name
+    and an `.au` address, so probably the same person (unconfirmed). A
+    Sydney underground prototype (City Circle or Eastern Suburbs Railway)
+    would fit the tunnels, but no page says so (the trainsim.com round's
+    guess). A Steam4me tunnel tutorial "by Chris Jennings" (2002) does not
+    mention `NRa` (<https://nekocoaster.github.io/steam4me/tutorials/tunnel.html>).
+    No package, route or picture was found.
 - Shapes: 145 / 145. None local. PRUDNIK: 0.
 - Kind and gauge: track, mostly tunnels; 1.435 m (1.5); two `NRA` at 1.0.
 - Contents: tunnel 84 (`RndTun`, `Rndtun`, `DividedRndTun` two tracks with
@@ -769,7 +1200,11 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 #### Jeffrey Morris (tunnel, switch, substation)
 
 - Source: "Track Shapes by Jeffrey Morris" (`_INFO`; allocation 19175-
-  19499; also 18 `A1t62r*tun` shapes in `A`). Prototype not stated.
+  19499; also 18 `A1t62r*tun` shapes in `A`). Prototype not stated. All
+  141 shapes are already in Build 38 (November 2007). No package, route or
+  picture was found. The developer-list address (`si.rr.com`) is a Road
+  Runner address of Staten Island, New York (an inference of the picture
+  search, unconfirmed).
 - Shapes: 141 / 141. None local. PRUDNIK: 0.
 - Kind and gauge: tunnels and structures; 1.435 m (1.5).
 - Contents: `tunnelNN-*` (117; `NN` = number of tracks 01-08, at 4.985 m;
@@ -787,7 +1222,14 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 - Source: Tim Bridge, UK Narrow Gauge ("Tim Bridge - UKN* narrow gauge
   track sections"; Andrew Gadd "point animation fix for UKN* and new UKN*
   shapes"), merged into XTracks (credits and versions pages); 32 shapes by
-  Okrasa Ghia. British narrow gauge. High confidence.
+  Okrasa Ghia. British narrow gauge. High confidence. Build 54 marks the
+  UKN sections from 39327 on "added by Andrew Gadd and Okrasa Ghia".
+  - Use: little, but always installed with XTracks. The Corris No. 3 scale
+    patch (2002) "requires UK_NG track"
+    (<https://archive.org/download/ukts-archive-files-1001-2000/UKTS_1866_ngcorris3.zip/corris3/ngReadme.txt>).
+    Reg Furniss reworked `ukn` in 2012 (fid 28317) for a Talyllyn 1940s
+    route that was not found released; Talyllyn 1.5 was built at double
+    scale on standard track.
 - Shapes: 127 / 127 (`ukn` 125, `uknA` 2). All local. PRUDNIK: 0.
 - Kind and gauge: track; 2 ft 4 in, 0.7175 m (0.75); spacing 2.4925 m.
 - Contents: single 48, junction 16 (10° points, 3°/6° modular, stubs, Y,
@@ -806,9 +1248,19 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 #### Metre gauge with third rail (Etienne Bruère, tj)
 
 - Source: "Metric Gauge Track Shapes with 3rd rail by Etienne Bruere"
-  (`_INFO`; developer list with http://www.funtrain.net/index.php?cible=ligne&id=40,
-  page empty when fetched). French. `tj` may stand for "Train Jaune", the
-  metre-gauge third-rail Ligne de Cerdagne (unconfirmed, name only).
+  (`_INFO`; developer list with http://www.funtrain.net/index.php?cible=ligne&id=40).
+  French. That link was the download page of "La ligne de Cerdagne Version
+  2" by "Richard GARCIA, Etienne Bruere, Raymond (RM77)" (archived
+  2006-2007). So `tj` is the Train Jaune: metre gauge with an 850 V third
+  rail (route readme). The presentation page
+  (<http://web.archive.org/web/20080420233032/http://www.funtrain.net/index.php?cible=presentation&id=40>)
+  says "Nécessite : Xtracks 3.16" and that this version covers "Saillagouse
+  - La tour de Carol"; V2 dates from 2005. funtrain.net has renumbered its
+  lines: the route is now line 27 (<https://api.funtrain.net/lines/27/>),
+  `Cerdagne.exe` (69 MB, file date 2021-09-23), which appears to carry its
+  own track ("une version plus ancienne des voies nécessaires à la
+  ligne"; not downloaded). All 100 shapes are in Build 38. High
+  confidence.
 - Shapes: 100 / 100. None local. PRUDNIK: 0.
 - Kind and gauge: track; 1.0 m (1.0).
 - Contents: straights, 70/100/200 m curves, 12° points, crossovers, tunnels
@@ -816,7 +1268,10 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   `3p`/`3u` (and `3pi`, `3po`, `3ui`, `3uo` on curves: inner/outer,
   meaning of `p`/`u` unconfirmed), `3ps`/`3us` pieces; `tj1txoverA1t10d`
   crossing with standard gauge.
-- Look: not local.
+- Look: not local. The route's screenshots
+  (`/home/arch/tsection-families-web/pictures/tj-bruere/`, 3) show a side
+  conductor rail along the sleeper ends of metre-gauge track, broken at a
+  platform crossing.
 - Profile needs: a metre-gauge family with a conductor rail part by side;
   tunnel tubes and portal pieces (`TunEntry`, static); the pit (not
   covered: a cut in the bed); a two-gauge crossing.
@@ -828,6 +1283,15 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   local readme "CYKWORKS Track Pack 2.0 ... specifically designed for use
   with Chicago Elevated Railways packages" (`tsdata/global/textures/readme.txt`).
   Chicago "L". High confidence.
+  - Packages on trainsim.com: Track Pack 1 (fid 59089, `cyktrck1.zip`,
+    2003-07-28, "third rail and tight radius Switches") and Track Pack 2.0
+    (fid 59401, 2003-12-24); the route Chicago Elevated Railways v0.4 (fid
+    60725, 2003), v0.6d (fid 59386) and v2.0 (fid 57474). The Build 38
+    readme: the original L2 route (2002) is "not compatible", Cyko's work
+    after July 2003 is. Dormant since (a 2012 post:
+    <https://forum.trains.com/t/226739.json>). Picture:
+    `/home/arch/tsection-families-web/pictures/cykworks/` (the route's
+    thumbnail).
 - Shapes: 84 / 0 (`C` 52, `L` 16, `Cp` 9, `Croswab` 3, `LHalOR` 2,
   `Cperoswab` 1, `Cpbasbr` 1). All local (OR_PSK_NEW, tsdata). PRUDNIK: 0.
 - Kind and gauge: elevated track, subway, stations; 1.435 m (1.5; some
@@ -851,13 +1315,19 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 #### XTracks virtual tunnel (OBY, VT)
 
 - Source: "XTracks virtual tunnel by OBY" (`_INFO`); indices in Alessandro
-  Baldi's range (19850-20849). Who OBY is is not stated.
+  Baldi's range (19850-20849), right after "_INFO(Track Shapes from
+  ilDeposito)". OBY is a co-author, with Renzo Grassi and Alessandro Baldi,
+  of ilDeposito's "VT-Tracks e IT-Tracks" (see the Italian set); who OBY is
+  beyond the nickname is not known. `VT` is not in Build 38 (November
+  2007); ilDeposito says routes from 2009 on need the package. Italian
+  routes of 2009-2018 use it (see "Use today").
 - Shapes: 77 / 0. None local. PRUDNIK: 0.
 - Kind and gauge: track with `TunnelShape`; 1.435 m (1.5).
 - Contents: straights, curves 120 m and up, 6° points, crossings, buffer,
   end points, all tunnel-flagged.
 - Look: not local. "Virtual tunnel" by its name: track that MSTS treats as
-  a tunnel, inside tunnels built from other objects (unconfirmed).
+  a tunnel, inside tunnels built from other objects (unconfirmed; the
+  package says only "Virtual Tunnel"). No picture was found.
 - Profile needs: track only (no tube) by a `VT*` filter before tunnel
   filters.
 
@@ -867,7 +1337,17 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   dual track routes combining normal and narrow gauge tracks with a third
   rail", included in XTracks since 3.9 (<https://www.nklj.se/xtracks/documents/dualtracks.htm>);
   18 diverging switches by Jared Singletary. The XTracks page points to
-  Bill's site "Simulated EBT" (East Broad Top, US, by our reading). High confidence.
+  Bill's site "Simulated EBT" (East Broad Top, US, by our reading); his East
+  Broad Top project was not released. High confidence.
+  - Packages on trainsim.com: DualTracks v1.1 (fid 61072, `dtrack11.zip`,
+    2004-01-31) and the reference route the XTracks page names, "Reference
+    Route v1.0" (fid 57842, `dtref10.zip`, 2003-02-22).
+  - Use: La Crosse Division (Milwaukee Road, Todd Jones, 2003, fid 58902):
+    "Requires XTracks (XTRACKS.ZIP) and Dualtracks (DTRACK10.ZIP)". The MBTA
+    route (fid 63284, 2004) and SA Adelaide, Hills & South East (fid 90534,
+    2025) ship `D1tPnt*` pieces; Trento-Malè (fid 88232) ships
+    `gf_d1tpnt*` reskins.
+  - Pictures: `/home/arch/tsection-families-web/pictures/dualtracks/` (3).
 - Shapes: 71 / 53. Local 53 of 71. PRUDNIK: 0.
 - Kind and gauge: track; 1.435 m and 0.861 m with a common rail (0.9 1.5).
 - Contents: straights and curves `LC`/`RC` ("left common" / "right
@@ -885,7 +1365,10 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 #### 600 mm Feldbahn (Lutz Schwerthelm, lsfb)
 
 - Source: "600mm Feldbahn - narrow gauge - by Lutz Schwerthelm" (PSK
-  header and `_INFO`). German field railway. PSK only.
+  header and `_INFO`). German field railway. PSK only. No released route
+  uses it; the Polish Podlasie project (trainsim.com forum thread 155079,
+  2022-2024) plans "Feldbahn tracks for Hajnówka 600 mm gauge forest
+  railroad".
 - Shapes: 0 / 53. Local 51 of 53. PRUDNIK: 0.
 - Kind and gauge: track; 0.6 m (SectionSize 0.5, 0.75 and 0.9 mixed).
 - Contents: single 43 (curves from 10 m radius), junction 10 (3° points,
@@ -899,8 +1382,21 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 #### Schwebebahn (Sjoerd Ydema, WS)
 
 - Source: "Schwebebahn Trackshapes SYdema" (`_INFO`; allocation "Sjoerd
-  Ydema Schwebebahn"). A suspended monorail; the Wuppertal Schwebebahn is
-  the likely prototype (unconfirmed).
+  Ydema Schwebebahn"). A suspended monorail. The prototype is the Wuppertal
+  Schwebebahn: HCC!trainsim's article of 16 Aug 2007 quotes the author
+  (Sjoerd Ydema, Dutch), who made "alle rails, alle haltes, de twee depots
+  en de trein" himself and got the tsection entries right "met wat hulp van
+  het forum van Retmetro.nl". All 36 shapes are in Build 38.
+  - The route is downloadable: HCC!trainsim, "Wuppertal Schwebebahn v1"
+    (`Schwebebahn.rar`, needs XTracks 3.18, re-posted 2017,
+    <https://trainsim.hcc.nl/downloads/microsoft-trainsimulator/routes-voor-microsoft-train-simulator/154-wuppertal-schwebebahn-v1/file>),
+    with a tsection update (XTracks 3.18's file plus the Schwebebahn
+    entries); and trainsim.com fid 66942 (`schweb1.zip`, 2007: "the full
+    route (20 stations and two depots) and the train").
+  - Pictures: `/home/arch/tsection-families-web/pictures/schwebebahn/` (8,
+    from the HCC article): green steel girder track, two tracks side by
+    side, the train hanging below. Whether the girders are part of the `WS`
+    shapes is not stated.
 - Shapes: 36 / 12. None local. PRUDNIK: 0.
 - Kind and gauge: other; paths at 3.51 m spacing; "gauge" 0.5.
 - Contents: straights `S`, curves `C` (7.5-100 m), points, depot points.
@@ -910,7 +1406,13 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 #### LUL tube tunnels (Richard Garniss, lultube_)
 
 - Source: "Shapes From Richard Garniss LUL Project" (`_INFO`; allocation
-  19100-19174). London Underground deep tube by name.
+  19100-19174). London Underground deep tube by name. All 30 entries are
+  in Build 38. No package, route or picture was found. Sjoerd Ydema's
+  "London Underground: Northern Line" v1.2 (fid 19204, 2009) ships its own
+  route tsection.dat, and its zip lists no `lultube` shape; the UKTS
+  District Line beta has no tube pieces either. A 2008 forum mention of a
+  planned "LUL track pack" for UKFS with four-rail track (District Dave's
+  forum, search summary only) is not tied to Garniss.
 - Shapes: 30 / 30. None local. PRUDNIK: 0. In PSK 17 of the 30 entries
   point to missing sections (group 0).
 - Kind and gauge: track in tube tunnels; 1.435 m (1.435).
@@ -925,7 +1427,8 @@ A namespace"; it is not repeated here. This entry is the set-level view.
 
 - Source: "Track Shapes From Steven Masters Ferry Tracks" and "... Track
   Additions to Xtracks" (`_INFO`; allocation "Steven Masters Ferry").
-  US carfloat practice by the 11.5 ft (3.5052 m) spacing.
+  US carfloat practice by the 11.5 ft (3.5052 m) spacing. Ships in XTracks
+  3.19; no route using it was found.
 - Shapes: 27 / 14. Local 14 of 27. PRUDNIK: 0.
 - Kind and gauge: track on a vessel deck; 1.435 m (1.5).
 - Contents: `F<n>tFerry*` 3-5 track ferry decks, `F3t*mStrt`, three-way
@@ -941,6 +1444,20 @@ A namespace"; it is not repeated here. This entry is the set-level view.
   (`_INFO`; allocation "Andrew Gadd Lartigue Monorail"). The Listowel and
   Ballybunion Railway is the best-known Lartigue line (prototype
   unconfirmed).
+  - A UKTrainSim upload "Lartigue" by andrewgadd existed: its 150 px
+    thumbnail survives in the Wayback Machine
+    (`/home/arch/tsection-families-web/pictures/lartigue/`): a single rail
+    on a row of A-frame trestles at about waist height, a straddling
+    locomotive, a lattice footbridge. The file entry itself was not found.
+    A trainsim.com forum thread of 2005-04-27 (28799, "A Lartigue Monorail
+    (from Bodgit & Scarper Engineering)", signed "Andrew.") shows Lartigue
+    trackwork "including animated turntable turnouts" in a "very British"
+    narrow-gauge route, probably the author's work in progress.
+  - Andrew Gadd was a UK narrow-gauge modeller (a 15 inch gauge route,
+    narrow-gauge textures, Decauville and Dick Kerr stock, 2003-2004) and
+    added `UKN` shapes to XTracks
+    (<https://www.nklj.se/xtracks/documents/credits.htm>). All 24 shapes are
+    in Build 38.
 - Shapes: 24 / 0. None local. PRUDNIK: 0.
 - Contents: straights, curves 30-150 m, end rails, crossing gap, turntable
   and traverser points, rails.
@@ -1032,17 +1549,52 @@ A namespace"; it is not repeated here. This entry is the set-level view.
     decks `F*Ferry*`, invisible track (`I1t20mStrt`, `SR_InvisiTrack_`,
     dummies). They need `DISABLED` or an empty profile; the filter file has
     no "draw nothing" value apart from the static shape.
-12. Unidentified or unconfirmed: what `DR` and its letters `t n r y s h`
-    mean; BR Rail suffixes `a b g w d`; ScaleRail `y` and switch tokens
-    `m`/`a`/`i`; Via Metrica `C`/`Ox`; V4hs `NP1`, `TunS`, `TunR`, `_g`;
-    Morris `switch*`; Chris Jennings' prototype; PSK skins `PL*` and
-    `DB2he`; "UZK 3.18" in the PSK header; who OBY is. Most third-party
-    sites (europeanbahn.co.uk, retmetro.nl, funtrain.net, hcl.li,
-    ukfs.trainsimfiles.com, home.comcast.net/~markhyams) could not be
-    reached; web.archive.org was not available to this review.
+12. Unidentified or unconfirmed. The second round (2026-11-26/27) answered
+    or narrowed:
+    - "UZK 3.18" in the PSK header: ÚZK, a Czech re-texture of XTracks
+      geometry (A namespace entry);
+    - `DR`: probably "dutchrail", the author's library name (`DR_` entry);
+    - who OBY is: a co-author of ilDeposito's VT/IT package, nothing beyond
+      the nickname (`VT` entry);
+    - Chris Jennings: probably the author of Sydney rolling stock; his
+      prototype is still unknown (Jennings entry);
+    - BR Rail: the package was found (BR entry), but its suffixes are not
+      explained; only that `a` and `gw` carry more geometry;
+    - V4hs `NP1`: a slab without sleepers in the Open Rails profiles
+      (V4hs entry);
+    - not on this list before, but confirmed: `tj` = Train Jaune and the
+      Wuppertal Schwebebahn (their entries).
+
+    Still open: the `DR_` letters `t n r y s h`; BR Rail suffixes
+    `a b g w d`; ScaleRail `y` and switch tokens `m`/`a`/`i`; Via Metrica
+    `C`/`Ox`/`Sox`; V4hs `TunS`, `TunR`, `_g` (and `R2k` = Rheda 2000 is
+    still a guess); Morris `switch*`; PSK skins `PL*` and `DB2he`. The
+    authors' sites (europeanbahn.co.uk, retmetro.nl, funtrain.net's old
+    pages, hcl.li, ukfs.trainsimfiles.com, home.comcast.net/~markhyams) are
+    gone; the second round read most of them in the Wayback Machine or a
+    mirror.
 13. Locally missing sets: UK FineScale, BR Rail, Bjorn van Steenbergen,
     Via Metrica, V4hs, RET, Jennings, Morris, Italian, tj, VT, WS, LUL,
-    Lartigue have no shape files here, so their looks are from names only.
+    Lartigue have no shape files here. Their looks come from names,
+    documentation and, since the second round, pictures in
+    `/home/arch/tsection-families-web/pictures/<set>/` (third-party, kept
+    outside the repository; contact sheet
+    `/home/arch/tsection-families-web/reports/pictures-sheet.jpg`):
+    - `ukfs` (11, the author's pages), `br-rail` (2 untextured renders),
+      `ret-metro` (11 route screenshots), `tj-bruere` (3 route
+      screenshots), `schwebebahn` (8), `v4hs` (2 renders of the Open Rails
+      profiles, not of the shapes), `italian-alexb` (2, of the sibling
+      `Ca` set), `via-metrica` (1, low confidence), `lartigue` (1
+      thumbnail);
+    - none for `DR_`, Jennings, Morris, LUL and `VT`.
+
+    Packages that exist (none downloaded): UK FineScale (fid 11889),
+    BR_Project_Complete (fid 22268), RET Metrolijn V5.0 (Wayback Machine
+    only), `Cerdagne.exe` (funtrain.net line 27; presumably holds the `tj`
+    shapes), the Schwebebahn route (HCC!trainsim, fid 66942), VT-Tracks e
+    IT-Tracks (ilDeposito), the German HSR routes with V4hs (the-train.de),
+    Via Metrica inside the Dolomiti route. None was found for `DR_`,
+    Jennings, Morris, LUL and Lartigue.
 
 ## Part 2. Road families (RoadShape-only prefixes)
 
@@ -1079,11 +1631,15 @@ How the numbers were made (all read-only):
   The kit has `Notes.doc` by Steven Masters, which describes every NewRoads
   set with widths and textures, the original readmes by Martyn T. Griffin and
   Bruce Bridges, and pictures of the intersection kits. Also the
-  developer list at the top of Build 00054 and the `_INFO` lines. Web
-  searches for the smaller sets (J.A. Norton, Dale Rickert, R. Fiore, Graham
-  Pitt, Norbert Rieger's Autobahn, the Kraków set) found nothing. For those,
-  everything below comes from the tsection credits, the names and the local
-  shapes, and is marked so.
+  developer list at the top of Build 00054 and the `_INFO` lines. The
+  first round's web searches for the smaller sets (J.A. Norton, Dale
+  Rickert, R. Fiore, Graham Pitt, Norbert Rieger's Autobahn, the Kraków
+  set) found nothing. The second round (Wayback Machine, trainsim.com; see
+  "Sources and method") found Graham Pitt's kits, Rieger's Autobahn pages
+  on dbtracks.com, Dale Rickert's route and the Kraków route's author;
+  their entries give the sources. For J.A. Norton and R. Fiore everything
+  below still comes from the tsection credits and the names, and is marked
+  so.
 
 Data: per-shape lane layouts (`roads-b54.json`, `roads-psk.json`), the classes
 (`classes.json`) and PRUDNIK counts (`prudnik-roads.json`) are in the
@@ -1412,6 +1968,17 @@ sections (1.435). Local counts are shapes found in at least one game root.
   - Ted Curphey made the 45° intersections for `cr`, `dr` and `gr` (`_INFO`).
 
   Confidence: high.
+
+  Packages today: the NewRoads 4.0 end-user installer is on trainsim.com
+  (fid 6254, `UKTS_6254_NewRoads_V40_MSTS1_Setup.exe.zip`, Steven Masters,
+  2007-11-23, "Autoinstaller provided by Yuri J. Sos"; also fid 69884), with
+  a files-only copy (fid 80272, 2014), v3.2 (fid 68002) and the Route
+  Builders Kits (fid 60104 North America; fids 60105 and 6256 UK; also on
+  Steam4me). Steam4me's own link to the 4.0 installer points to
+  railpage.com.au, which does not connect now. the-train.de lists a
+  "NewRoads v4.0 Grundversion"
+  (<https://the-train.de/downloads/entry/7912-newroads-v4-0-grundversion>,
+  not opened).
 - **Shapes:**
 
   | Prefix | B54 / PSK | Local | PRUDNIK |
@@ -1548,18 +2115,58 @@ sections (1.435). Local counts are shapes found in at least one game root.
 - **Source:**
   - `_INFO` "Shapes From Norbert Rieger German Autobahn" (406). BAB =
     Bundesautobahn.
-  - The developer list names Rieger for "XTracks Additions". The NewRoads
-    guide lists him among the NewRoads 4.0 authors, so BAB is likely part of
-    NewRoads 4.0 (unconfirmed; RBK 3.2 does not have it).
-  - Web search found nothing on the set.
+  - The developer list names Rieger for "XTracks Additions". BAB is part
+    of NewRoads 4.0: DBTracks' Autobahn page lists "NewRoads4_BAB_Shapes.rar"
+    (406 pieces, 08.09.2007) as "all BAB Shapes of NewRoads v4.0
+    (Standard), registered in tsection.dat #38+", the same count as the
+    `BAB` shapes here (<https://dbtracks.com/pages/DL_bab.html>). RBK 3.2
+    does not have it.
+  - The same page lists Rieger's later variants (2010, "partially
+    Laboratory or beta status"; 2,284 shapes in all): one-carriageway
+    (`BAB_1w_*`, 562 pieces each) and two-carriageway (`BAB_2w_*`, 288
+    each) roads and bridges, embankment ends, bridge piers, and
+    `BAB_Exit_Merge` (25 entrances and exits "from NewRoads 4.0") with
+    `BAB_Facts.rar` ("Instructions and description of the entrances and
+    exits"; not opened). "The usage in a route intended for publication
+    should be discussed with the author". The page also notes: "Currently
+    there are not all '1L1W' objects available in Newroads' BAB selection.
+    Only Newroads' 'fwy1l1w' objects are valid for 'track shape
+    substitution'."
+  - DBTracks 1.0 also offered "BAB_Standard.rar" (2011, 825 pieces):
+    one-direction carriageways "to replace 2L and 4L road sections from the
+    MSTS basic selection" (<https://dbtracks.com/pages/DBTracks10.html>).
+    PSK's `GLOBAL/SHAPES` holds such reskins of Kuju geometry by name
+    (`BAB1w2L_cgr_Road2Lstrt100m.s`, `BAB1w3L_br_Road4Lstrt100m.s`, ...;
+    `cgr`, `cgrb`, `i`, `n` unexplained).
+  - Packages today: NewRoads 4.0 (2.2); Rieger's variants on the-train.de
+    (closing, see "Use today"); the BAB textures on ActivitySimulatorWorld
+    (`Newroads4_BAB_textures.zip`, 2009,
+    <https://www.activitysimulatorworld.net/Les_utilitaires/NewRoads_V4.0_Autobahn_Texturen.htm>).
+  - Use: CMK and PRUDNIK; non-German routes ship `bab2l1w*` (Gotland fid
+    78383, Dorset Coast v6 fid 88951, SRv2 Phase 3 fid 85961, Oro fid
+    91223); German routes were not identified. Picture:
+    `/home/arch/tsection-families-web/pictures/road-bab/` (1, the BAB
+    textures' preview, medium confidence).
 - **Shapes:** 406 / 406, all local in OR_PSK_NEW and tsdata.
   - OR_PSK_NEW also has five folders of 288 shapes each, all with the same
     two-way geometry: `BAB_2w_1g`, `BAB_2w_emb` (embankment), `BAB_2w_br`
     (bridge deck), `BAB_2w_ramp` and `Br_BAB_2w` (bridge structure).
+    These are Rieger's DBTracks variants: the folder names and the count
+    288 match the archives on the DBTracks page, which explains them
+    (`1w`/`2w` = one or two carriageways):
+    - `2w_1g`: "2 Lanes, center guardrail, hard shoulder on both sides,
+      center bush row (Standard)";
+    - `2w_emb` and `2w_ramp`: the same on an embankment or a ramp
+      ("guardrail and hard shoulder on both sides, bush row center");
+    - `2w_br`: "2 Lanes for bridge, guardrail and hard shoulder on both
+      sides"; `Br_BAB_2w`: "Bridges for 2 way roads";
+    - not in PSK: `2w_2g` "guardrail on both sides"; for one carriageway
+      `1g` "guardrail left, hard shoulder right (Standard)", `2g`
+      "guardrail on both sides", `B` "bush row left".
   - Each folder holds 144 shapes and 144 `oS` variants (`BAB_emb_*` and
     `BAB_oS_emb_*`, ...): 48 per lane count (4LT, 6LT, 8LT). "oS" is
-    probably "ohne Standstreifen", without hard shoulder (unconfirmed).
-  - Who made the folder variants is unconfirmed.
+    probably "ohne Standstreifen", without hard shoulder (unconfirmed; the
+    DBTracks page does not explain it).
   - PRUDNIK: 225 objects, 22 of them folder variants (`BAB_2w_emb` 18,
     `BAB_2w_br` 4).
 - **Kind:** road; gauge field 1.5.
@@ -1602,6 +2209,38 @@ sections (1.435). Local counts are shapes found in at least one game root.
 - **Source:** 3DTrains ScaleRail (`_INFO` "Track/Road Sections from 3DTrains
   ScaleRail Products"; developer list "Marc Nelson (Scale Rail)"). Set
   identity: see the rail section.
+  - "ScaleRail also includes ScaleRoad - a system of city, urban, highway,
+    and other road sections. Like ScaleRail, ScaleRoad supports dynamic
+    shadows" (3DTrains, 2006,
+    <https://web.archive.org/web/20060822005749/http://www.3dtrains.com:80/downloads/scalerail/>).
+    Versions 1.74 (by December 2008), 1.75 (2010), 1.77 (about 2013). The
+    LaSalle Rockford & Central route needed shapes missing from 1.74
+    (`sr_dirt_*`, `sr_inter_*`, `sr_rural_*`; 3DTrains topic 15872,
+    <https://web.archive.org/web/20210728160824/https://www.3dtrains.com/forums/index.php/topic/15872-lsrc-route-scale-road-file-errors/>);
+    its `lsrc_glo.zip` (fid 71784, 2008) "includes Scaleroads shapes that
+    were available in previous releases of Scaleroads but are no longer
+    available".
+  - Packages: "Scaleroad by 3DTrains" (fid 87684, 2023, "Uploaded with
+    permission from 3DTrains"; holds `ScaleRoad.exe`) and Elvas Tower file
+    3208 (Genma Saotome, 2022-23, "present here on a temporary basis
+    pending a return to distribution by 3dtrains";
+    <https://www.elvastower.com/forums/index.php?/files/file/3208-scale-roads/>).
+  - Textures: the installers put the shapes into `GLOBAL/SHAPES`; the
+    textures belong in each route's `TEXTURES`, so routes ship them ("the
+    textures come with the Route", The Siskiyou Route,
+    <https://web.archive.org/web/20200502131348/http://www.siskurail.org/installingScaleRail.php>).
+    "MSTS Route--Saluda Road Textures" (fid 69357, 2007: "ScaleRoad texture
+    files ... Textures created by 3DTrains") holds 45 `SR_Road_*.ace` and 22
+    in `SNOW/`, for Access, City (also Green, Red, Yellow), Country, Dirt,
+    Hiway, Rural and Urban. `Town`, `Inter` and `Parkway` have no texture
+    of their own name there (they probably reuse others; not checked).
+    Whether `ScaleRoad.exe` installs textures too was not checked. This
+    fits TS_STARTER_ROUTE having the `SR_*` meshes and no `SR_Road_*.ace`.
+  - Not the same set: 3DTrains' "ScaleRoad - High Resolution Edition"
+    (2009) is for EA Rail Simulator.
+  - Pictures: `/home/arch/tsection-families-web/pictures/road-scalerail/`
+    (2: the Elvas Tower download's Open Rails screenshot of a 2-lane road; a
+    2005 3DTrains picture with a 4-lane road).
 - **Shapes:** 739 / 0 (Build 54 only).
 
   | Prefix | Shapes | Local (TS_STARTER_ROUTE) |
@@ -1617,7 +2256,8 @@ sections (1.435). Local counts are shapes found in at least one game root.
   | SR_Country_ | 32 | 32 |
   | SR_Parkway_ | 24 | 24 |
 
-  681 are local. Their `SR_Road_*.ace` textures are not local. PRUDNIK: 0.
+  681 are local. Their `SR_Road_*.ace` textures are not local (they come
+  with routes; see Source). PRUDNIK: 0.
 - **Kind:** road pieces of a track-and-road set; gauge field 1.5 (three
   SR_Dirt sections 1.435).
 - **Contents:**
@@ -1658,8 +2298,9 @@ sections (1.435). Local counts are shapes found in at least one game root.
   - `_INFO` "J.A. Norton Road sections" and "Sections From J.A. Norton
     Roadway/Track"; the developer list: "J A Norton ElvasTower".
   - The set's name and what "SLW" stands for are unconfirmed (web search
-    found nothing). The lane widths are US (11 and 12 ft), and `SLW_7thSt`
-    names a "7th Street".
+    found nothing in either round; no file on Elvas Tower's guest-visible
+    library or on trainsim.com). The lane widths are US (11 and 12 ft), and
+    `SLW_7thSt` names a "7th Street".
 - **Shapes:** 245 / 0 (`SLW_UR_` 144, `SLW_NC_` 44, `SLW_SB_` 26, `SLW_FW_`
   15, `SLW_` 5, `SLW_UX_` 4, `SLW_NX_` 4, `SLW` 2, `SLW_UR_SB_` 1). None
   local. PRUDNIK: 0.
@@ -1685,7 +2326,30 @@ sections (1.435). Local counts are shapes found in at least one game root.
 - **Source:** `_INFO` "Road shapes by Dale Rickert" and "Road sections by Dale
   Rickert"; the developer list: "Dale Rickert (scale rail and scale road
   pieces)". The lane offsets (±1.95) match ScaleRail's. So these are probably
-  ScaleRail-compatible roads (unconfirmed). Package name unknown.
+  ScaleRail-compatible roads (unconfirmed).
+  - Dale Rickert (Launchpad user `dmrick44`, as in the developer list's
+    address) is the author of The Siskiyou Route (Open Rails bug 1529538,
+    2015, <https://bugs.launchpad.net/or/+bug/1529538>): "over 330 miles of
+    mainline track" with branches to Diston, White City and Yreka, first
+    beta in April 2015
+    (<https://web.archive.org/web/20200502130920/http://www.siskurail.org/about.php>).
+    The route needs ScaleRail and Scale Roads
+    (<https://tsforum.forumotion.net/t902-the-siskiyou-route>); its
+    installer writes tsection Build 52 and brings the textures
+    (<https://web.archive.org/web/20210619174537/http://siskurail.org/downloadRoute.php>).
+    So the `RR_` roads were most likely made for this route (the picture
+    search's inference; no page names the `RR_` shapes).
+  - The route is withdrawn. On trainsim.com (thread 2306670, 2024-06-26)
+    posters say the author pulled it and has not been reachable for over
+    three years; a former volunteer has later updates he cannot release.
+    The thread gives "setup-20201201.rar" as the last public version; the
+    last archived download page (2021-06-19) offers `setup_20210323.rar`,
+    which the Wayback Machine holds (not downloaded). Which was the last is
+    not settled. If the `RR_` shapes survive, that installer is the
+    likeliest place (unconfirmed). The sites siskurail.com and .org are
+    gone.
+  - Pictures: `/home/arch/tsection-families-web/pictures/road-rickert-rr/`
+    (2 route views, low confidence: the route also uses ScaleRoad).
 - **Shapes:** 261 / 0 (`RR_Rur_a_` 105, `RR_Int_a_` 39, `RR_Int_c_` 39,
   `RR_Int_a_m_` 38, `RR_Int_c_m_` 38, `RR_City_` 1, `RR_Rural_` 1). None
   local. PRUDNIK: 0.
@@ -1737,7 +2401,10 @@ sections (1.435). Local counts are shapes found in at least one game root.
 - **Source:** `_INFO` "Additional Track and Road Sections by R.Fiore |
   xHighways" and "xroads"; the developer list: "Raffaele Fiore Track & Road
   Sections". Italian words in the names (ponte = bridge, sx/dx = left/right).
-  The country is from names; the package is unconfirmed.
+  The country is from names; the package is unconfirmed. Raffaele Fiore also
+  made Italian rolling-stock models (SimTreni, 2010-2011,
+  <https://www.simtreni.com/download/index.php?subcat=14&sort=titleD&start=0>);
+  no road package was found in either round.
 - **Shapes:** 39 / 0 (`xroad` 23, `xhwy` 13, `xhwyt` 3). None local.
   PRUDNIK: 0.
 - **Kind:** road; gauge field 1.5.
@@ -1760,15 +2427,23 @@ sections (1.435). Local counts are shapes found in at least one game root.
 
 - **Source:** PSK only. `_INFO` "Krakow_Kocmyrzow Aleja pl 6 letniego od
   Tabore". By the words: an avenue ("Aleja Planu 6-letniego", Nowa Huta) for
-  a Kraków-Kocmyrzów route, "from Tabore" (an author's nickname,
-  unconfirmed). Polish piece names:
+  the Kraków-Kocmyrzów route, "from Tabore".
+  - Tabore is the author of that route, "Linia 111 Kraków - Kocmyrzów
+    (Kocmyrzówka)" (period 1961-1963, route folder `KK_1961_1963`): "the
+    originator, author of the route, and of many objects is Tabore"
+    (translated from Polish; <https://dodatki.kolej.org.pl/111_autorzy.htm>).
+    He is known in MSTS for the SN61 railcar and the "Ryflaki" and "Bipy"
+    coaches. He did not finish the route; his last version is from 2012
+    (<https://pkor.trainsim.pl/trasa-krakow-kocmyrzow/>, downloadable,
+    180 MB), and in 2021 Emil S. and others revived it with timetables. So
+    `KK_` = Kraków-Kocmyrzów, from this route.
+
+  Polish piece names:
   - `pasy`: zebra crossing;
   - `przystT` / `przystanek`: tram stop;
   - `przejscie`: pedestrian crossing;
   - `przecznica`: side street;
   - `agrafka`: literally "safety pin", meaning here unconfirmed.
-
-  Web search found nothing.
 - **Shapes:** 0 / 23, all local in OR_PSK_NEW. PRUDNIK: 76 objects (13
   shapes).
 - **Kind:** road with a tram track in the middle (no train runs on a road
@@ -1804,18 +2479,43 @@ sections (1.435). Local counts are shapes found in at least one game root.
 
 - **Source:** `_INFO` "Magetic Platform Track Shapes by Graham Pitt" and
   "Magnetic Platform Sections by Graham Pitt"; the developer list: "Graham
-  Pitt (Platforms)". Web search found nothing.
+  Pitt (Platforms)". Four kits, uploaded to UKTrainSim on 2002-10-09 by
+  Graham Pitt and now on trainsim.com under the same ids: Kit I fid 1186
+  ("Platform Kit I Normal Texture Version 1.03"; the `plat*` shapes and
+  `platcurve.ace`, the `Plat` prefix), Kit II White Stone fid 1187, Kit III
+  Marble fid 1210, Kit IV Ashphalt fid 1211.
+  - The readme (fid 1186): "Each kit features pieces that snap together
+    like magnets. This 'Magnetic' feature works in similar manner to the
+    way that tracks automatically align themselves". So "magnetic" means the
+    pieces connect through `tsection.dat` like track.
+  - Installation: the `.s`/`.sd` files go to `Global\Shapes`, the `.ace` to
+    each route's `Textures`. An alternative installation without the
+    magnetic feature uses route shapes and a `.ref` entry.
+  - Use: wide, UK first. Routes name the kits as required: YCR 1.51 (fid
+    11708, "kits I, II and IV"), West Anglia Main Line (fid 20950),
+    London-Southampton (fid 13446), South Devon Main Line (fid 19558),
+    Manchester Metrolink (fid 17461), BrisCard V6 (fid 30305), Dabley (fid
+    55920: "If you don't have Graham Pitt's magnetic platforms installed the
+    route won't load"), Peak Rail (fid 5511), La Mure (fid 60984). A
+    zip-content search for `Plat20m` finds 58 uploads that ship the shapes,
+    among them Mumbai-Amritsar (fid 78819), High Speed 1, NWE v3.0, New
+    Forest V2, Chiltern, NSW Joppa Junction (2025) and Vijayawada routes
+    (2026).
+  - Pictures: `/home/arch/tsection-families-web/pictures/platforms-pitt/`
+    (2, trainsim.com's untextured renders of `plat20m250r` and
+    `plat10mend`).
 - **Shapes:** 8 per prefix, 32 / 32. None local. PRUDNIK: 0.
 - **Kind:** platforms flagged as road shapes. As road shapes they join end to
-  end in the editor (the "magnetic" in the name, unconfirmed).
-- **Contents:** one path; 10 m straight, 20 m pieces on radii 250, 500, 1000,
-  1500 and 2000 m (to follow curved track), and an end piece.
-- **Look:** not available. The surfaces are named plain, white, marble and
-  asphalt (sic "Ashphalt").
+  end in the editor: the readme's "magnetic".
+- **Contents:** one path; 10 m and 20 m straights, 20 m pieces on radii
+  250, 500, 1000, 1500 and 2000 m (to follow curved track), and a 10 m end
+  piece. "Each platform section is 7m ... wide, 1.37m ... high" (readme).
+- **Look:** not available. The surfaces are plain ("Normal Texture"),
+  white stone, marble and asphalt (sic "Ashphalt").
 - **Profile needs:** ROAD MAIN with a platform cross-section (edge face,
-  coping, surface), one family per surface. The platform height and width are
-  unknown without the shapes. Task 17 already lists these under "9 road
-  (platforms)" for the A namespace (`AshphaltPlat`).
+  coping, surface) 7 m wide and 1.37 m high, one family per surface. Task
+  17 already lists these under "9 road (platforms)" for the A namespace
+  (`AshphaltPlat`).
 
 ### 3. Small sets
 
@@ -1837,9 +2537,14 @@ Not in `tsection.dat` but used on PRUDNIK on road geometry:
 - PSK's `GLOBAL/SHAPES/DS/` has 382 reskins of Kuju road shapes
   (`DS1_`, `DS1b_`, `DS1s_`, `DS1bpl_`/`bpr_`/`bp2_`, ...). They use
   `BSTtex01/02.ace`: asphalt with edge lines, a paved strip, gravel, grass,
-  and guard rails left, right or both. 14 PRUDNIK objects. Author and
-  meaning of the letters unconfirmed.
-- The five `BAB_*` folders are described in 2.4.
+  and guard rails left, right or both. 14 PRUDNIK objects. They are Norbert
+  Rieger's DBTracks "DS1 Roads": "DS1_Roads.rar, 10.6 MB, 342 pieces,
+  27.04.2012: DS1 Roads package, replacement for MSTS standard roads", with
+  delineators and traffic barriers "according to German standards"
+  (<https://dbtracks.com/pages/DBTracks10.html>). Why PSK has 382 against
+  the package's 342 is not explained, and neither are the letters.
+- The five `BAB_*` folders are Rieger's DBTracks variants, described in
+  2.4.
 
 ### 4. Open points
 
@@ -1881,18 +2586,42 @@ Not in `tsection.dat` but used on PRUDNIK on road geometry:
 8. **Embedded tram track** (KK_Alpl) and **platforms** flagged as roads: ROAD
    members that hold rails or a platform section. Possible with polylines and
    Template3D, but no family exists.
-9. **Unidentified:**
+9. **Unidentified.** The second round (2026-11-26/27) answered:
+   - Dale Rickert's package: none found; the roads were most likely made
+     for his Siskiyou Route (2.7);
+   - the authors of PSK's `DS/` and `BAB_*` folders: Norbert Rieger,
+     DBTracks (2.4 and section 3);
+   - the `BAB_*` folder letters `1w`/`2w`, `1g`/`2g`, `B`, `br`, `emb`,
+     `ramp` (2.4);
+   - "Tabore": the author of the Kraków-Kocmyrzów route (2.10);
+   - why the platforms are "magnetic" (2.11).
+
+   Still unknown:
    - the J.A. Norton set's name and `SLW` / `UR` / `NC` / `SB` / `UX` / `NX`;
-   - Dale Rickert's package and the `a` / `c` / `m` letters;
+   - Rickert's `a` / `c` / `m` letters;
    - R. Fiore's package;
-   - the `BAB` letters `GR`, `EM`, `E`, `M`, `oS`;
+   - the `BAB` letters `GR`, `EM`, `E`, `M`, `oS` (DBTracks' `BAB_Facts.rar`,
+     "Instructions and description of the entrances and exits", probably
+     explains some; not opened);
    - the `Fwy` (`LT`, `LW`) origin;
    - Kraus-Yao's `sp`;
-   - the authors of PSK's `DS/` and `BAB_*` folders;
-   - "Tabore".
+   - the `DS/` letters.
 
-   No web source was found for these; everything said about them comes
-   from tsection credits, names and meshes.
+   For these, everything said comes from tsection credits, names and
+   meshes.
 10. **Textures for ScaleRail roads** (`SR_Road_*.ace`) and all shapes of
     sets 2.6-2.9 and 2.11 are not on this machine. Their look is from
-    meshes or names only.
+    meshes, names and, where found, pictures. What exists (nothing
+    downloaded):
+    - the ScaleRail road textures come with routes and are in "Saluda Road
+      Textures" (fid 69357; 45 `SR_Road_*.ace` and 22 snow ones); the
+      ScaleRoad installer is fid 87684 and Elvas Tower file 3208 (2.5);
+    - Graham Pitt's platform kits I-IV: fids 1186, 1187, 1210, 1211 (2.11);
+    - the `RR_` shapes, probably, in The Siskiyou Route's last installer,
+      which the Wayback Machine holds (2.7);
+    - nothing for `SLW_`, `DR_Rd_Type` and Fiore's roads.
+
+    Pictures in `/home/arch/tsection-families-web/pictures/`:
+    `road-scalerail` (2), `road-rickert-rr` (2, low confidence),
+    `road-bab` (1), `platforms-pitt` (2 untextured renders); none for
+    `SLW_`, Fiore and `DR_Rd_Type`.
