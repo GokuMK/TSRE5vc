@@ -70,7 +70,9 @@ float segmentDistance(float px, float pz, const float *s) {
 
 }
 
-float RouteCollision::reachOf(const float *bound) {
+float RouteCollision::reachOf(const float *bound, bool loaded) {
+    if (!loaded)
+        return UnknownReach;
     const float x = std::max(std::fabs(bound[0]), std::fabs(bound[1]));
     const float y = std::max(std::fabs(bound[2]), std::fabs(bound[3]));
     const float z = std::max(std::fabs(bound[4]), std::fabs(bound[5]));
@@ -282,7 +284,7 @@ void RouteCollision::gather(const float *position) {
                 }
                 if (!within && !shape->second->isLoaded())
                     continue;
-                const float away = centre - reachOf(shape->second->getBound());
+                const float away = centre - reachOf(shape->second->getBound(), shape->second->isLoaded());
                 if (away > Ahead)
                     continue;
                 ++figures.objects;

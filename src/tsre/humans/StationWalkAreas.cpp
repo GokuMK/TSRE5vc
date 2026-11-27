@@ -417,7 +417,8 @@ bool StationWalkAreas::gather(int s, Job &job) {
                     continue;
                 if (!within && !shape->second->isLoaded())
                     continue;
-                const double radius = double(Characters::RouteCollision::reachOf(shape->second->getBound()));
+                const double radius = double(Characters::RouteCollision::reachOf(shape->second->getBound(),
+                                                                                 shape->second->isLoaded()));
                 if (x < box[0] - radius || x > box[2] + radius || z < box[1] - radius || z > box[3] + radius)
                     continue;
                 Job::Object out;
