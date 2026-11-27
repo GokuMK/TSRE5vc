@@ -1,8 +1,9 @@
 # Explore task 06 - Waiting: a clock, a time to wait, the next train, the next stop
 
 Status 2026-11-27: built on `feature/explore` the same day (the user's go:
-"ok, proceed"), not merged; the questions at the end answered the same
-day; see "As built" at the end. Part of the
+"ok, proceed"), merged into main the same day (the user: "Ok, merge.");
+the questions at the end answered the same day; see "As built" at the
+end. Part of the
 [explore set](00-task-roadmap.md); builds on walking runs
 ([04](04-walking-runs.md)) and the characters set's player in trains.
 

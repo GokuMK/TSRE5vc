@@ -10,7 +10,8 @@ mode) built 2026-11-21 on `feature/explore`, merged into main 2026-11-22
 with main brought in first. Task 05 (the Explore window in pages) built
 2026-11-24 on `feature/explore`, merged into main the same day (the
 user: "Captures look good. Let's merge."). Task 06 (waiting) built
-2026-11-27 on `feature/explore`, not merged. The questions at the end
+2026-11-27 on `feature/explore`, merged into main the same day. The
+questions at the end
 answered the same day; two left for later (6, pausing; 10, how the intro
 ships).
 
@@ -183,7 +184,8 @@ places outside the view; its setting goes (question 2: yes).
   explore choices as lists; one bottom bar with Drive or Walk and Start.
   Narrow and wide views (over the menu at 3:2 and narrower, at most
   1450 dp wide) built the same day.
-- [x] 06 [Waiting](06-waiting.md) (built 2026-11-27, not merged): T while walking (or Wait in the game menu) opens a Wait dialog (an
+- [x] 06 [Waiting](06-waiting.md) (built 2026-11-27, merged into main
+  2026-11-27): T while walking (or Wait in the game menu) opens a Wait dialog (an
   analog clock, a time to wait, Wait); the run goes as fast as it can to
   it in time-lapse, Skip dims the view; Next train on a platform and Next
   stop in a car end 30 s before the train arrives; a server's run waits
