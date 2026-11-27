@@ -2923,143 +2923,143 @@ Consist with this file name already exist. Overwrite?
         <translation>Procedural terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.undo">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8106"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8170"/>
         <source>&amp;Undo</source>
         <translation>&amp;Undo</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5234"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5298"/>
         <source>OSM Data</source>
         <translation>OSM Data</translation>
     </message>
     <message id="route.editor.glwidget.walk.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1056"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1058"/>
         <source>Walk</source>
         <translation>Walk</translation>
     </message>
     <message id="route.editor.glwidget.walk.no.place">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1058"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="1060"/>
         <source>No place to stand near the camera: within the route&apos;s reach of a track, on a floor where a person fits. Fly nearer to a track.</source>
         <translation>No place to stand near the camera: within the route&apos;s reach of a track, on a floor where a person fits. Fly nearer to a track.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.directory">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5239"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5303"/>
         <source>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</source>
         <translation>Set the OpenStreetMap data directory first, in Settings &gt; Maps and geodata &gt; Geodata. It holds the .osm.pbf files downloaded for your area, for example from Geofabrik.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.osm.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5245"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5309"/>
         <source>This route has no geographic reference, so OSM data cannot be placed on it.</source>
         <translation>This route has no geographic reference, so OSM data cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5742"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5806"/>
         <source>Imagery</source>
         <translation>Imagery</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.reference">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5745"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5809"/>
         <source>This route has no geographic reference, so imagery cannot be placed on it.</source>
         <translation>This route has no geographic reference, so imagery cannot be placed on it.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.imagery.no.source">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5747"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5811"/>
         <source>No imagery source can be shown: %1</source>
         <translation>No imagery source can be shown: %1</translation>
     </message>
     <message id="route.editor.map.measure.distance">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5799"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5863"/>
         <source>Measure Distance</source>
         <translation>Measure Distance</translation>
     </message>
     <message id="route.editor.map.shunting.to.here">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5823"/>
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5849"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5887"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5913"/>
         <source>Shunting Path to Here</source>
         <translation>Shunting Path to Here</translation>
     </message>
     <message id="route.editor.map.shunting.end">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5828"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5892"/>
         <source>End Shunting</source>
         <translation>End Shunting</translation>
     </message>
     <message id="route.editor.map.shunting.no.track">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5851"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="5915"/>
         <source>No track at the pointer: right-click on a track.</source>
         <translation>No track at the pointer: right-click on a track.</translation>
     </message>
     <message id="route.editor.glwidget.undo.title">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8035"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8099"/>
         <source>Undo</source>
         <translation>Undo</translation>
     </message>
     <message id="route.editor.glwidget.undo.activity.locked">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8037"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8101"/>
         <source>The last change is to the activity: it can be undone when the simulation stops.</source>
         <translation>The last change is to the activity: it can be undone when the simulation stops.</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.copy">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8112"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8176"/>
         <source>&amp;Copy</source>
         <translation>&amp;Copy</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.paste">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8118"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8182"/>
         <source>&amp;Paste</source>
         <translation>&amp;Paste</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.1x1">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8124"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8188"/>
         <source>&amp;Select Similar 1x1</source>
         <translation>&amp;Select Similar 1x1</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.similar.3x3">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8130"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8194"/>
         <source>&amp;Select Similar 3x3</source>
         <translation>&amp;Select Similar 3x3</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.select.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8136"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8200"/>
         <source>&amp;Select Tool</source>
         <translation>&amp;Select Tool</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.terrain.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8142"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8206"/>
         <source>&amp;Set Terrain to Object</source>
         <translation>&amp;Set Terrain to Object</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.position.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8148"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8212"/>
         <source>&amp;Set position to Terrain</source>
         <translation>&amp;Set position to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.set.rotation.terrain">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8154"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8218"/>
         <source>&amp;Set rotation to Terrain</source>
         <translation>&amp;Set rotation to Terrain</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8160"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8224"/>
         <source>&amp;Pick for placement</source>
         <translation>&amp;Pick for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.rotation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8166"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8230"/>
         <source>&amp;Pick rotation for placement</source>
         <translation>&amp;Pick rotation for placement</translation>
     </message>
     <message id="route.editor.route.editor.glwidget.action.pick.elevation.for.placement">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8172"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8236"/>
         <source>&amp;Pick elevation for placement</source>
         <translation>&amp;Pick elevation for placement</translation>
     </message>
     <message id="route.editor.context.object">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8184"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8248"/>
         <source>Object: %1</source>
         <translation>Object: %1</translation>
     </message>
     <message id="route.editor.context.no.tool">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8202"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8266"/>
         <source>No Tool</source>
         <translation>No Tool</translation>
     </message>
@@ -3237,7 +3237,7 @@ Choose No to fill the whole tile with the selected material instead.</translatio
         <translation>&amp;Nearest TDB/RDB Vector</translation>
     </message>
     <message id="route.editor.context.edit">
-        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8220"/>
+        <location filename="../src/routeEditor/RouteEditorGLWidget.cpp" line="8284"/>
         <source>Edit</source>
         <translation>Edit</translation>
     </message>
@@ -18135,6 +18135,46 @@ Missing local elevation files (downloaded automatically when supported):
         <source>Main menu</source>
         <translation>Main menu</translation>
     </message>
+    <message id="ui.explore.wait">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="280"/>
+        <source>Wait</source>
+        <translation>Wait</translation>
+    </message>
+    <message id="ui.explore.wait.title">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="282"/>
+        <source>Waiting</source>
+        <translation>Waiting</translation>
+    </message>
+    <message id="ui.explore.wait.for">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="284"/>
+        <source>Wait for</source>
+        <translation>Wait for</translation>
+    </message>
+    <message id="ui.explore.wait.next.train">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="286"/>
+        <source>Next train</source>
+        <translation>Next train</translation>
+    </message>
+    <message id="ui.explore.wait.next.stop">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="288"/>
+        <source>Next stop</source>
+        <translation>Next stop</translation>
+    </message>
+    <message id="ui.explore.wait.cancel">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="290"/>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message id="ui.explore.wait.stop">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="292"/>
+        <source>Stop</source>
+        <translation>Stop</translation>
+    </message>
+    <message id="ui.explore.wait.skip">
+        <location filename="../src/tsre/ui/UiTexts.cpp" line="294"/>
+        <source>Skip</source>
+        <translation>Skip</translation>
+    </message>
     <message id="ui.loco.shunt.field">
         <location filename="../src/tsre/tests/RmlUiTestSuite.cpp" line="693"/>
         <location filename="../src/tsre/ui/UiTexts.cpp" line="175"/>
@@ -19421,8 +19461,8 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/explore/ExplorePanel.cpp" line="993"/>
         <location filename="../src/explore/ExplorePanel.cpp" line="1583"/>
         <location filename="../src/explore/ExplorePanel.cpp" line="1603"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="400"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="433"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="465"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="498"/>
         <source>Explore the route</source>
         <translation>Explore the route</translation>
     </message>
@@ -19505,50 +19545,50 @@ Missing local elevation files (downloaded automatically when supported):
         <translation>Weather</translation>
     </message>
     <message id="ui.explore.preparing">
-        <location filename="../src/explore/ExploreRun.cpp" line="266"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="318"/>
         <source>Preparing the run: %1 s</source>
         <translation>Preparing the run: %1 s</translation>
     </message>
     <message id="ui.explore.error.no.route">
-        <location filename="../src/explore/ExploreRun.cpp" line="297"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="349"/>
         <source>The route %1 is not in the game root.</source>
         <translation>The route %1 is not in the game root.</translation>
     </message>
     <message id="ui.explore.error.route.load">
-        <location filename="../src/explore/ExploreRun.cpp" line="305"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="357"/>
         <source>The route %1 did not load.</source>
         <translation>The route %1 did not load.</translation>
     </message>
     <message id="ui.explore.error.activity">
-        <location filename="../src/explore/ExploreRun.cpp" line="365"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="430"/>
         <source>The activity %1 did not load.</source>
         <translation>The activity %1 did not load.</translation>
     </message>
     <message id="ui.explore.error.timetable">
-        <location filename="../src/explore/ExploreRun.cpp" line="373"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="438"/>
         <source>The timetable %1 did not load.</source>
         <translation>The timetable %1 did not load.</translation>
     </message>
     <message id="ui.explore.error.explore">
-        <location filename="../src/explore/ExploreRun.cpp" line="396"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="421"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="470"/>
-        <location filename="../src/explore/ExploreRun.cpp" line="508"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="461"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="486"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="535"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="573"/>
         <source>The run could not be made.</source>
         <translation>The run could not be made.</translation>
     </message>
     <message id="ui.explore.error.walk.path">
-        <location filename="../src/explore/ExploreRun.cpp" line="461"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="526"/>
         <source>The train does not call at %1 on this path.</source>
         <translation>The train does not call at %1 on this path.</translation>
     </message>
     <message id="ui.explore.error.walk.platform">
-        <location filename="../src/explore/ExploreRun.cpp" line="479"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="544"/>
         <source>%1 has no platform in the route&apos;s track database.</source>
         <translation>%1 has no platform in the route&apos;s track database.</translation>
     </message>
     <message id="ui.explore.error.walk.place">
-        <location filename="../src/explore/ExploreRun.cpp" line="532"/>
+        <location filename="../src/explore/ExploreRun.cpp" line="597"/>
         <source>No place to stand at %1.</source>
         <translation>No place to stand at %1.</translation>
     </message>
@@ -19581,6 +19621,38 @@ Missing local elevation files (downloaded automatically when supported):
         <location filename="../src/tsre/world/objects/SignalObj.cpp" line="351"/>
         <source>Signal options set from the world file (TDB items %1).</source>
         <translation>Signal options set from the world file (TDB items %1).</translation>
+    </message>
+    <message id="ui.explore.wait.train.to">
+        <location filename="../src/explore/ExploreWait.cpp" line="145"/>
+        <source>%1 to %2</source>
+        <translation>%1 to %2</translation>
+    </message>
+    <message id="ui.explore.wait.until">
+        <location filename="../src/explore/ExploreWait.cpp" line="407"/>
+        <source>until %1</source>
+        <translation>until %1</translation>
+    </message>
+    <message id="ui.explore.wait.no.train">
+        <location filename="../src/explore/ExploreWait.cpp" line="412"/>
+        <location filename="../src/tsre/tests/ExploreWaitTestSuite.cpp" line="362"/>
+        <location filename="../src/tsre/tests/ExploreWaitTestSuite.cpp" line="380"/>
+        <source>No train today</source>
+        <translation>No train today</translation>
+    </message>
+    <message id="ui.explore.wait.waiting.until">
+        <location filename="../src/explore/ExploreWait.cpp" line="421"/>
+        <source>Waiting until %1</source>
+        <translation>Waiting until %1</translation>
+    </message>
+    <message id="ui.explore.wait.waiting.for">
+        <location filename="../src/explore/ExploreWait.cpp" line="424"/>
+        <source>Waiting for %1</source>
+        <translation>Waiting for %1</translation>
+    </message>
+    <message id="ui.explore.wait.left">
+        <location filename="../src/explore/ExploreWait.cpp" line="427"/>
+        <source>%1 left</source>
+        <translation>%1 left</translation>
     </message>
 </context>
 </TS>

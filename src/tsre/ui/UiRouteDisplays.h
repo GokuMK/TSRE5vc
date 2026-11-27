@@ -30,6 +30,8 @@ namespace Sim {
 struct Vehicle;
 struct SimulationInput;
 struct SimulationFrame;
+struct TrainPlan;
+struct TrainState;
 }
 
 namespace Ui {
@@ -155,6 +157,18 @@ public:
                                                 const Sim::SimulationFrame *frame);
     // A platform's first trains given their cars (task scripting 03).
     static constexpr int PlatformTrainsWithCars = 2;
+    // Where a train is on its plan, by its state (null: not known): the
+    // stop it stands at or runs to (-1 none), standing there, and how late
+    // it is now in seconds (leaving late where it stands, past its next
+    // stop's arrival, past its start; 0 early or past 12 hours). The boards
+    // show its whole minutes; the explore mode's wait (task explore 06)
+    // counts with it.
+    struct Progress {
+        int at = -1;
+        bool standing = false;
+        double late = 0.0;
+    };
+    static Progress progress(const Sim::TrainPlan &plan, const Sim::TrainState *state, double now);
     static DisplayDocument::Car standingCar(const Sim::SimulationFrame *frame, int standing, int car);
     static constexpr double ApproachDistance = 500.0;
 

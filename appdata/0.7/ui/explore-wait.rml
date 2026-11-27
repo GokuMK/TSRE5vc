@@ -1,0 +1,63 @@
+<rml>
+<head>
+    <title>Explore wait</title>
+    <link type="text/rcss" href="base.rcss"/>
+    <link type="text/rcss" href="explore.rcss"/>
+</head>
+<!-- Explore mode's wait (task explore 06): T while walking, or the game
+     menu's Wait. The run's clock (its hands turned as the PRUDNIK platform
+     clock's, docs/examples/displays), the day, a time to wait (Left and
+     Right, Shift an hour), Wait; Next train standing at a platform, Next
+     stop in a train's car; Cancel (Esc, T). Waiting: Stop (Esc, T), Skip
+     (the view dimmed, the world not drawn). Its data model "wait" is TSRE's
+     (src/explore/ExploreWait.cpp). -->
+<body class="page" data-model="wait">
+    <div id="wait-dim" data-class-on="skipping"></div>
+    <div id="wait-dialog">
+        <h2>ui.explore.wait.title</h2>
+        <div id="wait-top">
+            <div id="wait-clock">
+                <div class="wait-tick"><div></div></div>
+                <div class="wait-tick h1"><div></div></div>
+                <div class="wait-tick h2"><div></div></div>
+                <div class="wait-tick h3"><div></div></div>
+                <div class="wait-tick h4"><div></div></div>
+                <div class="wait-tick h5"><div></div></div>
+                <div class="wait-tick h6"><div></div></div>
+                <div class="wait-tick h7"><div></div></div>
+                <div class="wait-tick h8"><div></div></div>
+                <div class="wait-tick h9"><div></div></div>
+                <div class="wait-tick h10"><div></div></div>
+                <div class="wait-tick h11"><div></div></div>
+                <div class="wait-hand" id="wait-hour" data-style-transform="'rotate(' + (hours * 30 + minutes * 0.5) + 'deg)'"></div>
+                <div class="wait-hand" id="wait-minute" data-style-transform="'rotate(' + (minutes * 6 + seconds * 0.1) + 'deg)'"></div>
+                <div class="wait-hand" id="wait-second" data-style-transform="'rotate(' + seconds * 6 + 'deg)'"></div>
+                <div id="wait-pin"></div>
+            </div>
+            <div id="wait-info">
+                <div id="wait-time">{{clock}}</div>
+                <div id="wait-day">{{day}}</div>
+                <div id="wait-set" data-if="!waiting">
+                    <span class="wait-label">ui.explore.wait.for</span>
+                    <button id="wait-less" data-event-click="less()">-</button>
+                    <span id="wait-length">{{length}}</span>
+                    <button id="wait-more" data-event-click="more()">+</button>
+                </div>
+                <div id="wait-until" data-if="!waiting">{{until}}</div>
+                <div id="wait-status" data-if="waiting">{{waitingText}}</div>
+                <div id="wait-left" data-if="waiting">{{leftText}}</div>
+            </div>
+        </div>
+        <div class="wait-buttons" data-if="!waiting">
+            <button id="wait-go" data-event-click="waitTime()">ui.explore.wait</button>
+            <button id="wait-train" data-if="atPlatform" data-class-disabled="trainNone" data-event-click="waitTrain()"><span class="wait-what">ui.explore.wait.next.train</span><span id="wait-train-text" class="wait-due">{{trainText}}</span></button>
+            <button id="wait-stop" data-if="inTrain" data-event-click="waitStop()"><span class="wait-what">ui.explore.wait.next.stop</span><span id="wait-stop-text" class="wait-due">{{stopText}}</span></button>
+            <button id="wait-cancel" data-event-click="cancel()">ui.explore.wait.cancel</button>
+        </div>
+        <div class="wait-buttons" data-if="waiting">
+            <button id="wait-halt" data-event-click="stopWait()">ui.explore.wait.stop</button>
+            <button id="wait-skip" data-if="canSkip" data-event-click="skip()">ui.explore.wait.skip</button>
+        </div>
+    </div>
+</body>
+</rml>

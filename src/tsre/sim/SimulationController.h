@@ -209,6 +209,12 @@ public:
     // time runs to it on the day shown (from the start again when it is
     // earlier), running on after when it ran.
     void clockNow(double &hours, QString &date, double &rate) const override;
+    // The world's time following a run as fast as possible too (explore
+    // mode's wait, task explore 06: a time-lapse, the sun and the light
+    // moving): the simulation's time each frame, its speed reported as 0
+    // (the clouds do not try to follow). Off by default.
+    void setWorldFollowsFastRuns(bool on) { worldFollowsFast = on; }
+    bool worldFollowsFastRuns() const { return worldFollowsFast; }
     bool clockRunning() const override { return runs(); }
     double clockSpeed() const override { return speed(); }
     void setClockRunning(bool on) override;
@@ -354,6 +360,7 @@ private:
     // while a run as fast as possible goes on).
     QString startDate;
     mutable double worldTime = 0.0;
+    bool worldFollowsFast = false;
 
     // The view taken on to the link's run as it is now (a new run: its
     // start, a reset, a run to a time behind): the trains gone, the input,

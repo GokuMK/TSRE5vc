@@ -744,10 +744,10 @@ void SimulationController::clockNow(double &hours, QString &date, double &rate) 
     if (now->runId == viewRun) {
         const bool fastest = now->mode == RunMode::RunningTo
                 || (now->mode == RunMode::Running && now->speed <= 0.0);
-        if (!fastest) {
+        if (!fastest || worldFollowsFast) {
             // A frame is at most a host tick old.
             worldTime = now->time;
-            rate = now->mode == RunMode::Running ? now->speed : 0.0;
+            rate = !fastest && now->mode == RunMode::Running ? now->speed : 0.0;
         }
     }
     const double days = std::floor(worldTime / 86400.0);
