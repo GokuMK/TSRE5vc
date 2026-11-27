@@ -17963,7 +17963,7 @@ Brakujące lokalne pliki wysokościowe (pobierane automatycznie, jeśli źródł
     <message id="ui.explore.multiplayer">
         <location filename="../src/tsre/ui/UiTexts.cpp" line="196"/>
         <source>Multiplayer</source>
-        <translation>Gra wieloosobowa</translation>
+        <translation>Multiplayer</translation>
     </message>
     <message id="ui.explore.options">
         <location filename="../src/tsre/ui/UiTexts.cpp" line="198"/>
